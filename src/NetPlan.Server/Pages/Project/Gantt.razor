@@ -1,0 +1,244 @@
+@page "/project/gantt/{ProjectId:int}"
+@page "/project/gantt"
+@inject IProjectService ProjectService
+
+<div class="page-header">
+    <div class="header-left">
+        <select class="form-control" @bind="currentProjectId" @bind:after="LoadTasks">
+            <option value="0">选择项目</option>
+            @foreach (var project in projects)
+            {
+                <option value="@project.Id">@project.Name</option>
+            }
+        </select>
+        <span class="page-title">甘特图</span>
+    </div>
+    <div class="header-right">
+        <div class="zoom-control">
+            <label>缩放: @zoomLevel%</label>
+            <input type="range" min="5" max="1500" @bind="zoomLevel" />
+        </div>
+        <button class="btn btn-primary" @onclick="ShowAddTaskModal">添加任务</button>
+        <button class="btn btn-default" @onclick="RecalculateSchedule">重算计划</button>
+    </div>
+</div>
+
+<div class="gantt-container">
+    <div class="gantt-left">
+        @if (loading)
+        {
+            <p>加载中...</p>
+        }
+        else
+        {
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th style="width:80px">代号</th>
+                        <th style="width:200px">任务名称</th>
+                        <th style="width:100px">计划开始</th>
+                        <th style="width:100px">计划完成</th>
+                        <th style="width:60px">工期</th>
+                        <th style="width:60px">时差</th>
+                        <th style="width:60px">关键</th>
+                        <th style="width:100px">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var task in tasks)
+                    {
+                        <tr>
+                            <td>@task.Code</td>
+                            <td>@task.Name</td>
+                            <td>@task.PlanStartDate.ToString("yyyy-MM-dd")</td>
+                            <td>@task.PlanEndDate.ToString("yyyy-MM-dd")</td>
+                            <td>@task.PlanDuration</td>
+                            <td style="color: @(task.TotalFloat == 0 ? "red" : "inherit")">@(task.TotalFloat?.ToString() ?? "-")</td>
+                            <td>@(task.IsCritical ? "是" : "")</td>
+                            <td>
+                                <button class="btn btn-xs" @onclick="() => EditTask(task)">编辑</button>
+                                <button class="btn btn-xs btn-danger" @onclick="() => DeleteTask(task.Id)">删除</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+    <div class="gantt-right">
+        <div class="gantt-chart" style="width: @chartWidth;">
+            <div class="gantt-timeline-header">
+                @for (int day = 0; day <= totalDays; day++)
+                {
+                    var date = projectStartDate.AddDays(day);
+                    var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+                    <div class="timeline-cell @(isWeekend ? "weekend" : "")"
+                         style="left: @(day * dayWidth)px; width: @(dayWidth)px;">
+                        @if (day % 7 == 0)
+                        {
+                            <span>@date.ToString("MM/dd")</span>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="gantt-bars">
+                @foreach (var task in tasks)
+                {
+                    var startOffset = Math.Max(0, (task.PlanStartDate - projectStartDate).Days) * dayWidth;
+                    var barWidth = task.PlanDuration * dayWidth;
+                    <div class="gantt-bar @(task.IsCritical ? "critical" : "normal")"
+                         style="left: @(startOffset)px; width: @(barWidth)px;">
+                        <span class="bar-label">@task.Name</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (taskModalVisible && editingTask != null)
+{
+    <div class="modal-overlay">
+        <div class="modal-content">
+            <h3>@(editingTask.Id > 0 ? "编辑任务" : "添加任务")</h3>
+            <div class="form-group">
+                <label>任务代号</label>
+                <input class="form-control" @bind="editingTask.Code" />
+            </div>
+            <div class="form-group">
+                <label>任务名称</label>
+                <input class="form-control" @bind="editingTask.Name" />
+            </div>
+            <div class="form-group">
+                <label>计划开始日期</label>
+                <input type="date" class="form-control" @bind="editingTask.PlanStartDate" />
+            </div>
+            <div class="form-group">
+                <label>计划工期（天）</label>
+                <input type="number" class="form-control" @bind="editingTask.PlanDuration" min="1" />
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" @onclick="HandleTaskOk">确定</button>
+                <button class="btn btn-default" @onclick="() => taskModalVisible = false">取消</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int? ProjectId { get; set; }
+
+    private List<Models.Project> projects = new();
+    private List<TaskItem> tasks = new();
+    private int currentProjectId { get; set; }
+    private bool loading = true;
+    private TaskItem? editingTask;
+    private bool taskModalVisible = false;
+
+    private double zoomLevel = 100;
+    private double dayWidth => 40 * (zoomLevel / 100);
+    private int totalDays = 90;
+    private DateTime projectStartDate = DateTime.Today;
+    private string chartWidth => $"{totalDays * dayWidth}px";
+
+    protected override async Task OnInitializedAsync()
+    {
+        projects = await ProjectService.GetAllProjectsAsync();
+        if (currentProjectId == 0 && projects.Any())
+        {
+            currentProjectId = projects.First().Id;
+        }
+        loading = false;
+        if (currentProjectId > 0)
+        {
+            await LoadTasks();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ProjectId.HasValue)
+        {
+            currentProjectId = ProjectId.Value;
+            await LoadTasks();
+        }
+    }
+
+    private async Task LoadTasks()
+    {
+        if (currentProjectId == 0) return;
+
+        loading = true;
+        tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
+        if (tasks.Any())
+        {
+            var project = projects.FirstOrDefault(p => p.Id == currentProjectId);
+            if (project != null)
+            {
+                projectStartDate = project.PlanStartDate;
+                totalDays = Math.Max(90, (project.PlanEndDate - project.PlanStartDate).Days + 30);
+            }
+        }
+        loading = false;
+    }
+
+    private void ShowAddTaskModal()
+    {
+        if (currentProjectId == 0) return;
+
+        editingTask = new TaskItem
+        {
+            ProjectId = currentProjectId,
+            PlanStartDate = DateTime.Today,
+            PlanDuration = 5
+        };
+        taskModalVisible = true;
+    }
+
+    private void EditTask(TaskItem task)
+    {
+        editingTask = new TaskItem
+        {
+            Id = task.Id,
+            ProjectId = task.ProjectId,
+            Code = task.Code,
+            Name = task.Name,
+            PlanStartDate = task.PlanStartDate,
+            PlanDuration = task.PlanDuration
+        };
+        taskModalVisible = true;
+    }
+
+    private async Task HandleTaskOk()
+    {
+        if (editingTask == null) return;
+
+        editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(editingTask.PlanDuration - 1);
+
+        if (editingTask.Id > 0)
+        {
+            await ProjectService.UpdateTaskAsync(editingTask);
+        }
+        else
+        {
+            await ProjectService.CreateTaskAsync(editingTask);
+        }
+
+        taskModalVisible = false;
+        await LoadTasks();
+    }
+
+    private async Task DeleteTask(int taskId)
+    {
+        await ProjectService.DeleteTaskAsync(taskId);
+        await LoadTasks();
+    }
+
+    private async Task RecalculateSchedule()
+    {
+        if (currentProjectId == 0) return;
+        await ProjectService.CalculateScheduleAsync(currentProjectId);
+        await LoadTasks();
+    }
+}

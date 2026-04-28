@@ -1,0 +1,179 @@
+@page "/project/{ProjectId:int}/analysis"
+@inject IAnalysisService AnalysisService
+@inject IProjectService ProjectService
+
+<PageTitle>计划分析 - NetPlan</PageTitle>
+
+<div class="page-header">
+    <h1>📊 计划分析</h1>
+</div>
+
+<div class="page-body">
+    <div class="page-main" style="padding:20px;">
+        @if (isLoading)
+        {
+            <div class="loading">加载中，计算关键路径...</div>
+        }
+        else if (analysisResult != null)
+        {
+            <div class="summary-cards">
+                <div class="card">
+                    <div class="card-title">项目工期</div>
+                    <div class="card-value">@analysisResult.ProjectDurationDays 天</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">总任务数</div>
+                    <div class="card-value">@analysisResult.TotalTasks 个</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">关键路径任务</div>
+                    <div class="card-value highlight">@analysisResult.CriticalPathTasks.Count 个</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">最早完成</div>
+                    <div class="card-value">@analysisResult.EarliestFinish.ToString("yyyy-MM-dd")</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>📊 项目统计</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">按时任务:</span>
+                        <span class="stat-value">@analysisResult.OnTimeTasks.Count</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">提前任务:</span>
+                        <span class="stat-value text-success">@analysisResult.EarlyStartTasks.Count</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">延后任务:</span>
+                        <span class="stat-value text-warning">@analysisResult.LateStartTasks.Count</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">里程碑节点:</span>
+                        <span class="stat-value">@analysisResult.Milestones.Count</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>🔴 关键路径任务</h3>
+                @if (analysisResult.CriticalPathTasks.Count == 0)
+                {
+                    <div class="empty-state">未检测到关键路径（请先点击"重算计划"计算关键路径）</div>
+                }
+                else
+                {
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>代号</th>
+                                <th>任务名称</th>
+                                <th>计划开始</th>
+                                <th>计划完成</th>
+                                <th>工期(天)</th>
+                                <th>总时差</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var task in analysisResult.CriticalPathTasks)
+                            {
+                                <tr class="critical-row">
+                                    <td>@task.Code</td>
+                                    <td>@task.Name</td>
+                                    <td>@task.PlanStartDate.ToString("yyyy-MM-dd")</td>
+                                    <td>@task.PlanEndDate.ToString("yyyy-MM-dd")</td>
+                                    <td>@task.PlanDuration</td>
+                                    <td>
+                                        <span class="badge danger">
+                                            @(task.TotalFloat?.ToString() ?? "0") 天
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+
+            <div class="section">
+                <h3>📋 时差分析</h3>
+                <div class="float-chart">
+                    @foreach (var task in analysisResult.Tasks.OrderBy(t => t.TotalFloat ?? 0).Take(20))
+                    {
+                        var floatVal = task.TotalFloat ?? 0;
+                        var barWidth = Math.Min(100, Math.Max(1, Math.Abs(floatVal) * 5));
+                        <div class="float-bar-row">
+                            <div class="float-bar-label" title="@task.Name">
+                                @(task.Name.Length > 15 ? task.Name.Substring(0, 15) + "..." : task.Name)
+                            </div>
+                            <div class="float-bar-container">
+                                <div class="float-bar @(floatVal == 0 ? "critical" : floatVal <= 3 ? "warning" : "normal")"
+                                     style="width: @barWidth%"></div>
+                            </div>
+                            <div class="float-bar-value">@floatVal 天</div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (analysisResult.Milestones.Count > 0)
+            {
+                <div class="section">
+                    <h3>🎯 里程碑节点</h3>
+                    <div class="milestone-timeline">
+                        @foreach (var milestone in analysisResult.Milestones.OrderBy(m => m.Date))
+                        {
+                            <div class="milestone-item">
+                                <div class="milestone-dot"></div>
+                                <div class="milestone-content">
+                                    <div class="milestone-name">@milestone.Name</div>
+                                    <div class="milestone-date">@milestone.Date.ToString("yyyy-MM-dd")</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <p>无法加载分析数据。</p>
+                <button class="btn btn-primary" @onclick="LoadAnalysis">重试</button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int ProjectId { get; set; }
+
+    private ProjectAnalysisResult? analysisResult;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAnalysis();
+    }
+
+    private async Task LoadAnalysis()
+    {
+        isLoading = true;
+        try
+        {
+            var project = await ProjectService.GetProjectByIdAsync(ProjectId);
+            if (project != null)
+            {
+                var tasks = await ProjectService.GetTasksByProjectIdAsync(ProjectId);
+                analysisResult = AnalysisService.AnalyzeProject(project, tasks);
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

@@ -1,0 +1,41 @@
+﻿@page "/"
+@namespace NetPlan.Server.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NetPlan - 进度计划管理系统</title>
+    <base href="~/" />
+    <link href="css/site.css" rel="stylesheet" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; color: #333; }
+        a { color: #1890ff; text-decoration: none; }
+        a:hover { color: #40a9ff; }
+        .page-header { background: #001529; color: white; padding: 0 24px; height: 48px; display: flex; align-items: center; }
+        .page-header h1 { font-size: 18px; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <app>
+        <component type="typeof(App)" render-mode="Server" />
+    </app>
+
+    <div id="blazor-error-ui" style="display:none; background:#fff2f0; padding:16px; border:1px solid #ffccc7; border-radius:4px;">
+        <span style="color:#ff4d4f;">发生错误，页面可能无响应。</span>
+        <a href="" class="reload" style="margin-left:16px;">重新加载</a>
+    </div>
+
+    <script src="_framework/blazor.server.js"></script>
+    <!-- Cytoscape.js -->
+    <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+    <!-- Dagre layout for hierarchy -->
+    <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+</body>
+</html>

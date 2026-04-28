@@ -1,0 +1,40 @@
+﻿@inherits LayoutComponentBase
+
+<div class="page-header">
+    <h1>📊 NetPlan 进度计划</h1>
+    <div class="nav-links">
+        <NavLink href="/" Match="NavLinkMatch.All">🏠 首页</NavLink>
+        <NavLink href="/project/1/gantt" Match="NavLinkMatch.All">📅 甘特图</NavLink>
+        <NavLink href="/project/1/network" Match="NavLinkMatch.All">🔗 网络图</NavLink>
+        <NavLink href="/project/1/resources" Match="NavLinkMatch.All">👥 资源</NavLink>
+        <NavLink href="/project/1/analysis" Match="NavLinkMatch.All">📊 分析</NavLink>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="page-main">
+        @Body
+    </div>
+</div>
+
+<style>
+    .nav-links {
+        display: flex;
+        gap: 16px;
+    }
+    .nav-links a {
+        color: rgba(255,255,255,0.65);
+        font-size: 14px;
+        text-decoration: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+    }
+    .nav-links a:hover {
+        color: white;
+        background: rgba(255,255,255,0.1);
+    }
+    .nav-links a.active {
+        color: white;
+        background: rgba(255,255,255,0.15);
+    }
+</style>

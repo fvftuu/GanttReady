@@ -1,0 +1,105 @@
+@page "/project/network/{ProjectId:int}"
+@inject IProjectService ProjectService
+@inject IJSRuntime JS
+
+<div class="page-header">
+    <div class="header-left">
+        <select class="form-control" @bind="currentProjectId">
+            <option value="0">选择项目</option>
+            @foreach (var project in projects)
+            {
+                <option value="@project.Id">@project.Name</option>
+            }
+        </select>
+        <span class="page-title">时标双代号网络图</span>
+    </div>
+</div>
+
+<div id="network-container" style="width: 100%; height: 600px; border: 1px solid #f0f0f0;">
+    <div id="cy" style="width: 100%; height: 100%;"></div>
+</div>
+
+@if (projects.Any() && tasks.Any())
+{
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+    <script>@* cytoscape-dagre integration *@</script>
+}
+
+@code {
+    [Parameter]
+    public int? ProjectId { get; set; }
+
+    private List<Models.Project> projects = new();
+    private int currentProjectId { get; set; }
+    private bool loading = true;
+    private List<TaskItem> tasks = new();
+    private List<TaskRelation> relations = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        projects = await ProjectService.GetAllProjectsAsync();
+        if (ProjectId.HasValue)
+        {
+            currentProjectId = ProjectId.Value;
+        }
+        else if (projects.Any())
+        {
+            currentProjectId = projects.First().Id;
+        }
+        loading = false;
+
+        if (currentProjectId > 0)
+        {
+            await LoadNetworkData();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ProjectId.HasValue && ProjectId.Value != currentProjectId)
+        {
+            currentProjectId = ProjectId.Value;
+            await LoadNetworkData();
+        }
+    }
+
+    private async Task LoadNetworkData()
+    {
+        tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
+        relations = await ProjectService.GetRelationsByProjectIdAsync(currentProjectId);
+
+        // Build Cytoscape elements
+        var nodes = tasks.Select(t => new
+        {
+            data = new
+            {
+                id = t.Id.ToString(),
+                label = $"{t.Code}\n{t.PlanDuration}天",
+                isCritical = t.IsCritical
+            }
+        }).ToList();
+
+        var edges = relations.Select(r => new
+        {
+            data = new
+            {
+                source = r.PredecessorTaskId.ToString(),
+                target = r.SuccessorTaskId.ToString(),
+                label = $"{r.Type}({r.Lag})"
+            }
+        }).ToList();
+
+        // We'll invoke JS to initialize Cytoscape
+        // For now, just load the data
+        await Task.CompletedTask;
+    }
+
+    private async Task OnProjectChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int projectId))
+        {
+            currentProjectId = projectId;
+            await LoadNetworkData();
+        }
+    }
+}

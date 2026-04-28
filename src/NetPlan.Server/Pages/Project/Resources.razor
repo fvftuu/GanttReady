@@ -1,0 +1,219 @@
+@page "/project/{ProjectId:int}/resources"
+@inject IResourceService ResourceService
+@inject NavigationManager Navigation
+
+<PageTitle>资源管理 - NetPlan</PageTitle>
+
+<div class="page-header">
+    <h1>👥 资源管理</h1>
+</div>
+
+<div class="page-body">
+    <div class="page-main" style="padding:20px;">
+        @if (isLoading)
+        {
+            <div class="loading">加载中...</div>
+        }
+        else
+        {
+            <div class="toolbar">
+                <button class="btn btn-primary" @onclick="ShowAddDialog">➕ 添加资源</button>
+                <span class="spacer"></span>
+                <span>总计: @ResourceList.Count 个资源</span>
+            </div>
+
+            @if (ResourceList.Count == 0)
+            {
+                <div class="empty-state">
+                    <div style="font-size:48px; margin-bottom:16px;">👥</div>
+                    <p>暂无资源。</p>
+                    <button class="btn btn-primary" @onclick="ShowAddDialog">添加第一个资源</button>
+                </div>
+            }
+            else
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>代号</th>
+                            <th>名称</th>
+                            <th>类型</th>
+                            <th>数量</th>
+                            <th>单位</th>
+                            <th>成本/小时</th>
+                            <th>备注</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var resource in ResourceList)
+                        {
+                            <tr>
+                                <td>@resource.Code</td>
+                                <td>@resource.Name</td>
+                                <td>
+                                    <span class="badge @(resource.Type.ToString().ToLower())">
+                                        @GetTypeDisplayName(resource.Type)
+                                    </span>
+                                </td>
+                                <td>@resource.Quantity</td>
+                                <td>@resource.Unit</td>
+                                <td>@(resource.HourlyCost.HasValue ? resource.HourlyCost.Value.ToString("C2") : "-")</td>
+                                <td>@resource.Notes</td>
+                                <td>
+                                    <button class="btn-link" @onclick="() => EditResource(resource)">编辑</button>
+                                    <button class="btn-link danger" @onclick="() => DeleteResource(resource)">删除</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    </div>
+</div>
+
+@if (showDialog && editingResource != null)
+{
+    <div class="modal-overlay" @onclick="CloseDialog">
+        <div class="modal-content" @onclick:stopPropagation>
+            <h3>@(editingResource.Id == 0 ? "添加资源" : "编辑资源")</h3>
+
+            <div class="form-group">
+                <label>代号 *</label>
+                <input type="text" @bind="editingResource.Code" placeholder="例如: R001" />
+            </div>
+
+            <div class="form-group">
+                <label>名称 *</label>
+                <input type="text" @bind="editingResource.Name" placeholder="资源名称" />
+            </div>
+
+            <div class="form-group">
+                <label>类型</label>
+                <select @bind="editingResource.Type">
+                    <option value="@ResourceType.Labor">👤 人工</option>
+                    <option value="@ResourceType.Equipment">🔧 设备</option>
+                    <option value="@ResourceType.Material">📦 材料</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>数量</label>
+                    <input type="number" @bind="editingResource.Quantity" min="1" />
+                </div>
+                <div class="form-group">
+                    <label>单位</label>
+                    <input type="text" @bind="editingResource.Unit" placeholder="人/台/件" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>成本/小时 (¥)</label>
+                <input type="number" @bind="editingResource.HourlyCost" min="0" step="0.01" />
+            </div>
+
+            <div class="form-group">
+                <label>备注</label>
+                <textarea @bind="editingResource.Notes" rows="2" placeholder="备注信息"></textarea>
+            </div>
+
+            <div class="dialog-actions">
+                <button class="btn btn-secondary" @onclick="CloseDialog">取消</button>
+                <button class="btn btn-primary" @onclick="SaveResource">保存</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int ProjectId { get; set; }
+
+    private List<Resource> ResourceList = new();
+    private Resource? editingResource;
+    private bool isLoading = true;
+    private bool showDialog = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadResources();
+    }
+
+    private async Task LoadResources()
+    {
+        isLoading = true;
+        try
+        {
+            ResourceList = await ResourceService.GetResourcesByProjectAsync(ProjectId);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowAddDialog()
+    {
+        editingResource = new Resource
+        {
+            ProjectId = ProjectId,
+            Type = ResourceType.Labor,
+            Quantity = 1,
+            Unit = "人"
+        };
+        showDialog = true;
+    }
+
+    private void EditResource(Resource resource)
+    {
+        editingResource = new Resource
+        {
+            Id = resource.Id,
+            ProjectId = resource.ProjectId,
+            Code = resource.Code,
+            Name = resource.Name,
+            Type = resource.Type,
+            Unit = resource.Unit,
+            Quantity = resource.Quantity,
+            HourlyCost = resource.HourlyCost,
+            Notes = resource.Notes
+        };
+        showDialog = true;
+    }
+
+    private async Task SaveResource()
+    {
+        if (editingResource == null || string.IsNullOrWhiteSpace(editingResource.Name))
+            return;
+
+        if (editingResource.Id == 0)
+            await ResourceService.CreateResourceAsync(editingResource);
+        else
+            await ResourceService.UpdateResourceAsync(editingResource);
+
+        CloseDialog();
+        await LoadResources();
+    }
+
+    private async Task DeleteResource(Resource resource)
+    {
+        await ResourceService.DeleteResourceAsync(resource.Id);
+        await LoadResources();
+    }
+
+    private void CloseDialog()
+    {
+        showDialog = false;
+        editingResource = null;
+    }
+
+    private string GetTypeDisplayName(ResourceType type) => type switch
+    {
+        ResourceType.Labor => "👤 人工",
+        ResourceType.Equipment => "🔧 设备",
+        ResourceType.Material => "📦 材料",
+        _ => type.ToString()
+    };
+}

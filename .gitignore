@@ -1,0 +1,36 @@
+# .NET 编译产物
+bin/
+obj/
+out/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# JetBrains Rider
+.idea/
+*.DotSettings.user
+
+# Build logs (temporary)
+build_*.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# DB (exclude by default, include if needed)
+*.db
+*.sqlite
+*.sqlite3
+
+# NuGet
+packages/
+*.nupkg
+
+# Secrets
+appsettings.*.json
+!appsettings.json
