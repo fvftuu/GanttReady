@@ -1,0 +1,740 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - heading "📊 NetPlan 进度计划" [level=1] [ref=e4]
+      - generic [ref=e5]:
+        - link "🏠 首页" [ref=e6] [cursor=pointer]:
+          - /url: /
+        - link "📅 甘特图" [ref=e7] [cursor=pointer]:
+          - /url: javascript:navToChecked('gantt')
+        - link "🔗 网络图" [ref=e8] [cursor=pointer]:
+          - /url: javascript:navToChecked('network')
+        - link "👥 资源" [ref=e9] [cursor=pointer]:
+          - /url: javascript:navToChecked('resources')
+        - link "📊 分析" [ref=e10] [cursor=pointer]:
+          - /url: javascript:navToChecked('analysis')
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - combobox [ref=e15]:
+            - option "选择项目"
+            - option "纳米比亚埃龙戈SUNAM海水淡化EPC项目" [selected]
+            - option "综合基础设施建设项目"
+          - generic [ref=e16]: 甘特图
+          - generic [ref=e17]:
+            - button "" [ref=e18] [cursor=pointer]:
+              - generic [ref=e19]: 
+            - button "" [disabled] [ref=e20] [cursor=pointer]:
+              - generic [ref=e21]: 
+            - button "" [disabled] [ref=e22] [cursor=pointer]:
+              - generic [ref=e23]: 
+            - button "" [disabled] [ref=e24] [cursor=pointer]:
+              - generic [ref=e25]: 
+            - button "" [ref=e27] [cursor=pointer]:
+              - generic [ref=e28]: 
+          - generic [ref=e29]:
+            - generic "显示前锋线" [ref=e30]:
+              - checkbox [checked]
+            - generic [ref=e32] [cursor=pointer]: 前锋线
+            - generic "显示今日线" [ref=e33]:
+              - checkbox [checked]
+            - generic [ref=e35] [cursor=pointer]: 今日线
+            - generic "显示关系线" [ref=e36]:
+              - checkbox [checked]
+            - generic [ref=e38] [cursor=pointer]: 关系线
+            - generic "资源投入直方图" [ref=e39]:
+              - checkbox
+            - generic [ref=e41] [cursor=pointer]: 资源投入
+        - generic [ref=e42]:
+          - button " 预览" [ref=e43] [cursor=pointer]:
+            - generic [ref=e44]: 
+            - text: 预览
+          - button " 导出" [ref=e45] [cursor=pointer]:
+            - generic [ref=e46]: 
+            - text: 导出
+          - button " 模板" [ref=e47] [cursor=pointer]:
+            - generic [ref=e48]: 
+            - text: 模板
+          - button " 导入" [ref=e49] [cursor=pointer]:
+            - generic [ref=e50]: 
+            - text: 导入
+          - generic [ref=e51]:
+            - button "" [ref=e52] [cursor=pointer]:
+              - generic [ref=e53]: 
+            - generic [ref=e54]: 100%
+            - button "" [ref=e55] [cursor=pointer]:
+              - generic [ref=e56]: 
+          - button "" [ref=e57] [cursor=pointer]:
+            - generic [ref=e58]: 
+          - button "重算计划" [ref=e59] [cursor=pointer]
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - generic [ref=e63]:
+            - generic [ref=e64]: "#"
+            - generic [ref=e65]: 状态
+            - generic [ref=e66]: 任务代码
+            - generic [ref=e67]: 任务名称
+            - generic [ref=e68]: 负责人
+            - generic [ref=e69]: 计划开始
+            - generic [ref=e70]: 计划完成
+            - generic [ref=e71]: 工期
+            - generic [ref=e72]: 实际开始
+            - generic [ref=e73]: 实际完成
+            - generic [ref=e74]: 实工
+            - generic [ref=e75]: 前置任务
+            - generic [ref=e76]: 后置任务
+            - generic [ref=e77]: 完成率
+            - generic [ref=e78]: 总时差
+            - generic [ref=e79]: 自时差
+            - generic [ref=e80]: 资源
+          - generic [ref=e81]:
+            - generic [ref=e82] [cursor=pointer]:
+              - generic [ref=e83]: "1"
+              - generic "关键" [ref=e85]: "!"
+              - generic [ref=e86]: A1
+              - generic "地勘资料齐全" [ref=e87]
+              - generic [ref=e88]: 2026-05-02
+              - generic [ref=e89]: 2026-05-31
+              - generic [ref=e90]: "30"
+              - generic "A2, A4, A8" [ref=e91]
+              - generic [ref=e92]: "0"
+              - generic [ref=e93]: "0"
+              - generic "项目经理:1.0人" [ref=e94]
+            - generic [ref=e95] [cursor=pointer]:
+              - generic [ref=e96]: "2"
+              - generic "未开始" [ref=e98]: ○
+              - generic [ref=e99]: A2
+              - generic "施工准备" [ref=e100]
+              - generic [ref=e101]: 2026-06-01
+              - generic [ref=e102]: 2026-06-30
+              - generic [ref=e103]: "30"
+              - generic "A1" [ref=e104]
+              - generic "A13" [ref=e105]
+              - generic [ref=e106]: "277"
+              - generic [ref=e107]: "265"
+            - generic [ref=e108] [cursor=pointer]:
+              - generic [ref=e109]: "3"
+              - generic "未开始" [ref=e111]: ○
+              - generic [ref=e112]: A4
+              - generic "钢栈桥施工" [ref=e113]
+              - generic [ref=e114]: 2026-06-01
+              - generic [ref=e115]: 2026-07-30
+              - generic [ref=e116]: "60"
+              - generic "A1" [ref=e117]
+              - generic "A5" [ref=e118]
+              - generic [ref=e119]: "147"
+              - generic [ref=e120]: "0"
+            - generic [ref=e121] [cursor=pointer]:
+              - generic [ref=e122]: "4"
+              - generic "未开始" [ref=e124]: ○
+              - generic [ref=e125]: A5
+              - generic "临时码头施工" [ref=e126]
+              - generic [ref=e127]: 2026-07-31
+              - generic [ref=e128]: 2026-09-08
+              - generic [ref=e129]: "40"
+              - generic "A4" [ref=e130]
+              - generic "A6" [ref=e131]
+              - generic [ref=e132]: "147"
+              - generic [ref=e133]: "0"
+            - generic [ref=e134] [cursor=pointer]:
+              - generic [ref=e135]: "5"
+              - generic "未开始" [ref=e137]: ○
+              - generic [ref=e138]: A6
+              - generic "取水头预制" [ref=e139]
+              - generic [ref=e140]: 2026-09-09
+              - generic [ref=e141]: 2026-11-07
+              - generic [ref=e142]: "60"
+              - generic "A5" [ref=e143]
+              - generic "A7" [ref=e144]
+              - generic [ref=e145]: "147"
+              - generic [ref=e146]: "20"
+            - generic [ref=e147] [cursor=pointer]:
+              - generic [ref=e148]: "6"
+              - generic "未开始" [ref=e150]: ○
+              - generic [ref=e151]: A7
+              - generic "取水头安放" [ref=e152]
+              - generic [ref=e153]: 2026-11-28
+              - generic [ref=e154]: 2026-12-27
+              - generic [ref=e155]: "30"
+              - generic "A6, A9" [ref=e156]
+              - generic [ref=e157]: "127"
+              - generic [ref=e158]: "127"
+            - generic [ref=e159] [cursor=pointer]:
+              - generic [ref=e160]: "7"
+              - generic "关键" [ref=e162]: "!"
+              - generic [ref=e163]: A8
+              - generic "基槽开挖" [ref=e164]
+              - generic [ref=e165]: 2026-06-01
+              - generic [ref=e166]: 2026-11-07
+              - generic [ref=e167]: "160"
+              - generic "A1" [ref=e168]
+              - generic "A9" [ref=e169]
+              - generic [ref=e170]: "0"
+              - generic [ref=e171]: "0"
+            - generic [ref=e172] [cursor=pointer]:
+              - generic [ref=e173]: "8"
+              - generic "关键" [ref=e175]: "!"
+              - generic [ref=e176]: A9
+              - generic "基床抛石（基床）" [ref=e177]
+              - generic [ref=e178]: 2026-07-01
+              - generic [ref=e179]: 2026-11-27
+              - generic [ref=e180]: "150"
+              - generic "A8" [ref=e181]
+              - generic "A7, A10" [ref=e182]
+              - generic [ref=e183]: "0"
+              - generic [ref=e184]: "0"
+            - generic [ref=e185] [cursor=pointer]:
+              - generic [ref=e186]: "9"
+              - generic "关键" [ref=e188]: "!"
+              - generic [ref=e189]: A10
+              - generic "管线连接安放" [ref=e190]
+              - generic [ref=e191]: 2026-07-16
+              - generic [ref=e192]: 2026-12-22
+              - generic [ref=e193]: "160"
+              - generic "A9" [ref=e194]
+              - generic "A11" [ref=e195]
+              - generic [ref=e196]: "0"
+              - generic [ref=e197]: "0"
+            - generic [ref=e198] [cursor=pointer]:
+              - generic [ref=e199]: "10"
+              - generic "关键" [ref=e201]: "!"
+              - generic [ref=e202]: A11
+              - generic "基槽抛石（取水头及管线上）" [ref=e203]
+              - generic [ref=e204]: 2026-12-23
+              - generic [ref=e205]: 2027-02-20
+              - generic [ref=e206]: "60"
+              - generic "A10" [ref=e207]
+              - generic "A12" [ref=e208]
+              - generic [ref=e209]: "0"
+              - generic [ref=e210]: "0"
+            - generic [ref=e211] [cursor=pointer]:
+              - generic [ref=e212]: "11"
+              - generic "关键" [ref=e214]: "!"
+              - generic [ref=e215]: A12
+              - generic "基槽回填（陆域管线）" [ref=e216]
+              - generic [ref=e217]: 2027-02-21
+              - generic [ref=e218]: 2027-03-22
+              - generic [ref=e219]: "30"
+              - generic "A11" [ref=e220]
+              - generic "A13, A14, A15" [ref=e221]
+              - generic [ref=e222]: "0"
+              - generic [ref=e223]: "0"
+            - generic [ref=e224] [cursor=pointer]:
+              - generic [ref=e225]: "12"
+              - generic "未开始" [ref=e227]: ○
+              - generic [ref=e228]: A13
+              - generic "箱涵预制安装" [ref=e229]
+              - generic [ref=e230]: 2027-03-23
+              - generic [ref=e231]: 2027-04-21
+              - generic [ref=e232]: "30"
+              - generic "A2, A12" [ref=e233]
+              - generic [ref=e234]: "12"
+              - generic [ref=e235]: "12"
+            - generic [ref=e236] [cursor=pointer]:
+              - generic [ref=e237]: "13"
+              - generic "未开始" [ref=e239]: ○
+              - generic [ref=e240]: A14
+              - generic "道路恢复" [ref=e241]
+              - generic [ref=e242]: 2027-03-23
+              - generic [ref=e243]: 2027-04-16
+              - generic [ref=e244]: "25"
+              - generic "A12" [ref=e245]
+              - generic [ref=e246]: "17"
+              - generic [ref=e247]: "17"
+            - generic [ref=e248] [cursor=pointer]:
+              - generic [ref=e249]: "14"
+              - generic "关键" [ref=e251]: "!"
+              - generic [ref=e252]: A15
+              - generic "临时码头拆除" [ref=e253]
+              - generic [ref=e254]: 2027-03-23
+              - generic [ref=e255]: 2027-04-11
+              - generic [ref=e256]: "20"
+              - generic "A12" [ref=e257]
+              - generic "A16" [ref=e258]
+              - generic [ref=e259]: "0"
+              - generic [ref=e260]: "0"
+            - generic [ref=e261] [cursor=pointer]:
+              - generic [ref=e262]: "15"
+              - generic "关键" [ref=e264]: "!"
+              - generic [ref=e265]: A16
+              - generic "栈桥拆除" [ref=e266]
+              - generic [ref=e267]: 2027-04-12
+              - generic [ref=e268]: 2027-05-01
+              - generic [ref=e269]: "20"
+              - generic "A15" [ref=e270]
+              - generic "A17" [ref=e271]
+              - generic [ref=e272]: "0"
+              - generic [ref=e273]: "0"
+            - generic [ref=e274] [cursor=pointer]:
+              - generic [ref=e275]: "16"
+              - generic "关键" [ref=e277]: "!"
+              - generic [ref=e278]: A17
+              - generic "完工验收" [ref=e279]
+              - generic [ref=e280]: 2027-05-02
+              - generic [ref=e281]: 2027-05-03
+              - generic [ref=e282]: "2"
+              - generic "A16" [ref=e283]
+              - generic [ref=e284]: "0"
+              - generic [ref=e285]: "0"
+        - generic [ref=e288]:
+          - generic [ref=e289]:
+            - generic [ref=e290]:
+              - generic [ref=e292]: 2026/05
+              - generic [ref=e294]: 2026/06
+              - generic [ref=e296]: 2026/07
+              - generic [ref=e298]: 2026/08
+              - generic [ref=e300]: 2026/09
+              - generic [ref=e302]: 2026/10
+              - generic [ref=e304]: 2026/11
+              - generic [ref=e306]: 2026/12
+              - generic [ref=e308]: 2027/01
+              - generic [ref=e310]: 2027/02
+              - generic [ref=e312]: 2027/03
+              - generic [ref=e314]: 2027/04
+              - generic [ref=e316]: 2027/05
+              - generic [ref=e318]: 2027/06
+            - generic [ref=e319]:
+              - generic [ref=e320]: "02"
+              - generic [ref=e321]: "03"
+              - generic [ref=e322]: "04"
+              - generic [ref=e323]: "05"
+              - generic [ref=e324]: "06"
+              - generic [ref=e325]: "07"
+              - generic [ref=e326]: "08"
+              - generic [ref=e327]: "09"
+              - generic [ref=e328]: "10"
+              - generic [ref=e329]: "11"
+              - generic [ref=e330]: "12"
+              - generic [ref=e331]: "13"
+              - generic [ref=e332]: "14"
+              - generic [ref=e333]: "15"
+              - generic [ref=e334]: "16"
+              - generic [ref=e335]: "17"
+              - generic [ref=e336]: "18"
+              - generic [ref=e337]: "19"
+              - generic [ref=e338]: "20"
+              - generic [ref=e339]: "21"
+              - generic [ref=e340]: "22"
+              - generic [ref=e341]: "23"
+              - generic [ref=e342]: "24"
+              - generic [ref=e343]: "25"
+              - generic [ref=e344]: "26"
+              - generic [ref=e345]: "27"
+              - generic [ref=e346]: "28"
+              - generic [ref=e347]: "29"
+              - generic [ref=e348]: "30"
+              - generic [ref=e349]: "31"
+              - generic [ref=e350]: "01"
+              - generic [ref=e351]: "02"
+              - generic [ref=e352]: "03"
+              - generic [ref=e353]: "04"
+              - generic [ref=e354]: "05"
+              - generic [ref=e355]: "06"
+              - generic [ref=e356]: "07"
+              - generic [ref=e357]: "08"
+              - generic [ref=e358]: "09"
+              - generic [ref=e359]: "10"
+              - generic [ref=e360]: "11"
+              - generic [ref=e361]: "12"
+              - generic [ref=e362]: "13"
+              - generic [ref=e363]: "14"
+              - generic [ref=e364]: "15"
+              - generic [ref=e365]: "16"
+              - generic [ref=e366]: "17"
+              - generic [ref=e367]: "18"
+              - generic [ref=e368]: "19"
+              - generic [ref=e369]: "20"
+              - generic [ref=e370]: "21"
+              - generic [ref=e371]: "22"
+              - generic [ref=e372]: "23"
+              - generic [ref=e373]: "24"
+              - generic [ref=e374]: "25"
+              - generic [ref=e375]: "26"
+              - generic [ref=e376]: "27"
+              - generic [ref=e377]: "28"
+              - generic [ref=e378]: "29"
+              - generic [ref=e379]: "30"
+              - generic [ref=e380]: "01"
+              - generic [ref=e381]: "02"
+              - generic [ref=e382]: "03"
+              - generic [ref=e383]: "04"
+              - generic [ref=e384]: "05"
+              - generic [ref=e385]: "06"
+              - generic [ref=e386]: "07"
+              - generic [ref=e387]: "08"
+              - generic [ref=e388]: "09"
+              - generic [ref=e389]: "10"
+              - generic [ref=e390]: "11"
+              - generic [ref=e391]: "12"
+              - generic [ref=e392]: "13"
+              - generic [ref=e393]: "14"
+              - generic [ref=e394]: "15"
+              - generic [ref=e395]: "16"
+              - generic [ref=e396]: "17"
+              - generic [ref=e397]: "18"
+              - generic [ref=e398]: "19"
+              - generic [ref=e399]: "20"
+              - generic [ref=e400]: "21"
+              - generic [ref=e401]: "22"
+              - generic [ref=e402]: "23"
+              - generic [ref=e403]: "24"
+              - generic [ref=e404]: "25"
+              - generic [ref=e405]: "26"
+              - generic [ref=e406]: "27"
+              - generic [ref=e407]: "28"
+              - generic [ref=e408]: "29"
+              - generic [ref=e409]: "30"
+              - generic [ref=e410]: "31"
+              - generic [ref=e411]: "01"
+              - generic [ref=e412]: "02"
+              - generic [ref=e413]: "03"
+              - generic [ref=e414]: "04"
+              - generic [ref=e415]: "05"
+              - generic [ref=e416]: "06"
+              - generic [ref=e417]: "07"
+              - generic [ref=e418]: "08"
+              - generic [ref=e419]: "09"
+              - generic [ref=e420]: "10"
+              - generic [ref=e421]: "11"
+              - generic [ref=e422]: "12"
+              - generic [ref=e423]: "13"
+              - generic [ref=e424]: "14"
+              - generic [ref=e425]: "15"
+              - generic [ref=e426]: "16"
+              - generic [ref=e427]: "17"
+              - generic [ref=e428]: "18"
+              - generic [ref=e429]: "19"
+              - generic [ref=e430]: "20"
+              - generic [ref=e431]: "21"
+              - generic [ref=e432]: "22"
+              - generic [ref=e433]: "23"
+              - generic [ref=e434]: "24"
+              - generic [ref=e435]: "25"
+              - generic [ref=e436]: "26"
+              - generic [ref=e437]: "27"
+              - generic [ref=e438]: "28"
+              - generic [ref=e439]: "29"
+              - generic [ref=e440]: "30"
+              - generic [ref=e441]: "31"
+              - generic [ref=e442]: "01"
+              - generic [ref=e443]: "02"
+              - generic [ref=e444]: "03"
+              - generic [ref=e445]: "04"
+              - generic [ref=e446]: "05"
+              - generic [ref=e447]: "06"
+              - generic [ref=e448]: "07"
+              - generic [ref=e449]: "08"
+              - generic [ref=e450]: "09"
+              - generic [ref=e451]: "10"
+              - generic [ref=e452]: "11"
+              - generic [ref=e453]: "12"
+              - generic [ref=e454]: "13"
+              - generic [ref=e455]: "14"
+              - generic [ref=e456]: "15"
+              - generic [ref=e457]: "16"
+              - generic [ref=e458]: "17"
+              - generic [ref=e459]: "18"
+              - generic [ref=e460]: "19"
+              - generic [ref=e461]: "20"
+              - generic [ref=e462]: "21"
+              - generic [ref=e463]: "22"
+              - generic [ref=e464]: "23"
+              - generic [ref=e465]: "24"
+              - generic [ref=e466]: "25"
+              - generic [ref=e467]: "26"
+              - generic [ref=e468]: "27"
+              - generic [ref=e469]: "28"
+              - generic [ref=e470]: "29"
+              - generic [ref=e471]: "30"
+              - generic [ref=e472]: "01"
+              - generic [ref=e473]: "02"
+              - generic [ref=e474]: "03"
+              - generic [ref=e475]: "04"
+              - generic [ref=e476]: "05"
+              - generic [ref=e477]: "06"
+              - generic [ref=e478]: "07"
+              - generic [ref=e479]: "08"
+              - generic [ref=e480]: "09"
+              - generic [ref=e481]: "10"
+              - generic [ref=e482]: "11"
+              - generic [ref=e483]: "12"
+              - generic [ref=e484]: "13"
+              - generic [ref=e485]: "14"
+              - generic [ref=e486]: "15"
+              - generic [ref=e487]: "16"
+              - generic [ref=e488]: "17"
+              - generic [ref=e489]: "18"
+              - generic [ref=e490]: "19"
+              - generic [ref=e491]: "20"
+              - generic [ref=e492]: "21"
+              - generic [ref=e493]: "22"
+              - generic [ref=e494]: "23"
+              - generic [ref=e495]: "24"
+              - generic [ref=e496]: "25"
+              - generic [ref=e497]: "26"
+              - generic [ref=e498]: "27"
+              - generic [ref=e499]: "28"
+              - generic [ref=e500]: "29"
+              - generic [ref=e501]: "30"
+              - generic [ref=e502]: "31"
+              - generic [ref=e503]: "01"
+              - generic [ref=e504]: "02"
+              - generic [ref=e505]: "03"
+              - generic [ref=e506]: "04"
+              - generic [ref=e507]: "05"
+              - generic [ref=e508]: "06"
+              - generic [ref=e509]: "07"
+              - generic [ref=e510]: "08"
+              - generic [ref=e511]: "09"
+              - generic [ref=e512]: "10"
+              - generic [ref=e513]: "11"
+              - generic [ref=e514]: "12"
+              - generic [ref=e515]: "13"
+              - generic [ref=e516]: "14"
+              - generic [ref=e517]: "15"
+              - generic [ref=e518]: "16"
+              - generic [ref=e519]: "17"
+              - generic [ref=e520]: "18"
+              - generic [ref=e521]: "19"
+              - generic [ref=e522]: "20"
+              - generic [ref=e523]: "21"
+              - generic [ref=e524]: "22"
+              - generic [ref=e525]: "23"
+              - generic [ref=e526]: "24"
+              - generic [ref=e527]: "25"
+              - generic [ref=e528]: "26"
+              - generic [ref=e529]: "27"
+              - generic [ref=e530]: "28"
+              - generic [ref=e531]: "29"
+              - generic [ref=e532]: "30"
+              - generic [ref=e533]: "01"
+              - generic [ref=e534]: "02"
+              - generic [ref=e535]: "03"
+              - generic [ref=e536]: "04"
+              - generic [ref=e537]: "05"
+              - generic [ref=e538]: "06"
+              - generic [ref=e539]: "07"
+              - generic [ref=e540]: "08"
+              - generic [ref=e541]: "09"
+              - generic [ref=e542]: "10"
+              - generic [ref=e543]: "11"
+              - generic [ref=e544]: "12"
+              - generic [ref=e545]: "13"
+              - generic [ref=e546]: "14"
+              - generic [ref=e547]: "15"
+              - generic [ref=e548]: "16"
+              - generic [ref=e549]: "17"
+              - generic [ref=e550]: "18"
+              - generic [ref=e551]: "19"
+              - generic [ref=e552]: "20"
+              - generic [ref=e553]: "21"
+              - generic [ref=e554]: "22"
+              - generic [ref=e555]: "23"
+              - generic [ref=e556]: "24"
+              - generic [ref=e557]: "25"
+              - generic [ref=e558]: "26"
+              - generic [ref=e559]: "27"
+              - generic [ref=e560]: "28"
+              - generic [ref=e561]: "29"
+              - generic [ref=e562]: "30"
+              - generic [ref=e563]: "31"
+              - generic [ref=e564]: "01"
+              - generic [ref=e565]: "02"
+              - generic [ref=e566]: "03"
+              - generic [ref=e567]: "04"
+              - generic [ref=e568]: "05"
+              - generic [ref=e569]: "06"
+              - generic [ref=e570]: "07"
+              - generic [ref=e571]: "08"
+              - generic [ref=e572]: "09"
+              - generic [ref=e573]: "10"
+              - generic [ref=e574]: "11"
+              - generic [ref=e575]: "12"
+              - generic [ref=e576]: "13"
+              - generic [ref=e577]: "14"
+              - generic [ref=e578]: "15"
+              - generic [ref=e579]: "16"
+              - generic [ref=e580]: "17"
+              - generic [ref=e581]: "18"
+              - generic [ref=e582]: "19"
+              - generic [ref=e583]: "20"
+              - generic [ref=e584]: "21"
+              - generic [ref=e585]: "22"
+              - generic [ref=e586]: "23"
+              - generic [ref=e587]: "24"
+              - generic [ref=e588]: "25"
+              - generic [ref=e589]: "26"
+              - generic [ref=e590]: "27"
+              - generic [ref=e591]: "28"
+              - generic [ref=e592]: "29"
+              - generic [ref=e593]: "30"
+              - generic [ref=e594]: "31"
+              - generic [ref=e595]: "01"
+              - generic [ref=e596]: "02"
+              - generic [ref=e597]: "03"
+              - generic [ref=e598]: "04"
+              - generic [ref=e599]: "05"
+              - generic [ref=e600]: "06"
+              - generic [ref=e601]: "07"
+              - generic [ref=e602]: "08"
+              - generic [ref=e603]: "09"
+              - generic [ref=e604]: "10"
+              - generic [ref=e605]: "11"
+              - generic [ref=e606]: "12"
+              - generic [ref=e607]: "13"
+              - generic [ref=e608]: "14"
+              - generic [ref=e609]: "15"
+              - generic [ref=e610]: "16"
+              - generic [ref=e611]: "17"
+              - generic [ref=e612]: "18"
+              - generic [ref=e613]: "19"
+              - generic [ref=e614]: "20"
+              - generic [ref=e615]: "21"
+              - generic [ref=e616]: "22"
+              - generic [ref=e617]: "23"
+              - generic [ref=e618]: "24"
+              - generic [ref=e619]: "25"
+              - generic [ref=e620]: "26"
+              - generic [ref=e621]: "27"
+              - generic [ref=e622]: "28"
+              - generic [ref=e623]: "01"
+              - generic [ref=e624]: "02"
+              - generic [ref=e625]: "03"
+              - generic [ref=e626]: "04"
+              - generic [ref=e627]: "05"
+              - generic [ref=e628]: "06"
+              - generic [ref=e629]: "07"
+              - generic [ref=e630]: "08"
+              - generic [ref=e631]: "09"
+              - generic [ref=e632]: "10"
+              - generic [ref=e633]: "11"
+              - generic [ref=e634]: "12"
+              - generic [ref=e635]: "13"
+              - generic [ref=e636]: "14"
+              - generic [ref=e637]: "15"
+              - generic [ref=e638]: "16"
+              - generic [ref=e639]: "17"
+              - generic [ref=e640]: "18"
+              - generic [ref=e641]: "19"
+              - generic [ref=e642]: "20"
+              - generic [ref=e643]: "21"
+              - generic [ref=e644]: "22"
+              - generic [ref=e645]: "23"
+              - generic [ref=e646]: "24"
+              - generic [ref=e647]: "25"
+              - generic [ref=e648]: "26"
+              - generic [ref=e649]: "27"
+              - generic [ref=e650]: "28"
+              - generic [ref=e651]: "29"
+              - generic [ref=e652]: "30"
+              - generic [ref=e653]: "31"
+              - generic [ref=e654]: "01"
+              - generic [ref=e655]: "02"
+              - generic [ref=e656]: "03"
+              - generic [ref=e657]: "04"
+              - generic [ref=e658]: "05"
+              - generic [ref=e659]: "06"
+              - generic [ref=e660]: "07"
+              - generic [ref=e661]: "08"
+              - generic [ref=e662]: "09"
+              - generic [ref=e663]: "10"
+              - generic [ref=e664]: "11"
+              - generic [ref=e665]: "12"
+              - generic [ref=e666]: "13"
+              - generic [ref=e667]: "14"
+              - generic [ref=e668]: "15"
+              - generic [ref=e669]: "16"
+              - generic [ref=e670]: "17"
+              - generic [ref=e671]: "18"
+              - generic [ref=e672]: "19"
+              - generic [ref=e673]: "20"
+              - generic [ref=e674]: "21"
+              - generic [ref=e675]: "22"
+              - generic [ref=e676]: "23"
+              - generic [ref=e677]: "24"
+              - generic [ref=e678]: "25"
+              - generic [ref=e679]: "26"
+              - generic [ref=e680]: "27"
+              - generic [ref=e681]: "28"
+              - generic [ref=e682]: "29"
+              - generic [ref=e683]: "30"
+              - generic [ref=e684]: "01"
+              - generic [ref=e685]: "02"
+              - generic [ref=e686]: "03"
+              - generic [ref=e687]: "04"
+              - generic [ref=e688]: "05"
+              - generic [ref=e689]: "06"
+              - generic [ref=e690]: "07"
+              - generic [ref=e691]: "08"
+              - generic [ref=e692]: "09"
+              - generic [ref=e693]: "10"
+              - generic [ref=e694]: "11"
+              - generic [ref=e695]: "12"
+              - generic [ref=e696]: "13"
+              - generic [ref=e697]: "14"
+              - generic [ref=e698]: "15"
+              - generic [ref=e699]: "16"
+              - generic [ref=e700]: "17"
+              - generic [ref=e701]: "18"
+              - generic [ref=e702]: "19"
+              - generic [ref=e703]: "20"
+              - generic [ref=e704]: "21"
+              - generic [ref=e705]: "22"
+              - generic [ref=e706]: "23"
+              - generic [ref=e707]: "24"
+              - generic [ref=e708]: "25"
+              - generic [ref=e709]: "26"
+              - generic [ref=e710]: "27"
+              - generic [ref=e711]: "28"
+              - generic [ref=e712]: "29"
+              - generic [ref=e713]: "30"
+              - generic [ref=e714]: "31"
+              - generic [ref=e715]: "01"
+              - generic [ref=e716]: "02"
+              - generic [ref=e717]: "03"
+          - img
+          - generic [ref=e735]:
+            - generic "地勘资料齐全" [ref=e736]:
+              - generic: 地勘资料齐全
+            - generic "施工准备" [ref=e738]:
+              - generic: 施工准备
+            - generic "钢栈桥施工" [ref=e740]:
+              - generic: 钢栈桥施工
+            - generic "临时码头施工" [ref=e742]:
+              - generic: 临时码头施工
+            - generic "取水头预制" [ref=e744]:
+              - generic: 取水头预制
+            - generic "取水头安放" [ref=e746]:
+              - generic: 取水头安放
+            - generic "基槽开挖" [ref=e748]:
+              - generic: 基槽开挖
+            - generic "基床抛石（基床）" [ref=e750]:
+              - generic: 基床抛石（基床）
+            - generic "管线连接安放" [ref=e752]:
+              - generic: 管线连接安放
+            - generic "基槽抛石（取水头及管线上）" [ref=e754]:
+              - generic: 基槽抛石（取水头及管线上）
+            - generic "基槽回填（陆域管线）" [ref=e756]:
+              - generic: 基槽回填（陆域管线）
+            - generic "箱涵预制安装" [ref=e758]:
+              - generic: 箱涵预制安装
+            - generic "道路恢复" [ref=e760]:
+              - generic: 道路恢复
+            - generic "临时码头拆除" [ref=e762]:
+              - generic: 临时码头拆除
+            - generic "栈桥拆除" [ref=e764]:
+              - generic: 栈桥拆除
+            - generic "完工验收" [ref=e766]:
+              - generic: 完工验收
+      - generic [ref=e768]:
+        - generic [ref=e769]: 📁 项目：纳米比亚埃龙戈SUNAM海水淡化EPC项目
+        - generic [ref=e770]: "|"
+        - generic [ref=e771]: 📅 总工期：367 天
+        - generic [ref=e772]: "|"
+        - generic [ref=e773]: 🔢 任务数：16
+        - generic [ref=e774]: "|"
+        - generic [ref=e775]: 🔑 关键任务：9
+  - generic [ref=e776]:
+    - text: 发生错误，页面可能无响应。
+    - link "重新加载" [ref=e777] [cursor=pointer]:
+      - /url: ""

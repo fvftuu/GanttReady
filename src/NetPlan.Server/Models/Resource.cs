@@ -8,8 +8,7 @@ public class Resource
     [Key]
     public int Id { get; set; }
 
-    [Required]
-    public int ProjectId { get; set; }
+    public int? ProjectId { get; set; }                          // null=共享资源, 非null=项目专属
 
     [Required]
     [MaxLength(50)]
@@ -38,7 +37,7 @@ public class Resource
 
     // 导航属性
     [ForeignKey("ProjectId")]
-    public Project Project { get; set; } = null!;
+    public Project? Project { get; set; }
 
     public ICollection<ResourceAssignment> Assignments { get; set; } = new List<ResourceAssignment>();
 }

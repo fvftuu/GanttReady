@@ -1,6 +1,7 @@
 ﻿@page "/"
 @inject IProjectService ProjectService
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>NetPlan - 项目列表</PageTitle>
 
@@ -11,7 +12,25 @@
 <div class="page-body">
     <div class="page-main" style="padding:20px;">
         <div class="toolbar">
-            <button class="btn btn-primary" @onclick="ShowCreateDialog">➕ 新建项目</button>
+            <button class="btn btn-primary" @onclick="ShowCreateDialog">
+                <span class="oi oi-plus"></span> 新建项目
+            </button>
+            <button class="btn btn-outline" @onclick="DownloadBlankTemplate">
+                <span class="oi oi-file"></span> 下载导入模板
+            </button>
+            <button class="btn btn-outline" @onclick="TriggerImport">
+                <span class="oi oi-data-upload"></span> 导入Excel
+            </button>
+            @if (selectedProject != null)
+            {
+                <button class="btn btn-success" @onclick="ExportTemplate">
+                    <span class="oi oi-data-download"></span> 导出数据模板
+                </button>
+                <button class="btn btn-danger" @onclick="DeleteSelectedProject">
+                    <span class="oi oi-trash"></span> 删除项目
+                </button>
+            }
+            <InputFile id="fileInput" OnChange="HandleFileSelected" accept=".xlsx,.xls" style="display:none" />
         </div>
 
         @if (isLoading)
@@ -31,6 +50,7 @@
             <table class="table">
                 <thead>
                     <tr>
+                        <th style="width:42px;"></th>
                         <th>项目代码</th>
                         <th>项目名称</th>
                         <th>计划开始</th>
@@ -42,7 +62,12 @@
                 <tbody>
                     @foreach (var p in Projects)
                     {
-                        <tr>
+                        <tr class="@(selectedProject?.Id == p.Id ? "selected" : "")" @onclick="() => SelectProject(p)">
+                            <td @onclick:stopPropagation>
+                                <input type="radio" name="project-select" value="@p.Id"
+                                       checked="@(checkedProjectId == p.Id)"
+                                       @onchange="(e) => SelectCheckedProject(p.Id)" />
+                            </td>
                             <td><span class="badge primary">@p.Code</span></td>
                             <td>
                                 <strong>@p.Name</strong>
@@ -54,11 +79,11 @@
                             <td>@p.PlanStartDate.ToString("yyyy-MM-dd")</td>
                             <td>@p.PlanEndDate.ToString("yyyy-MM-dd")</td>
                             <td>@(p.PlanEndDate - p.PlanStartDate).Days 天</td>
-                            <td>
-                                <a href="/project/@p.Id/gantt">📅 甘特图</a> |
-                                <a href="/project/@p.Id/network">🔗 网络图</a> |
-                                <a href="/project/@p.Id/resources">👥 资源</a> |
-                                <a href="/project/@p.Id/analysis">📊 分析</a>
+                            <td @onclick:stopPropagation>
+                                <a href="/project/@p.Id/gantt" class="btn-link">📅 甘特图</a>
+                                <a href="/project/@p.Id/network" class="btn-link">🔗 网络图</a>
+                                <a href="/project/@p.Id/resources" class="btn-link">👥 资源</a>
+                                <a href="/project/@p.Id/analysis" class="btn-link">📊 分析</a>
                             </td>
                         </tr>
                     }
@@ -122,12 +147,16 @@
 @code {
     private List<Models.Project> Projects = new();
     private Models.Project? editingProject;
+    private Models.Project? selectedProject;
     private bool isLoading = true;
     private bool showDialog = false;
+    private IBrowserFile? pendingFile;
+    private int checkedProjectId = 0;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadProjects();
+        await LoadCheckedState();
     }
 
     private async Task LoadProjects()
@@ -141,6 +170,24 @@
         {
             isLoading = false;
         }
+    }
+
+    private async Task LoadCheckedState()
+    {
+        try
+        {
+            checkedProjectId = await JS.InvokeAsync<int>("getCheckedProject");
+            // 清理无效的勾选
+            if (checkedProjectId > 0 && !Projects.Any(p => p.Id == checkedProjectId))
+                checkedProjectId = 0;
+        }
+        catch { checkedProjectId = 0; }
+    }
+
+    private async Task SelectCheckedProject(int projectId)
+    {
+        checkedProjectId = projectId;
+        await JS.InvokeVoidAsync("setCheckedProject", projectId);
     }
 
     private void ShowCreateDialog()
@@ -172,4 +219,123 @@
         showDialog = false;
         editingProject = null;
     }
+
+    private void SelectProject(Models.Project p)
+    {
+        selectedProject = selectedProject?.Id == p.Id ? null : p;
+    }
+
+    private async Task DeleteSelectedProject()
+    {
+        if (selectedProject == null) return;
+        try
+        {
+            await ProjectService.DeleteProjectAsync(selectedProject.Id);
+            selectedProject = null;
+            await LoadProjects();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"删除失败: {ex.Message}");
+        }
+    }
+
+    // 导出空白模板
+    private async Task DownloadBlankTemplate()
+    {
+        try
+        {
+            var url = "/download/blank-template";
+            await JS.InvokeVoidAsync("window.open", url, "_blank");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"下载模板失败: {ex.Message}");
+        }
+    }
+
+    // 导出项目数据模板
+    private async Task ExportTemplate()
+    {
+        if (selectedProject == null) return;
+        try
+        {
+            var url = $"/download/template/{selectedProject.Id}";
+            await JS.InvokeVoidAsync("window.open", url, "_blank");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"导出模板失败: {ex.Message}");
+        }
+    }
+
+    // 触发导入文件选择
+    private async Task TriggerImport()
+    {
+        if (selectedProject == null)
+        {
+            await JS.InvokeVoidAsync("alert", "请先选择或创建一个项目");
+            return;
+        }
+        await JS.InvokeVoidAsync("eval", "document.getElementById('fileInput').click()");
+    }
+
+    // 处理文件选择
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        if (selectedProject == null || e.File == null) return;
+
+        pendingFile = e.File;
+        var result = await UploadAndImport(e.File, selectedProject.Id);
+        
+        if (result != null)
+        {
+            if (result.Success)
+            {
+                await JS.InvokeVoidAsync("alert", $"导入成功！\n任务: {result.TasksImported}\n资源: {result.ResourcesImported}\n分配: {result.AssignmentsImported}");
+                Navigation.NavigateTo($"/project/{selectedProject.Id}/gantt", forceLoad: true);
+            }
+            else
+            {
+                var errorMsg = result.Errors.Count > 0 
+                    ? string.Join("\n", result.Errors.Take(5)) 
+                    : result.Message;
+                await JS.InvokeVoidAsync("alert", $"导入完成但有错误:\n{errorMsg}");
+            }
+        }
+    }
+
+    // 上传并导入
+    private async Task<ExcelImportResult?> UploadAndImport(IBrowserFile file, int projectId)
+    {
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            
+            var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(memoryStream.ToArray()), "file", file.Name);
+
+            var baseUri = new Uri(Navigation.BaseUri);
+            var response = await HttpClient.PostAsync(new Uri(baseUri, $"/api/excel/import/{projectId}"), content);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<ExcelImportResult>();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                await JS.InvokeVoidAsync("alert", $"导入失败: {error}");
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"导入出错: {ex.Message}");
+            return null;
+        }
+    }
+
+    [Inject] private HttpClient HttpClient { get; set; } = default!;
 }

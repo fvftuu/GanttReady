@@ -13,13 +13,9 @@
     <title>NetPlan - 进度计划管理系统</title>
     <base href="~/" />
     <link href="css/site.css" rel="stylesheet" />
+    <link href="css/open-iconic/font/css/open-iconic-bootstrap.min.css" rel="stylesheet" />
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; color: #333; }
-        a { color: #1890ff; text-decoration: none; }
-        a:hover { color: #40a9ff; }
-        .page-header { background: #001529; color: white; padding: 0 24px; height: 48px; display: flex; align-items: center; }
-        .page-header h1 { font-size: 18px; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -33,9 +29,14 @@
     </div>
 
     <script src="_framework/blazor.server.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Cytoscape.js -->
     <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
-    <!-- Dagre layout for hierarchy -->
+    <!-- Dagre + Cytoscape-Dagre layout -->
+    <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
     <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+    <!-- NetPlan scripts -->
+    <script src="js/netplan.js?v=20260505"></script>
 </body>
 </html>

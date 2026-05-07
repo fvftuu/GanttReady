@@ -1,6 +1,9 @@
-@page "/project/gantt/{ProjectId:int}"
-@page "/project/gantt"
+@page "/project/{ProjectId:int}/gantt"
 @inject IProjectService ProjectService
+@inject IResourceService ResourceService
+@inject IJSRuntime JS
+@inject NavigationManager NavManager
+@implements IDisposable
 
 <div class="page-header">
     <div class="header-left">
@@ -12,114 +15,763 @@
             }
         </select>
         <span class="page-title">甘特图</span>
+        <div class="task-actions">
+            <button class="btn btn-primary btn-icon" @onclick="ShowAddTaskModal" title="添加任务">
+                <span class="oi oi-plus"></span>
+            </button>
+            <button class="btn btn-danger btn-icon" @onclick="DeleteSelectedTask" title="删除任务" disabled="@(selectedTaskId == null)">
+                <span class="oi oi-trash"></span>
+            </button>
+            <button class="btn btn-default btn-icon" @onclick="MoveTaskUp" title="上移" disabled="@(selectedTaskId == null)">
+                <span class="oi oi-caret-top"></span>
+            </button>
+            <button class="btn btn-default btn-icon" @onclick="MoveTaskDown" title="下移" disabled="@(selectedTaskId == null)">
+                <span class="oi oi-caret-bottom"></span>
+            </button>
+            <div style="position:relative; display:inline-block;">
+                <button class="btn btn-default btn-icon" @onclick="ToggleColumnPanel" title="列设置">
+                    <span class="oi oi-list"></span>
+                </button>
+                @if (showColumnPanel)
+                {
+                    <div class="column-panel" @onclick:stopPropagation="true">
+                        @for (int i = 0; i < columnTemp.Count; i++)
+                        {
+                            var idx = i;
+                            var col = columnTemp[i];
+                            var disabled = col.Key == "name";
+                            <label class="column-check">
+                                <input type="checkbox" checked="@col.Visible"
+                                       disabled="@disabled"
+                                       @onchange="(ChangeEventArgs e) => OnColumnCheckChange(idx, (bool)(e.Value ?? false))" />
+                                <span>@col.Label</span>
+                            </label>
+                        }
+                        <div style="display:flex; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">
+                            <button class="btn btn-primary btn-sm" style="flex:1;" @onclick="ApplyColumnVisibility">确定</button>
+                            <button class="btn btn-default btn-sm" style="flex:1;" @onclick="CancelColumnVisibility">取消</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="display-toggles">
+            <label class="toggle-switch" title="显示前锋线">
+                <input type="checkbox" @bind="showProgressLine" />
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">前锋线</span>
+            <label class="toggle-switch" title="显示今日线">
+                <input type="checkbox" @bind="showTodayLine" />
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">今日线</span>
+            <label class="toggle-switch" title="显示关系线">
+                <input type="checkbox" @bind="showRelationLine" />
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">关系线</span>
+            <label class="toggle-switch" title="资源投入直方图">
+                <input type="checkbox" @bind="showResourceHistogram" @bind:after="OnHistogramToggled" />
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">资源投入</span>
+        </div>
     </div>
     <div class="header-right">
+        <button class="btn btn-default" @onclick="PrintPage" title="页面预览">
+            <span class="oi oi-print"></span> 预览
+        </button>
+        <button class="btn btn-default" @onclick="ExportToExcel" title="导出Excel">
+            <span class="oi oi-file"></span> 导出
+        </button>
+        <button class="btn btn-default" @onclick="DownloadTemplate" title="下载导入模板">
+            <span class="oi oi-cloud-download"></span> 模板
+        </button>
+        <InputFile id="ganttFileInput" OnChange="HandleGanttFileSelected" accept=".xlsx,.xls" style="display:none" />
+        <button class="btn btn-default" @onclick="TriggerGanttImport" title="从Excel导入">
+            <span class="oi oi-cloud-upload"></span> 导入
+        </button>
+        <InputFile id="projectXmlInput" OnChange="HandleProjectXmlSelected" accept=".xml" style="display:none" />
+        <button class="btn btn-default" @onclick="TriggerProjectXmlImport" title="从MS Project XML导入">
+            <span class="oi oi-project"></span> Project
+        </button>
         <div class="zoom-control">
-            <label>缩放: @zoomLevel%</label>
-            <input type="range" min="5" max="1500" @bind="zoomLevel" />
+            <button class="zoom-btn" @onclick="ZoomOut" title="缩小">
+                <span class="oi oi-minus"></span>
+            </button>
+            <span class="zoom-label">@zoomLevel%</span>
+            <button class="zoom-btn" @onclick="ZoomIn" title="放大">
+                <span class="oi oi-plus"></span>
+            </button>
         </div>
-        <button class="btn btn-primary" @onclick="ShowAddTaskModal">添加任务</button>
+        <button class="btn btn-default btn-icon" @onclick="ZoomToFit" title="适应页面（全部显示）">
+            <span class="oi oi-magnifying-glass"></span>
+        </button>
         <button class="btn btn-default" @onclick="RecalculateSchedule">重算计划</button>
     </div>
 </div>
 
-<div class="gantt-container">
-    <div class="gantt-left">
-        @if (loading)
-        {
-            <p>加载中...</p>
-        }
-        else
-        {
-            <table class="table table-sm">
-                <thead>
-                    <tr>
-                        <th style="width:80px">代号</th>
-                        <th style="width:200px">任务名称</th>
-                        <th style="width:100px">计划开始</th>
-                        <th style="width:100px">计划完成</th>
-                        <th style="width:60px">工期</th>
-                        <th style="width:60px">时差</th>
-                        <th style="width:60px">关键</th>
-                        <th style="width:100px">操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var task in tasks)
-                    {
-                        <tr>
-                            <td>@task.Code</td>
-                            <td>@task.Name</td>
-                            <td>@task.PlanStartDate.ToString("yyyy-MM-dd")</td>
-                            <td>@task.PlanEndDate.ToString("yyyy-MM-dd")</td>
-                            <td>@task.PlanDuration</td>
-                            <td style="color: @(task.TotalFloat == 0 ? "red" : "inherit")">@(task.TotalFloat?.ToString() ?? "-")</td>
-                            <td>@(task.IsCritical ? "是" : "")</td>
-                            <td>
-                                <button class="btn btn-xs" @onclick="() => EditTask(task)">编辑</button>
-                                <button class="btn btn-xs btn-danger" @onclick="() => DeleteTask(task.Id)">删除</button>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
+@if (taskFloatWarnings.Any())
+{
+    var redCount = taskFloatWarnings.Count(w => w.Value > 365);
+    var orangeCount = taskFloatWarnings.Count(w => w.Value > 200 && w.Value <= 365);
+    var yellowCount = taskFloatWarnings.Count(w => w.Value > 100 && w.Value <= 200);
+    <div class="float-warning-bar">
+        <span class="float-warn-icon">⚠️</span>
+        <span>时差异常：</span>
+        @if (redCount > 0) { <span class="float-badge float-red">@redCount 个严重(&gt;365天)</span> }
+        @if (orangeCount > 0) { <span class="float-badge float-orange">@orangeCount 个警告(&gt;200天)</span> }
+        @if (yellowCount > 0) { <span class="float-badge float-yellow">@yellowCount 个可疑(&gt;100天)</span> }
+        <span style="font-size:11px;color:var(--text-secondary);margin-left:8px;">— 请检查并手动调整对应任务</span>
     </div>
-    <div class="gantt-right">
-        <div class="gantt-chart" style="width: @chartWidth;">
-            <div class="gantt-timeline-header">
-                @for (int day = 0; day <= totalDays; day++)
-                {
-                    var date = projectStartDate.AddDays(day);
-                    var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
-                    <div class="timeline-cell @(isWeekend ? "weekend" : "")"
-                         style="left: @(day * dayWidth)px; width: @(dayWidth)px;">
-                        @if (day % 7 == 0)
-                        {
-                            <span>@date.ToString("MM/dd")</span>
-                        }
-                    </div>
-                }
-            </div>
-            <div class="gantt-bars">
+}
+
+<div class="gantt-container">
+    <div class="gantt-main">
+    @* ========== 冻结窗格：左侧任务列表 ========== *@
+    <div class="gantt-left" id="gantt-left">
+        @* 表头 *@
+        <div class="gantt-left-header">
+            @if (GetColumnVisible("sel")) { <div class="col-sel"><input type="checkbox" @onchange="ToggleSelectAll" checked="@(selectedTasks.Count == tasks.Count && tasks.Count > 0)" title="全选/取消" /></div> }
+            <div class="col-idx"><button class="icon-btn" @onclick="IndentSelected" title="降级(→)"><span class="oi oi-arrow-right"></span></button><button class="icon-btn" @onclick="OutdentSelected" title="升级(←)"><span class="oi oi-arrow-left"></span></button></div>
+            @if (GetColumnVisible("status")) { <div class="col-status">状态</div> }
+            @if (GetColumnVisible("code")) { <div class="col-code">任务代码</div> }
+            @if (GetColumnVisible("name")) { <div class="col-name">任务名称</div> }
+            @if (GetColumnVisible("person")) { <div class="col-person">负责人</div> }
+            @if (GetColumnVisible("planStart")) { <div class="col-date">计划开始</div> }
+            @if (GetColumnVisible("planEnd")) { <div class="col-date">计划完成</div> }
+            @if (GetColumnVisible("duration")) { <div class="col-num" style="flex-direction:column;display:flex;line-height:1.1;text-align:center;"><span>计划</span><span>工期</span></div> }
+            @if (GetColumnVisible("actStart")) { <div class="col-date">实际开始</div> }
+            @if (GetColumnVisible("actEnd")) { <div class="col-date">实际完成</div> }
+            @if (GetColumnVisible("actDur")) { <div class="col-num" style="flex-direction:column;display:flex;line-height:1.1;text-align:center;"><span>实际</span><span>工期</span></div> }
+            @if (GetColumnVisible("pred")) { <div class="col-pred">前置任务</div> }
+            @if (GetColumnVisible("succ")) { <div class="col-pred">后置任务</div> }
+            @if (GetColumnVisible("pct")) { <div class="col-num">完成率</div> }
+            @if (GetColumnVisible("float")) { <div class="col-num">总时差</div> }
+            @if (GetColumnVisible("freeFloat")) { <div class="col-num">自时差</div> }
+            @if (GetColumnVisible("res")) { <div class="col-resource">资源</div> }
+        </div>
+        @* 任务列表（可滚动） *@
+        <div class="gantt-left-body" id="gantt-left-body">
+            @if (loading)
+            {
+                <div class="gantt-loading">加载中...</div>
+            }
+            else
+            {
                 @foreach (var task in tasks)
                 {
-                    var startOffset = Math.Max(0, (task.PlanStartDate - projectStartDate).Days) * dayWidth;
-                    var barWidth = task.PlanDuration * dayWidth;
-                    <div class="gantt-bar @(task.IsCritical ? "critical" : "normal")"
-                         style="left: @(startOffset)px; width: @(barWidth)px;">
-                        <span class="bar-label">@task.Name</span>
+                    <div class="gantt-left-row @(selectedTaskId == task.Id ? "selected" : "") @(task.OutlineLevel > 1 ? "child" : "")"
+                         @ondblclick="() => EditTask(task)"
+                         @onclick="() => { selectedTaskId = task.Id; ToggleTaskSelect(task.Id, !selectedTasks.Contains(task.Id)); }">
+                        @if (GetColumnVisible("sel")) { <div class="col-sel"><input type="checkbox" checked="@selectedTasks.Contains(task.Id)" @onchange="(ChangeEventArgs e) => ToggleTaskSelect(task.Id, (bool)(e.Value ?? false))" @onclick:stopPropagation="true" /></div> }
+                        <div class="col-idx">@(tasks.IndexOf(task) + 1)</div>
+                        @if (GetColumnVisible("status")) { <div class="col-status">@GetTaskStatusBadge(task)</div> }
+                        @if (GetColumnVisible("code")) { <div class="col-code" style="padding-left:@(Math.Max(0,(task.OutlineLevel-1)*16))px;">@task.Code</div> }
+                        @if (GetColumnVisible("name")) { <div class="col-name" title="@task.Name">@task.Name</div> }
+                        @if (GetColumnVisible("person")) { <div class="col-person" title="@task.ResponsiblePerson">@task.ResponsiblePerson</div> }
+                        @if (GetColumnVisible("planStart")) { <div class="col-date">@task.PlanStartDate.ToString("yyyy-MM-dd")</div> }
+                        @if (GetColumnVisible("planEnd")) { <div class="col-date">@task.PlanEndDate.ToString("yyyy-MM-dd")</div> }
+                        @if (GetColumnVisible("duration")) { <div class="col-num">@task.PlanDuration</div> }
+                        @if (GetColumnVisible("actStart")) { <div class="col-date">@(task.ActualStartDate?.ToString("yyyy-MM-dd") ?? "")</div> }
+                        @if (GetColumnVisible("actEnd")) { <div class="col-date">@(task.ActualEndDate?.ToString("yyyy-MM-dd") ?? "")</div> }
+                        @if (GetColumnVisible("actDur")) { <div class="col-num">@(task.ActualDuration?.ToString() ?? "")</div> }
+                        @if (GetColumnVisible("pred")) { <div class="col-pred" title="@GetPredecessorSummary(task)">@GetPredecessorSummary(task)</div> }
+                        @if (GetColumnVisible("succ")) { <div class="col-pred" title="@GetSuccessorSummary(task)">@GetSuccessorSummary(task)</div> }
+                        @if (GetColumnVisible("pct")) { <div class="col-num">@if (task.CompletionPercentage > 0) { <span>@task.CompletionPercentage%</span> }</div> }
+                        @if (GetColumnVisible("float")) { <div class="col-num" style="@GetFloatColorStyle(task.TotalFloat)">@(task.TotalFloat?.ToString()??"-")</div> }
+                        @if (GetColumnVisible("freeFloat")) { <div class="col-num" style="@GetFloatColorStyle(task.FreeFloat)">@(task.FreeFloat?.ToString()??"-")</div> }
+                        @if (GetColumnVisible("res")) { <div class="col-resource" title="@GetTaskResourceSummary(task)">@GetTaskResourceSummary(task)</div> }
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    @* 拖拽调整宽度的分隔手柄 *@
+    <div id="gantt-resize-handle" class="gantt-resize-handle"></div>
+
+    @* ========== 右侧甘特图区域（可横向滚动） ========== *@
+    <div class="gantt-right" id="gantt-right" onscroll="syncGanttScrollById()">
+        <div class="gantt-chart" style="width: @chartWidth;" data-day-width="@dayWidth">
+            @* 双层时间轴头部（sticky固定在顶部） *@
+            @{
+                // 计算年月跨度（上层显示）
+                var months = new List<(DateTime date, int span)>();
+                var currentMonth = projectStartDate;
+                while (currentMonth < projectStartDate.AddDays(totalDays))
+                {
+                    var daysInMonth = DateTime.DaysInMonth(currentMonth.Year, currentMonth.Month);
+                    var remainingDays = (projectStartDate.AddDays(totalDays) - currentMonth).Days;
+                    var span = Math.Min(daysInMonth - currentMonth.Day + 1, remainingDays);
+                    months.Add((currentMonth, span));
+                    currentMonth = currentMonth.AddMonths(1);
+                }
+                
+                // 计算周年跨度（周模式下使用）
+                var weeks = new List<(int weekOfYear, int span, DateTime startDate)>();
+                if (dayWidth >= 10 && dayWidth <= 20)
+                {
+                    var currentDay = projectStartDate;
+                    while (currentDay < projectStartDate.AddDays(totalDays))
+                    {
+                        var weekOfYear = System.Globalization.ISOWeek.GetWeekOfYear(currentDay);
+                        var weekStart = currentDay;
+                        var weekSpan = 0;
+                        while (currentDay < projectStartDate.AddDays(totalDays) &&
+                               System.Globalization.ISOWeek.GetWeekOfYear(currentDay) == weekOfYear)
+                        {
+                            weekSpan++;
+                            currentDay = currentDay.AddDays(1);
+                        }
+                        weeks.Add((weekOfYear, weekSpan, weekStart));
+                    }
+                }
+
+                // 根据缩放级别判断显示精度
+                // > 20px: yyyy/MM
+                // 10-20px: yyyy
+                // < 10px: yyyy
+                var upperDisplayMode = dayWidth > 20 ? "full" : "year";
+                
+                // > 20px: 日模式(dd)
+                // 10-20px: 周模式(第X周)
+                // < 10px: 月模式(MM)
+                var lowerDisplayMode = dayWidth > 20 ? "day" : (dayWidth >= 10 ? "week" : "month");
+            }
+            <div class="gantt-timeline-container">
+                @* 上层：年月/年月/年 *@
+                <div class="gantt-timeline-header gantt-timeline-upper">
+                    @if (upperDisplayMode == "year")
+                    {
+                        @* 只显示年 *@
+                        var years = months.GroupBy(m => m.date.Year).ToList();
+                        foreach (var yearGroup in years)
+                        {
+                            var totalSpan = yearGroup.Sum(m => m.span);
+                            <div class="timeline-month" style="width: @(totalSpan * dayWidth)px;">
+                                <span>@yearGroup.Key</span>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        @foreach (var month in months)
+                        {
+                            <div class="timeline-month" style="width: @(month.span * dayWidth)px;">
+                                @if (upperDisplayMode == "full")
+                                {
+                                    <span>@month.date.ToString("yyyy/MM")</span>
+                                }
+                                else
+                                {
+                                    <span>@month.date.ToString("MM")</span>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+                @* 下层：日/周/月 *@
+                <div class="gantt-timeline-header gantt-timeline-lower">
+                    @if (lowerDisplayMode == "day")
+                    {
+                        @* 每日显示 *@
+                        @for (int day = 0; day <= totalDays; day++)
+                        {
+                            var date = projectStartDate.AddDays(day);
+                            var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+                            <div class="timeline-day @(isWeekend ? "weekend" : "")"
+                                 style="width: @(dayWidth)px;">
+                                @date.ToString("dd")
+                            </div>
+                        }
+                    }
+                    else if (lowerDisplayMode == "week")
+                    {
+                        @* 周显示 - 显示本年度第X周 *@
+                        var currentYear = 0;
+                        @foreach (var week in weeks)
+                        {
+                            if (week.startDate.Year != currentYear)
+                            {
+                                currentYear = week.startDate.Year;
+                            }
+                            <div class="timeline-day" style="width: @(week.span * dayWidth)px;">
+                                第@(week.weekOfYear)周
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        @* 月显示 *@
+                        @foreach (var month in months)
+                        {
+                            <div class="timeline-day" style="width: @(month.span * dayWidth)px;">
+                                @month.date.ToString("MM")
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+            @* 时间标尺竖线层 *@
+            <div class="gantt-grid-lines" style="height: @(tasks.Count * rowHeight + 40)px;">
+                @{
+                    // 计算年份边界线位置
+                    var yearBoundaries = new List<(DateTime date, int dayOffset, bool isYearStart)>(); 
+                    for (int year = projectStartDate.Year; year <= projectStartDate.AddDays(totalDays).Year; year++)
+                    {
+                        var yearStart = new DateTime(year, 1, 1);
+                        if (yearStart >= projectStartDate && yearStart <= projectStartDate.AddDays(totalDays))
+                        {
+                            var offset = (yearStart - projectStartDate).Days;
+                            yearBoundaries.Add((yearStart, offset, true));
+                        }
+                    }
+                }
+                @* 年度粗实线 *@
+                @foreach (var yb in yearBoundaries)
+                {
+                    <div class="grid-line year-line" style="left: @(yb.dayOffset * dayWidth)px;"></div>
+                }
+                @* 月度细实线（年度边界除外） *@
+                @for (int i = 0; i < months.Count; i++)
+                {
+                    var monthStartOffset = (months[i].date - projectStartDate).Days;
+                    var isYearStart = months[i].date.Month == 1;
+                    @if (!isYearStart)
+                    {
+                        <div class="grid-line month-line" style="left: @(monthStartOffset * dayWidth)px;"></div>
+                    }
+                }
+            </div>
+            @* 前置关系线 SVG 层 *@
+            <svg class="gantt-relation-lines" style="height: @(tasks.Count * rowHeight)px;">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#666"/>
+                    </marker>
+                    <marker id="progress-arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#ff6b00"/>
+                    </marker>
+                </defs>
+                @* 今日线 *@
+                @if (showTodayLine)
+                {
+                    var todayOffset = Math.Max(0, (DateTime.Today - projectStartDate).Days) * dayWidth;
+                    var todayX = todayOffset + dayWidth / 2;
+                    <line x1="@todayX" y1="0" x2="@todayX" y2="@(tasks.Count * rowHeight)" 
+                          stroke="#e74c3c" stroke-width="2" stroke-dasharray="5,3"/>
+                }
+                @* 前锋线（基于任务完成率的进度前锋线） *@
+                @if (showProgressLine)
+                {
+                    @* 计算每个任务的进度点位置 *@
+                    var progressPoints = new List<(double x, double y)>();
+                    foreach (var task in tasks)
+                    {
+                        var rowIndex = tasks.IndexOf(task);
+                        var startOffset = Math.Max(0, (task.PlanStartDate - projectStartDate).Days) * dayWidth;
+                        var barWidth = task.PlanDuration * dayWidth;
+                        var progressX = startOffset + barWidth * task.CompletionPercentage / 100.0;
+                        var progressY = rowIndex * rowHeight + 18; // 行中心
+                        progressPoints.Add((progressX, progressY));
+                    }
+                    @* 折线连接所有进度点 *@
+                    <polyline points="@string.Join(" ", progressPoints.Select(p => $"{p.x:F1},{p.y:F1}"))"
+                              stroke="#ff6b00" stroke-width="1.5" fill="none" opacity="0.6" stroke-linejoin="round"/>
+                    @* 在每个进度点画圆点标记 *@
+                    foreach (var pt in progressPoints)
+                    {
+                        <circle cx="@pt.x" cy="@pt.y" r="3.5" fill="#ff6b00" opacity="0.8"/>
+                    }
+                }
+                @* 前置关系线 *@
+                @if (showRelationLine)
+                {
+                    @foreach (var rel in taskRelations)
+                    {
+                        var predTask = tasks.FirstOrDefault(t => t.Id == rel.PredecessorTaskId);
+                        var succTask = tasks.FirstOrDefault(t => t.Id == rel.SuccessorTaskId);
+                        @if (predTask != null && succTask != null)
+                        {
+                            var predRow = tasks.IndexOf(predTask);
+                            var succRow = tasks.IndexOf(succTask);
+                            var predEndOffset = (predTask.PlanEndDate - projectStartDate).Days * dayWidth + dayWidth;
+                            var succStartOffset = Math.Max(0, (succTask.PlanStartDate - projectStartDate).Days) * dayWidth;
+                            var predTop = predRow * rowHeight + 18;
+                            var succTop = succRow * rowHeight + 18;
+                            
+                            @if (predRow == succRow)
+                            {
+                                <line x1="@predEndOffset" y1="@predTop" x2="@succStartOffset" y2="@succTop" 
+                                      stroke="#666" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+                            }
+                            else
+                            {
+                                var midX = predEndOffset + Math.Max(20, (succStartOffset - predEndOffset) / 2);
+                                <path d="M @predEndOffset @predTop L @midX @predTop L @midX @succTop L @succStartOffset @succTop" 
+                                      stroke="#666" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)"/>
+                            }
+                        }
+                    }
+                }
+            </svg>
+            @* 甘特条形图（重构：蓝上绿下 共享边框） *@
+            <div class="gantt-bars" style="height: @(tasks.Count * rowHeight)px;">
+                @foreach (var task in tasks)
+                {
+                    var rowIndex = tasks.IndexOf(task);
+                    var planStart = Math.Max(0, (task.PlanStartDate - projectStartDate).Days) * dayWidth;
+                    var planW = task.PlanDuration * dayWidth;
+                    var actStart = 0.0; var actW = 0.0; var hasActual = false;
+                    if (task.ActualStartDate.HasValue)
+                    {
+                        actStart = Math.Max(0, (task.ActualStartDate.Value - projectStartDate).Days) * dayWidth;
+                        var actEnd = task.ActualEndDate ?? DateTime.Today;
+                        if (actEnd < task.ActualStartDate.Value) actEnd = task.ActualStartDate.Value;
+                        actW = Math.Max(2, (actEnd - task.ActualStartDate.Value).Days * dayWidth);
+                        hasActual = true;
+                    }
+                    var barLeft = hasActual ? Math.Min(planStart, actStart) : planStart;
+                    var barTotalW = hasActual ? Math.Max(planStart + planW, actStart + actW) - barLeft : planW;
+                    var barHeight = rowHeight * 0.9; // 90%
+                    var barTop = (rowHeight - barHeight) / 2;
+                    var planLeft = planStart - barLeft;
+                    var actLeft = hasActual ? (actStart - barLeft) : 0;
+                    <div class="gantt-bar-frame @GetBarClass(task) @(selectedTaskId == task.Id ? "selected" : "")"
+                         style="left: @(barLeft)px; width: @(barTotalW)px; top: @(rowIndex * rowHeight + barTop)px; height: @(barHeight)px;"
+                         draggable="true"
+                         @ondragstart="(e) => OnBarDragStart(e, task)"
+                         @ondrag="OnBarDrag"
+                         @ondragend="(e) => OnBarDragEnd(e, task)"
+                         @ondblclick="() => EditTask(task)"
+                         @onclick="() => SelectTask(task.Id)"
+                         title="@task.Name"
+                         data-task-id="@task.Id">
+                        @* 计划进度（蓝色上半部） *@
+                        <div class="bar-plan" style="left: @(planLeft)px; width: @(planW)px;"></div>
+                        @* 实际进度（绿色下半部） *@
+                        @if (hasActual)
+                        {
+                            <div class="bar-act" style="left: @(actLeft)px; width: @(actW)px;"></div>
+                        }
+                        <span class="bar-label">@task.Name @(task.CompletionPercentage > 0 ? $"({task.CompletionPercentage}%)" : "")</span>
                     </div>
                 }
             </div>
         </div>
     </div>
+    </div>@* end gantt-main *@
+
+    @* ========== 资源投入折线图面板 ========== *@
+    @if (showResourceHistogram)
+    {
+        <div class="histogram-panel">
+            <div class="histogram-body">
+                <div class="histogram-sidebar">
+                    <span class="histogram-title">投入</span>
+                    <button class="histogram-sort-btn @(resourceFilter == "all" ? "active" : "")" @onclick="FilterAll">全部</button>
+                    <button class="histogram-sort-btn labor @(resourceFilter == "labor" ? "active" : "")" @onclick="FilterLabor">人</button>
+                    <button class="histogram-sort-btn material @(resourceFilter == "material" ? "active" : "")" @onclick="FilterMaterial">材</button>
+                    <button class="histogram-sort-btn equipment @(resourceFilter == "equipment" ? "active" : "")" @onclick="FilterEquipment">机</button>
+                    <span class="histogram-title" style="margin-top:6px;">周期</span>
+                    <button class="histogram-sort-btn @(histogramGranularity == "week" ? "active" : "")" @onclick="SetGranularityWeek">周</button>
+                    <button class="histogram-sort-btn @(histogramGranularity == "month" ? "active" : "")" @onclick="SetGranularityMonth">月</button>
+                    <button class="histogram-sort-btn @(histogramGranularity == "quarter" ? "active" : "")" @onclick="SetGranularityQuarter">季</button>
+                    <button class="histogram-sort-btn @(histogramGranularity == "year" ? "active" : "")" @onclick="SetGranularityYear">年</button>
+                </div>
+                <div class="histogram-chart-area">
+                    @if (chartError != null)
+                    {
+                        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ff4d4f;font-size:13px;gap:6px;">
+                            <span class="oi oi-warning"></span> @chartError
+                        </div>
+                    }
+                    <canvas id="resource-chart" style="@(chartError != null ? "display:none" : "")"></canvas>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
+@* ========== 底部状态栏 ========== *@
+<div class="gantt-statusbar">
+    @if (projects.Any(p => p.Id == currentProjectId))
+    {
+        var proj = projects.First(p => p.Id == currentProjectId);
+        <span class="status-item">📁 项目：@proj.Name</span>
+        <span class="status-divider">|</span>
+        <span class="status-item">📅 总工期：@(tasks.Any() ? (tasks.Max(t => t.PlanEndDate) - tasks.Min(t => t.PlanStartDate)).Days + 1 : 0) 天</span>
+        <span class="status-divider">|</span>
+        <span class="status-item">🔢 任务数：@tasks.Count</span>
+        <span class="status-divider">|</span>
+        <span class="status-item">🔑 关键任务：@tasks.Count(t => t.IsCritical)</span>
+    }
+</div>
+
+@* ========== 任务编辑模态框 ========== *@
 @if (taskModalVisible && editingTask != null)
 {
     <div class="modal-overlay">
-        <div class="modal-content">
+        <div class="modal-content modal-content-wide" @onclick:stopPropagation="true">
             <h3>@(editingTask.Id > 0 ? "编辑任务" : "添加任务")</h3>
-            <div class="form-group">
-                <label>任务代号</label>
-                <input class="form-control" @bind="editingTask.Code" />
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>任务代码</label>
+                    <input class="form-control" @bind="editingTask.Code" placeholder="如 A1" />
+                </div>
+                <div class="form-group">
+                    <label>任务名称</label>
+                    <input class="form-control" @bind="editingTask.Name" placeholder="如 项目立项与审批" />
+                </div>
             </div>
-            <div class="form-group">
-                <label>任务名称</label>
-                <input class="form-control" @bind="editingTask.Name" />
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>负责人</label>
+                    <input class="form-control" @bind="editingTask.ResponsiblePerson" placeholder="负责人姓名" />
+                </div>
+                <div class="form-group">
+                    <label>完成率(%)</label>
+                    <input type="number" class="form-control" @bind="editingTask.CompletionPercentage" min="0" max="100" />
+                </div>
             </div>
-            <div class="form-group">
-                <label>计划开始日期</label>
-                <input type="date" class="form-control" @bind="editingTask.PlanStartDate" />
+
+            <div class="form-row">
+                <div class="form-group form-checkbox">
+                    <input type="checkbox" id="milestoneCheck" @bind="editingTask.IsMilestone" />
+                    <label for="milestoneCheck" style="margin:0; font-weight:500;">里程碑任务</label>
+                </div>
+                <div class="form-group form-checkbox">
+                    <input type="checkbox" id="manualScheduleCheck" @bind="editingTask.IsManualSchedule" />
+                    <label for="manualScheduleCheck" style="margin:0; font-weight:500;" title="勾选后重算计划不会覆盖此任务的日期">
+                        🔒 手动排程
+                    </label>
+                </div>
             </div>
-            <div class="form-group">
-                <label>计划工期（天）</label>
-                <input type="number" class="form-control" @bind="editingTask.PlanDuration" min="1" />
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>计划开始日期</label>
+                    <input type="date" class="form-control" @bind="editingTask.PlanStartDate" @bind:after="OnPlanDatesChanged" />
+                </div>
+                <div class="form-group">
+                    <label>计划完成日期</label>
+                    <input type="date" class="form-control" @bind="editingTask.PlanEndDate" @bind:after="OnPlanEndDateChanged" />
+                </div>
             </div>
-            <div class="modal-actions">
-                <button class="btn btn-primary" @onclick="HandleTaskOk">确定</button>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>计划工期（天）</label>
+                    <input type="number" class="form-control" @bind="editingTask.PlanDuration" min="1" @bind:after="OnPlanDurationChanged" />
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>实际开始日期</label>
+                    <input type="date" class="form-control" @bind="editingTask.ActualStartDate" @bind:after="OnActualDatesChanged" />
+                </div>
+                <div class="form-group">
+                    <label>实际完成日期</label>
+                    <input type="date" class="form-control" @bind="editingTask.ActualEndDate" @bind:after="OnActualDatesChanged" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>备注</label>
+                <textarea class="form-control" @bind="editingTask.Notes" rows="2" placeholder="任务备注"></textarea>
+            </div>
+
+            @* ===== 资源分配区域 ===== *@
+            <div class="resource-assignment-box">
+                <label style="font-weight:600; display:block; margin-bottom:4px;">资源分配</label>
+                <div class="resource-type-filter">
+                    <button class="type-filter-btn @(resourceAssignFilter == "all" ? "active" : "")" @onclick="SetAssignFilterAll">全部</button>
+                    <button class="type-filter-btn labor @(resourceAssignFilter == "labor" ? "active" : "")" @onclick="SetAssignFilterLabor">👤 人工</button>
+                    <button class="type-filter-btn material @(resourceAssignFilter == "material" ? "active" : "")" @onclick="SetAssignFilterMaterial">📦 材料</button>
+                    <button class="type-filter-btn equipment @(resourceAssignFilter == "equipment" ? "active" : "")" @onclick="SetAssignFilterEquipment">🔧 设备</button>
+                </div>
+                <div style="display:flex; align-items:end; gap:12px; margin-top:4px;">
+                    <div class="form-group" style="flex:2;">
+                        <label>资源</label>
+                        <select class="form-control" @bind="selectedResourceId">
+                            <option value="0">-- 选择资源 --</option>
+                            @foreach (var r in filteredAssignResources)
+                            {
+                                <option value="@r.Id">@r.Name (@r.Unit)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label>数量</label>
+                        <input type="number" class="form-control" @bind="assignQuantity" min="0" step="0.5" />
+                    </div>
+                    <div class="form-group" style="flex:0; padding-bottom:2px;">
+                        <button class="btn btn-primary" @onclick="AddResourceAssignment" disabled="@(selectedResourceId == 0)">添加</button>
+                    </div>
+                </div>
+
+                @if (taskAssignments != null && taskAssignments.Count > 0)
+                {
+                    <table class="table table-compact">
+                        <thead>
+                            <tr>
+                                <th>资源名称</th>
+                                <th>类型</th>
+                                <th>数量</th>
+                                <th>单位</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var ra in taskAssignments)
+                            {
+                                <tr>
+                                    <td>@ra.Resource?.Name</td>
+                                    <td>@(ra.Resource?.Type.ToString() ?? "")</td>
+                                    <td>@ra.Quantity</td>
+                                    <td>@ra.Resource?.Unit</td>
+                                    <td>
+                                        <button class="btn btn-danger btn-sm" @onclick="() => RemoveResourceAssignment(ra)">删除</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <div style="color:#999; font-size:13px; padding:8px 0;">暂未分配资源</div>
+                }
+            </div>
+
+            @* ===== 前置任务区域 ===== *@
+            <div class="resource-assignment-box">
+                <label style="font-weight:600; display:block; margin-bottom:6px;">前置任务</label>
+                <div style="display:flex; align-items:end; gap:8px;">
+                    <select class="form-control" @bind="selectedPredTaskId" style="flex:2;">
+                        <option value="0">-- 选择前置任务 --</option>
+                        @foreach (var t in availTasks)
+                        {
+                            <option value="@t.Id">@t.Code - @t.Name</option>
+                        }
+                    </select>
+                    <select class="form-control" @bind="selectedPredType" style="flex:0 0 80px;">
+                        <option value="@RelationType.FS">FS</option>
+                        <option value="@RelationType.SS">SS</option>
+                        <option value="@RelationType.FF">FF</option>
+                        <option value="@RelationType.SF">SF</option>
+                    </select>
+                    <input type="number" class="form-control" @bind="selectedPredLag" style="flex:0 0 60px;" placeholder="天" />
+                    <button class="btn btn-primary btn-sm" @onclick="AddOrUpdatePredecessor" disabled="@(selectedPredTaskId == 0)">
+                        @(editingPredRelationIndex >= 0 ? "更新" : "添加")
+                    </button>
+                </div>
+                @if (editingPredecessors.Count > 0)
+                {
+                    <table class="table table-compact" style="margin-top:8px;">
+                        <thead>
+                            <tr><th>任务</th><th>关系</th><th>时差(天)</th><th>操作</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var rel in editingPredecessors)
+                            {
+                                var pt = tasks.FirstOrDefault(t => t.Id == rel.PredecessorTaskId);
+                                <tr>
+                                    <td>@(pt?.Code ?? "?") - @(pt?.Name ?? "未知")</td>
+                                    <td>@rel.Type</td>
+                                    <td>@rel.Lag</td>
+                                    <td>
+                                        <button class="btn btn-sm" @onclick="() => EditPredecessor(rel)">修改</button>
+                                        <button class="btn btn-danger btn-sm" @onclick="() => RemovePredecessor(rel)">删除</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <div style="color:#999; font-size:13px; padding:8px 0;">暂无前置任务</div>
+                }
+            </div>
+
+            @* ===== 后置任务区域 ===== *@
+            <div class="resource-assignment-box">
+                <label style="font-weight:600; display:block; margin-bottom:6px;">后置任务</label>
+                <div style="display:flex; align-items:end; gap:8px;">
+                    <select class="form-control" @bind="selectedSuccTaskId" style="flex:2;">
+                        <option value="0">-- 选择后置任务 --</option>
+                        @foreach (var t in availTasks)
+                        {
+                            <option value="@t.Id">@t.Code - @t.Name</option>
+                        }
+                    </select>
+                    <select class="form-control" @bind="selectedSuccType" style="flex:0 0 80px;">
+                        <option value="@RelationType.FS">FS</option>
+                        <option value="@RelationType.SS">SS</option>
+                        <option value="@RelationType.FF">FF</option>
+                        <option value="@RelationType.SF">SF</option>
+                    </select>
+                    <input type="number" class="form-control" @bind="selectedSuccLag" style="flex:0 0 60px;" placeholder="天" />
+                    <button class="btn btn-primary btn-sm" @onclick="AddOrUpdateSuccessor" disabled="@(selectedSuccTaskId == 0)">
+                        @(editingSuccRelationIndex >= 0 ? "更新" : "添加")
+                    </button>
+                </div>
+                @if (editingSuccessors.Count > 0)
+                {
+                    <table class="table table-compact" style="margin-top:8px;">
+                        <thead>
+                            <tr><th>任务</th><th>关系</th><th>时差(天)</th><th>操作</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var rel in editingSuccessors)
+                            {
+                                var st = tasks.FirstOrDefault(t => t.Id == rel.SuccessorTaskId);
+                                <tr>
+                                    <td>@(st?.Code ?? "?") - @(st?.Name ?? "未知")</td>
+                                    <td>@rel.Type</td>
+                                    <td>@rel.Lag</td>
+                                    <td>
+                                        <button class="btn btn-sm" @onclick="() => EditSuccessor(rel)">修改</button>
+                                        <button class="btn btn-danger btn-sm" @onclick="() => RemoveSuccessor(rel)">删除</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <div style="color:#999; font-size:13px; padding:8px 0;">暂无后置任务</div>
+                }
+            </div>
+
+            @if (editingTask.Id > 0)
+            {
+                <div class="form-group">
+                    <label>调度信息</label>
+                    <div class="task-info-box">
+                        <p>创建时间: @editingTask.CreatedAt.ToString("yyyy-MM-dd HH:mm")</p>
+                        <p>最早开始(ES): @editingTask.EarlyStart 天 | 最早完成(EF): @editingTask.EarlyFinish 天</p>
+                        <p>最迟开始(LS): @editingTask.LateStart 天 | 最迟完成(LF): @editingTask.LateFinish 天</p>
+                        <p>总时差: @editingTask.TotalFloat 天 | @(editingTask.IsCritical ? "关键任务" : "非关键任务")</p>
+                    </div>
+                </div>
+            }
+
+            <div class="dialog-actions">
+                @if (editingTask.Id > 0)
+                {
+                    <button class="btn btn-danger" @onclick="DeleteCurrentTask">删除任务</button>
+                }
+                <div style="flex:1;"></div>
                 <button class="btn btn-default" @onclick="() => taskModalVisible = false">取消</button>
+                <button class="btn btn-primary" @onclick="HandleTaskOk">确定</button>
             </div>
         </div>
     </div>
@@ -131,24 +783,286 @@
 
     private List<Models.Project> projects = new();
     private List<TaskItem> tasks = new();
+    private List<TaskRelation> taskRelations = new();
     private int currentProjectId { get; set; }
     private bool loading = true;
+    private List<(string Name, int Value)> taskFloatWarnings = new();  // 时差异常警告
     private TaskItem? editingTask;
     private bool taskModalVisible = false;
+    private int? selectedTaskId;
+    private HashSet<int> selectedTasks = new();               // 多选任务ID集合
 
+    // 显示控制开关
+    private bool showProgressLine = true;
+    private bool showTodayLine = true;
+    private bool showRelationLine = true;
+
+    // 拖拽相关
+    private bool isDragging = false;
+    private TaskItem? draggingTask;
+    private double dragStartX = 0;
+    private double originalBarLeft = 0;
+
+    // 甘特图参数
     private double zoomLevel = 100;
     private double dayWidth => 40 * (zoomLevel / 100);
+    private double rowHeight = 36;  // 行高
     private int totalDays = 90;
     private DateTime projectStartDate = DateTime.Today;
     private string chartWidth => $"{totalDays * dayWidth}px";
 
+    // 资源分配相关
+    private List<Resource> projectResources = new();
+    private List<ResourceAssignment> taskAssignments = new();
+    private int selectedResourceId = 0;
+    private decimal assignQuantity = 1;
+
+    // 资源投入折线图
+    private bool showResourceHistogram = false;
+    private string? chartError;
+    private string resourceFilter = "all";
+    private string histogramGranularity = "month";
+    private string resourceAssignFilter = "all";
+    private IEnumerable<Resource> filteredAssignResources => projectResources.Where(r =>
+        resourceAssignFilter == "all" ||
+        (resourceAssignFilter == "labor" && r.Type == ResourceType.Labor) ||
+        (resourceAssignFilter == "material" && r.Type == ResourceType.Material) ||
+        (resourceAssignFilter == "equipment" && r.Type == ResourceType.Equipment)
+    );
+    private void SetAssignFilterAll() => resourceAssignFilter = "all";
+    private void SetAssignFilterLabor() => resourceAssignFilter = "labor";
+    private void SetAssignFilterMaterial() => resourceAssignFilter = "material";
+    private void SetAssignFilterEquipment() => resourceAssignFilter = "equipment";
+
+    // 图表数据（Chart.js）
+    private record ChartLine(string Name, string Color, List<(int Bucket, double Value)> Points);
+    private List<ChartLine> chartLines = new();
+    private List<string> chartAllLabels = new();
+
+    private async Task SetResourceFilterAsync(string f) { resourceFilter = f; CalculateHistogram(); await RenderChartAsync(); }
+    private async Task FilterAll() => await SetResourceFilterAsync("all");
+    private async Task FilterLabor() => await SetResourceFilterAsync("labor");
+    private async Task FilterMaterial() => await SetResourceFilterAsync("material");
+    private async Task FilterEquipment() => await SetResourceFilterAsync("equipment");
+
+    private async Task SetGranularityWeek() { histogramGranularity = "week"; CalculateHistogram(); await RenderChartAsync(); }
+    private async Task SetGranularityMonth() { histogramGranularity = "month"; CalculateHistogram(); await RenderChartAsync(); }
+    private async Task SetGranularityQuarter() { histogramGranularity = "quarter"; CalculateHistogram(); await RenderChartAsync(); }
+    private async Task SetGranularityYear() { histogramGranularity = "year"; CalculateHistogram(); await RenderChartAsync(); }
+
+    private async Task OnHistogramToggled()
+    {
+        if (showResourceHistogram) { CalculateHistogram(); await RenderChartAsync(); }
+    }
+
+    private async Task RenderChartAsync()
+    {
+        if (chartLines.Count == 0 || chartAllLabels.Count == 0) return;
+        await Task.Delay(50); // 等待 DOM 渲染 canvas
+        var chartData = new
+        {
+            labels = chartAllLabels,
+            lines = chartLines.Select(l => new
+            {
+                name = l.Name,
+                color = l.Color,
+                points = l.Points.Select(p => p.Value).ToList()
+            }).ToList()
+        };
+        try { await JS.InvokeVoidAsync("initResourceChart", chartData); chartError = null; }
+        catch (Exception ex) { chartError = $"图表加载失败: {ex.Message}"; Console.WriteLine($"[Chart] Error: {ex.Message}"); }
+    }
+
+    private void CalculateHistogram()
+    {
+        chartLines = new();
+        chartAllLabels = new();
+        if (!tasks.Any() || !projectResources.Any()) return;
+
+        var startDate = tasks.Min(t => t.PlanStartDate);
+        var endDate = tasks.Max(t => t.PlanEndDate);
+        if (endDate <= startDate) return;
+
+        var buckets = new List<(DateTime Start, DateTime End, string Label)>();
+        var current = startDate;
+        while (current <= endDate)
+        {
+            DateTime bucketEnd;
+            string label;
+            switch (histogramGranularity)
+            {
+                case "week":
+                    bucketEnd = current.AddDays(6);
+                    label = current.AddDays(3).ToString("MM/dd");
+                    break;
+                case "quarter":
+                    label = $"{current.Year}Q{(current.Month - 1) / 3 + 1}";
+                    bucketEnd = new DateTime(current.Year, ((current.Month - 1) / 3) * 3 + 1, 1).AddMonths(3).AddDays(-1);
+                    break;
+                case "year":
+                    label = current.ToString("yyyy");
+                    bucketEnd = new DateTime(current.Year, 12, 31);
+                    break;
+                default: // month
+                    label = current.ToString("yy/MM");
+                    bucketEnd = new DateTime(current.Year, current.Month, DateTime.DaysInMonth(current.Year, current.Month));
+                    break;
+            }
+            if (bucketEnd > endDate) bucketEnd = endDate;
+            buckets.Add((current, bucketEnd, label));
+            current = bucketEnd.AddDays(1);
+        }
+
+        chartAllLabels = buckets.Select(b => b.Label).ToList();
+
+        var typesToCalc = resourceFilter switch
+        {
+            "labor" => new[] { (ResourceType.Labor, "人工", "#1890ff") },
+            "material" => new[] { (ResourceType.Material, "材料", "#722ed1") },
+            "equipment" => new[] { (ResourceType.Equipment, "设备", "#52c41a") },
+            _ => new[] { (ResourceType.Labor, "人工", "#1890ff"), (ResourceType.Material, "材料", "#722ed1"), (ResourceType.Equipment, "设备", "#52c41a") }
+        };
+
+        var taskAssignMap = new Dictionary<int, List<(Resource Resource, decimal Qty)>>();
+        foreach (var t in tasks)
+        {
+            var assigns = t.ResourceAssignments as List<ResourceAssignment> ?? new List<ResourceAssignment>();
+            taskAssignMap[t.Id] = assigns.Where(a => a.Resource != null).Select(a => (a.Resource, a.Quantity)).ToList();
+        }
+
+        foreach (var (resType, name, color) in typesToCalc)
+        {
+            var points = new List<(int Bucket, double Value)>();
+            for (int b = 0; b < buckets.Count; b++)
+            {
+                var bs = buckets[b].Start;
+                var be = buckets[b].End;
+                double total = 0;
+                foreach (var t in tasks)
+                {
+                    if (!taskAssignMap.TryGetValue(t.Id, out var assigns)) continue;
+                    var oStart = t.PlanStartDate > bs ? t.PlanStartDate : bs;
+                    var oEnd = t.PlanEndDate < be ? t.PlanEndDate : be;
+                    if (oStart > oEnd) continue;
+                    foreach (var (r, qty) in assigns)
+                        if (r.Type == resType) total += (double)qty;
+                }
+                points.Add((b, total));
+            }
+            chartLines.Add(new ChartLine(name, color, points));
+        }
+    }
+
+    // 前后置任务关系相关
+    private List<TaskItem> availTasks = new();
+    private List<TaskRelation> editingPredecessors = new();
+    private List<TaskRelation> editingSuccessors = new();
+    private int selectedPredTaskId = 0;
+    private RelationType selectedPredType = RelationType.FS;
+    private int selectedPredLag = 0;
+    private int selectedSuccTaskId = 0;
+    private RelationType selectedSuccType = RelationType.FS;
+    private int selectedSuccLag = 0;
+    private int editingPredRelationIndex = -1;
+    private int editingSuccRelationIndex = -1;
+
+    // 列显示控制 — 使用可绑定的对象列表替代 Dictionary
+    private class ColumnInfo
+    {
+        public string Key { get; set; } = "";
+        public string Label { get; set; } = "";
+        public bool Visible { get; set; } = true;
+    }
+
+    private bool showColumnPanel = false;
+    private List<ColumnInfo> columnDefs = new()
+    {
+        new() { Key = "status", Label = "状态" },
+        new() { Key = "code", Label = "任务代码" },
+        new() { Key = "name", Label = "任务名称" },
+        new() { Key = "person", Label = "负责人" },
+        new() { Key = "planStart", Label = "计划开始" },
+        new() { Key = "planEnd", Label = "计划完成" },
+        new() { Key = "duration", Label = "工期" },
+        new() { Key = "actStart", Label = "实际开始" },
+        new() { Key = "actEnd", Label = "实际完成" },
+        new() { Key = "actDur", Label = "实工" },
+        new() { Key = "pred", Label = "前置任务" },
+        new() { Key = "succ", Label = "后置任务" },
+        new() { Key = "pct", Label = "完成率" },
+        new() { Key = "float", Label = "总时差" },
+        new() { Key = "freeFloat", Label = "自由时差" },
+        new() { Key = "res", Label = "资源" },
+    };
+    private List<ColumnInfo> columnTemp = new(); // 临时编辑副本
+
+    private bool GetColumnVisible(string key)
+    {
+        var col = columnDefs.FirstOrDefault(c => c.Key == key);
+        return col?.Visible ?? true;
+    }
+
+    /// <summary>时差值 → 颜色样式</summary>
+    private string GetFloatColorStyle(int? value)
+    {
+        if (value == null) return "";
+        var v = Math.Abs(value.Value);
+        if (v == 0) return "color:red;font-weight:bold";           // 关键路径
+        if (v <= 100) return "color:inherit";                       // 正常
+        if (v <= 200) return "color:#f0ad4e;font-weight:bold";      // 🟡 可疑
+        if (v <= 365) return "color:#fd7e14;font-weight:bold";      // 🟠 警告
+        return "color:#dc3545;font-weight:bold";                    // 🔴 严重
+    }
+
+    /// <summary>加载任务后刷新时差警告列表</summary>
+    private void RefreshFloatWarnings()
+    {
+        taskFloatWarnings.Clear();
+        foreach (var t in tasks)
+        {
+            if (t.TotalFloat.HasValue && Math.Abs(t.TotalFloat.Value) > 100)
+                taskFloatWarnings.Add(($"{t.Name} (TF)", Math.Abs(t.TotalFloat.Value)));
+            if (t.FreeFloat.HasValue && Math.Abs(t.FreeFloat.Value) > 100)
+                taskFloatWarnings.Add(($"{t.Name} (FF)", Math.Abs(t.FreeFloat.Value)));
+        }
+    }
+
+    private void ToggleColumnPanel()
+    {
+        showColumnPanel = !showColumnPanel;
+        if (showColumnPanel)
+        {
+            // 深拷贝当前列可见状态到临时列表
+            columnTemp = columnDefs.Select(c => new ColumnInfo { Key = c.Key, Label = c.Label, Visible = c.Visible }).ToList();
+        }
+    }
+
+    private void ApplyColumnVisibility()
+    {
+        // 将临时状态写回正式列定义
+        foreach (var ct in columnTemp)
+        {
+            var cd = columnDefs.FirstOrDefault(c => c.Key == ct.Key);
+            if (cd != null) cd.Visible = ct.Visible;
+        }
+        showColumnPanel = false;
+    }
+
+    private void CancelColumnVisibility()
+    {
+        showColumnPanel = false;
+    }
+
+    /// <summary>列复选框变更处理 — 直接操作 List 对象属性，Blazor 能正确检测变更</summary>
+    private void OnColumnCheckChange(int index, bool value)
+    {
+        if (index >= 0 && index < columnTemp.Count)
+            columnTemp[index].Visible = value;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         projects = await ProjectService.GetAllProjectsAsync();
-        if (currentProjectId == 0 && projects.Any())
-        {
-            currentProjectId = projects.First().Id;
-        }
         loading = false;
         if (currentProjectId > 0)
         {
@@ -165,14 +1079,36 @@
         }
     }
 
+    private DotNetObjectReference<Gantt>? dotNetRef;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            if (firstRender)
+            {
+                dotNetRef = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("setGanttDotNet", dotNetRef);
+            }
+            await JS.InvokeVoidAsync("initGanttScroll");
+            await JS.InvokeVoidAsync("initPanelResize");
+        }
+        catch (Exception) { /* 预渲染阶段 JS 不可用，忽略 */ }
+    }
+    public void Dispose() => dotNetRef?.Dispose();
+
     private async Task LoadTasks()
     {
         if (currentProjectId == 0) return;
 
         loading = true;
         tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
+        taskRelations = await ProjectService.GetRelationsByProjectIdAsync(currentProjectId);
+        projectResources = await ResourceService.GetResourcesByProjectAsync(currentProjectId);
         if (tasks.Any())
         {
+            // 每次加载时重算 CPM，确保时差警告和关键路径标注始终准确
+            // CPM 引擎已正确处理 IsManualSchedule（取 max(CPM, 手动值)），不会覆盖手动排程
+            await ProjectService.CalculateScheduleAsync(currentProjectId);
             var project = projects.FirstOrDefault(p => p.Id == currentProjectId);
             if (project != null)
             {
@@ -180,23 +1116,46 @@
                 totalDays = Math.Max(90, (project.PlanEndDate - project.PlanStartDate).Days + 30);
             }
         }
+        RefreshFloatWarnings();
+        CalculateHistogram();
         loading = false;
     }
 
-    private void ShowAddTaskModal()
+    private void SelectTask(int taskId)
+    {
+        selectedTaskId = selectedTaskId == taskId ? null : taskId;
+    }
+
+    private async Task ShowAddTaskModal()
     {
         if (currentProjectId == 0) return;
 
         editingTask = new TaskItem
         {
             ProjectId = currentProjectId,
+            Code = await GenerateNextTaskCode(),
             PlanStartDate = DateTime.Today,
-            PlanDuration = 5
+            PlanEndDate = DateTime.Today.AddDays(4),
+            PlanDuration = 5,
+            CompletionPercentage = 0,
+            CreatedAt = DateTime.UtcNow
         };
         taskModalVisible = true;
+        selectedTaskId = null;
+        selectedResourceId = 0;
+        assignQuantity = 1;
+        taskAssignments = new List<ResourceAssignment>();
+        editingPredecessors = new List<TaskRelation>();
+        editingSuccessors = new List<TaskRelation>();
+        availTasks = tasks.ToList();
+        selectedPredTaskId = 0; selectedPredLag = 0; selectedPredType = RelationType.FS;
+        selectedSuccTaskId = 0; selectedSuccLag = 0; selectedSuccType = RelationType.FS;
+        editingPredRelationIndex = -1;
+        editingSuccRelationIndex = -1;
+        projectResources = await ResourceService.GetResourcesByProjectAsync(currentProjectId);
     }
 
-    private void EditTask(TaskItem task)
+    private async Task EditTask(TaskItem task)
     {
         editingTask = new TaskItem
         {
@@ -204,17 +1163,57 @@
             ProjectId = task.ProjectId,
             Code = task.Code,
             Name = task.Name,
+            SortOrder = task.SortOrder,
+            ResponsiblePerson = task.ResponsiblePerson,
+            CompletionPercentage = task.CompletionPercentage,
+            IsMilestone = task.IsMilestone,
+            IsManualSchedule = task.IsManualSchedule,
+            Notes = task.Notes,
             PlanStartDate = task.PlanStartDate,
-            PlanDuration = task.PlanDuration
+            PlanEndDate = task.PlanEndDate,
+            PlanDuration = task.PlanDuration,
+            ActualStartDate = task.ActualStartDate,
+            ActualEndDate = task.ActualEndDate,
+            EarlyStart = task.EarlyStart,
+            EarlyFinish = task.EarlyFinish,
+            LateStart = task.LateStart,
+            LateFinish = task.LateFinish,
+            TotalFloat = task.TotalFloat,
+            IsCritical = task.IsCritical,
+            CreatedAt = task.CreatedAt
         };
         taskModalVisible = true;
+        selectedResourceId = 0;
+        assignQuantity = 1;
+        
+        // 加载资源分配和项目资源列表
+        projectResources = await ResourceService.GetResourcesByProjectAsync(currentProjectId);
+        taskAssignments = await ResourceService.GetAssignmentsByTaskIdAsync(task.Id);
+
+        // 加载前后置任务关系
+        var fullTask = await ProjectService.GetTaskByIdAsync(task.Id);
+        editingPredecessors = fullTask?.Predecessors?.ToList() ?? new();
+        editingSuccessors = fullTask?.Successors?.ToList() ?? new();
+        availTasks = tasks.Where(t => t.Id != task.Id).ToList();
+        selectedPredTaskId = 0; selectedPredLag = 0; selectedPredType = RelationType.FS;
+        selectedSuccTaskId = 0; selectedSuccLag = 0; selectedSuccType = RelationType.FS;
+        editingPredRelationIndex = -1;
+        editingSuccRelationIndex = -1;
     }
 
     private async Task HandleTaskOk()
     {
         if (editingTask == null) return;
 
+        // 防日期清除 + 强制联动
+        if (editingTask.PlanStartDate.Year < 2000)
+            editingTask.PlanStartDate = DateTime.Today;
+        editingTask.PlanDuration = Math.Max(1, editingTask.PlanDuration);
         editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(editingTask.PlanDuration - 1);
+
+        // 自动计算实际工期
+        if (editingTask.ActualStartDate.HasValue && editingTask.ActualEndDate.HasValue)
+            editingTask.ActualDuration = Math.Max(1, (editingTask.ActualEndDate.Value - editingTask.ActualStartDate.Value).Days + 1);
 
         if (editingTask.Id > 0)
         {
@@ -225,14 +1224,271 @@
             await ProjectService.CreateTaskAsync(editingTask);
         }
 
+        // 同步前后置任务关系：先删后建
+        if (editingTask.Id > 0)
+        {
+            var existingRels = await ProjectService.GetRelationsByTaskIdAsync(editingTask.Id);
+            foreach (var r in existingRels)
+                await ProjectService.DeleteRelationAsync(r.Id);
+
+            foreach (var rel in editingPredecessors)
+            {
+                rel.SuccessorTaskId = editingTask.Id;
+                await ProjectService.CreateRelationAsync(rel);
+            }
+            foreach (var rel in editingSuccessors)
+            {
+                rel.PredecessorTaskId = editingTask.Id;
+                await ProjectService.CreateRelationAsync(rel);
+            }
+        }
+
         taskModalVisible = false;
+        // 重算调度（更新ES/EF/LS/LF/关键路径），然后刷新数据和甘特图
+        await ProjectService.CalculateScheduleAsync(currentProjectId);
         await LoadTasks();
     }
 
-    private async Task DeleteTask(int taskId)
+    private async Task AddResourceAssignment()
     {
-        await ProjectService.DeleteTaskAsync(taskId);
-        await LoadTasks();
+        if (editingTask == null || editingTask.Id == 0 || selectedResourceId == 0) return;
+
+        // 先保存任务（如果是新建的还没有Id）
+        if (editingTask.Id == 0)
+        {
+            editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(editingTask.PlanDuration - 1);
+            await ProjectService.CreateTaskAsync(editingTask);
+            // 修正本地引用
+        }
+
+        // 检查是否已存在
+        var existing = taskAssignments.FirstOrDefault(a => a.ResourceId == selectedResourceId);
+        if (existing != null)
+        {
+            existing.Quantity += assignQuantity;
+            await ResourceService.UpdateAssignmentAsync(existing);
+        }
+        else
+        {
+            var assignment = new ResourceAssignment
+            {
+                TaskId = editingTask.Id,
+                ResourceId = selectedResourceId,
+                Quantity = assignQuantity > 0 ? assignQuantity : 1
+            };
+            await ResourceService.CreateAssignmentAsync(assignment);
+        }
+
+        // 刷新列表
+        taskAssignments = await ResourceService.GetAssignmentsByTaskIdAsync(editingTask.Id);
+        selectedResourceId = 0;
+        assignQuantity = 1;
+    }
+
+    // ========== 日期联动计算 ==========
+    private void OnPlanDatesChanged()
+    {
+        if (editingTask == null) return;
+        // 防止日期清除为 0001/01/01
+        if (editingTask.PlanStartDate.Year < 2000)
+            editingTask.PlanStartDate = DateTime.Today;
+        if (editingTask.PlanEndDate.Year < 2000)
+            editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(Math.Max(1, editingTask.PlanDuration) - 1);
+        // PlanEndDate 始终跟随 PlanStartDate + PlanDuration
+        editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(Math.Max(1, editingTask.PlanDuration) - 1);
+    }
+    private void OnPlanEndDateChanged()
+    {
+        if (editingTask == null) return;
+        if (editingTask.PlanEndDate.Year < 2000)
+            editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(Math.Max(1, editingTask.PlanDuration) - 1);
+        if (editingTask.PlanEndDate < editingTask.PlanStartDate)
+            editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(Math.Max(1, editingTask.PlanDuration) - 1);
+        editingTask.PlanDuration = Math.Max(1, (editingTask.PlanEndDate - editingTask.PlanStartDate).Days + 1);
+    }
+    private void OnPlanDurationChanged()
+    {
+        if (editingTask == null) return;
+        editingTask.PlanDuration = Math.Max(1, editingTask.PlanDuration);
+        editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(editingTask.PlanDuration - 1);
+    }
+    private void OnActualDatesChanged()
+    {
+        if (editingTask == null) return;
+        // 防倒置：实际完成 < 实际开始 → 自动纠正
+        if (editingTask.ActualEndDate.HasValue && editingTask.ActualStartDate.HasValue
+            && editingTask.ActualEndDate.Value < editingTask.ActualStartDate.Value)
+        {
+            editingTask.ActualEndDate = editingTask.ActualStartDate.Value;
+        }
+        // 自动计算实际工期
+        if (editingTask.ActualStartDate.HasValue && editingTask.ActualEndDate.HasValue)
+            editingTask.ActualDuration = Math.Max(1, (editingTask.ActualEndDate.Value - editingTask.ActualStartDate.Value).Days + 1);
+        else
+            editingTask.ActualDuration = null;
+    }
+
+    private async Task RemoveResourceAssignment(ResourceAssignment ra)
+    {
+        if (ra.Id > 0)
+        {
+            await ResourceService.DeleteAssignmentAsync(ra.Id);
+        }
+        taskAssignments.Remove(ra);
+    }
+
+    // ========== 前后置任务关系管理 ==========
+
+    private void AddOrUpdatePredecessor()
+    {
+        if (editingTask == null || selectedPredTaskId == 0) return;
+        if (editingPredRelationIndex >= 0)
+        {
+            // 更新已有关系
+            editingPredecessors[editingPredRelationIndex].PredecessorTaskId = selectedPredTaskId;
+            editingPredecessors[editingPredRelationIndex].Type = selectedPredType;
+            editingPredecessors[editingPredRelationIndex].Lag = selectedPredLag;
+            editingPredRelationIndex = -1;
+        }
+        else
+        {
+            var existing = editingPredecessors.FirstOrDefault(r => r.PredecessorTaskId == selectedPredTaskId);
+            if (existing != null) return;
+            editingPredecessors.Add(new TaskRelation
+            {
+                PredecessorTaskId = selectedPredTaskId,
+                SuccessorTaskId = editingTask.Id,
+                Type = selectedPredType,
+                Lag = selectedPredLag
+            });
+        }
+        selectedPredTaskId = 0;
+        selectedPredLag = 0;
+        selectedPredType = RelationType.FS;
+    }
+
+    private void EditPredecessor(TaskRelation rel)
+    {
+        var idx = editingPredecessors.IndexOf(rel);
+        if (idx < 0) return;
+        editingPredRelationIndex = idx;
+        selectedPredTaskId = rel.PredecessorTaskId;
+        selectedPredType = rel.Type;
+        selectedPredLag = rel.Lag;
+    }
+
+    private void RemovePredecessor(TaskRelation rel)
+    {
+        editingPredecessors.Remove(rel);
+        editingPredRelationIndex = -1;
+    }
+
+    private void AddOrUpdateSuccessor()
+    {
+        if (editingTask == null || selectedSuccTaskId == 0) return;
+        if (editingSuccRelationIndex >= 0)
+        {
+            editingSuccessors[editingSuccRelationIndex].SuccessorTaskId = selectedSuccTaskId;
+            editingSuccessors[editingSuccRelationIndex].Type = selectedSuccType;
+            editingSuccessors[editingSuccRelationIndex].Lag = selectedSuccLag;
+            editingSuccRelationIndex = -1;
+        }
+        else
+        {
+            var existing = editingSuccessors.FirstOrDefault(r => r.SuccessorTaskId == selectedSuccTaskId);
+            if (existing != null) return;
+            editingSuccessors.Add(new TaskRelation
+            {
+                PredecessorTaskId = editingTask.Id,
+                SuccessorTaskId = selectedSuccTaskId,
+                Type = selectedSuccType,
+                Lag = selectedSuccLag
+            });
+        }
+        selectedSuccTaskId = 0;
+        selectedSuccLag = 0;
+        selectedSuccType = RelationType.FS;
+    }
+
+    private void EditSuccessor(TaskRelation rel)
+    {
+        var idx = editingSuccessors.IndexOf(rel);
+        if (idx < 0) return;
+        editingSuccRelationIndex = idx;
+        selectedSuccTaskId = rel.SuccessorTaskId;
+        selectedSuccType = rel.Type;
+        selectedSuccLag = rel.Lag;
+    }
+
+    private void RemoveSuccessor(TaskRelation rel)
+    {
+        editingSuccessors.Remove(rel);
+    }
+
+    /// <summary>
+    /// 自动生成下一个任务代码（T1, T2, ...）
+    /// </summary>
+    private async Task<string> GenerateNextTaskCode()
+    {
+        var existing = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
+        int maxNum = 0;
+        foreach (var t in existing)
+        {
+            if (t.Code.StartsWith("T") && int.TryParse(t.Code[1..], out var n))
+                maxNum = Math.Max(maxNum, n);
+        }
+        return $"T{maxNum + 1}";
+    }
+
+    /// <summary>
+    /// 获取任务的资源摘要（显示在列表列中）
+    /// </summary>
+    private string GetTaskResourceSummary(TaskItem task)
+    {
+        if (task.ResourceAssignments == null || task.ResourceAssignments.Count == 0)
+            return "";
+        var parts = task.ResourceAssignments
+            .Where(a => a.Resource != null)
+            .Select(a => $"{a.Resource.Name}:{a.Quantity}{a.Resource.Unit}");
+        return string.Join(", ", parts);
+    }
+
+    /// <summary>
+    /// 获取前置任务摘要（显示在列表列中）
+    /// </summary>
+    private string GetPredecessorSummary(TaskItem task)
+    {
+        if (task.Predecessors == null || task.Predecessors.Count == 0)
+            return "";
+        var parts = task.Predecessors
+            .Where(r => r.PredecessorTask != null)
+            .Select(r => r.PredecessorTask.Code);
+        return string.Join(", ", parts);
+    }
+
+    private string GetSuccessorSummary(TaskItem task)
+    {
+        if (task.Successors == null || task.Successors.Count == 0)
+            return "";
+        var parts = task.Successors
+            .Where(r => r.SuccessorTask != null)
+            .Select(r => r.SuccessorTask.Code);
+        return string.Join(", ", parts);
+    }
+
+    private async Task DeleteCurrentTask()
+    {
+        if (editingTask == null || editingTask.Id == 0) return;
+        try
+        {
+            await ProjectService.DeleteTaskAsync(editingTask.Id);
+            taskModalVisible = false;
+            await LoadTasks();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"删除失败: {ex.Message}");
+        }
     }
 
     private async Task RecalculateSchedule()
@@ -241,4 +1497,460 @@
         await ProjectService.CalculateScheduleAsync(currentProjectId);
         await LoadTasks();
     }
+
+    private void ZoomIn()
+    {
+        zoomLevel = Math.Min(3000, zoomLevel + 5);
+    }
+
+    private void ZoomOut()
+    {
+        zoomLevel = Math.Max(1, zoomLevel - 5);
+    }
+
+    private async Task ZoomToFit()
+    {
+        try
+        {
+            var rightWidth = await JS.InvokeAsync<double>("eval", "document.getElementById('gantt-right')?.clientWidth || 800");
+            if (totalDays <= 0) return;
+            var targetDayW = (rightWidth - 20) / Math.Max(1, totalDays);
+            var newZoom = targetDayW / 40.0 * 100;
+            zoomLevel = Math.Max(1, Math.Min(3000, (int)Math.Round(newZoom)));
+        }
+        catch (Exception ex) { Console.WriteLine($"[Zoom] Error: {ex.Message}"); }
+    }
+
+    private async Task DeleteSelectedTask()
+    {
+        if (selectedTaskId == null) return;
+        try
+        {
+            await ProjectService.DeleteTaskAsync(selectedTaskId.Value);
+            selectedTaskId = null;
+            await LoadTasks();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"删除失败: {ex.Message}");
+        }
+    }
+
+    // ========== 任务上下移动 ==========
+    private async Task MoveTaskUp()
+    {
+        if (selectedTaskId == null) return;
+        var current = tasks.FirstOrDefault(t => t.Id == selectedTaskId.Value);
+        if (current == null) return;
+        var above = tasks.Where(t => t.SortOrder < current.SortOrder).OrderByDescending(t => t.SortOrder).FirstOrDefault();
+        if (above == null) return;
+        (current.SortOrder, above.SortOrder) = (above.SortOrder, current.SortOrder);
+        await ProjectService.UpdateTaskAsync(current);
+        await ProjectService.UpdateTaskAsync(above);
+        await LoadTasks();
+    }
+
+    private async Task MoveTaskDown()
+    {
+        if (selectedTaskId == null) return;
+        var current = tasks.FirstOrDefault(t => t.Id == selectedTaskId.Value);
+        if (current == null) return;
+        var below = tasks.Where(t => t.SortOrder > current.SortOrder).OrderBy(t => t.SortOrder).FirstOrDefault();
+        if (below == null) return;
+        (current.SortOrder, below.SortOrder) = (below.SortOrder, current.SortOrder);
+        await ProjectService.UpdateTaskAsync(current);
+        await ProjectService.UpdateTaskAsync(below);
+        await LoadTasks();
+    }
+
+    // 获取日期所在月的第几周
+    private int GetWeekOfMonth(DateTime date)
+    {
+        var firstDayOfMonth = new DateTime(date.Year, date.Month, 1);
+        var dayOfWeek = (int)firstDayOfMonth.DayOfWeek;
+        dayOfWeek = dayOfWeek == 0 ? 7 : dayOfWeek; // 周一作为一周开始
+        return (date.Day + dayOfWeek - 2) / 7 + 1;
+    }
+
+    // 生成中文周范围如"1-7"
+    private string GetChinesWeekRange(int startDay, int endDay)
+    {
+        return $"{startDay}-{endDay}";
+    }
+
+    // ========== 条形颜色规则（按状态/里程碑） ==========
+
+    /// <summary>
+    /// 获取条形CSS类名，基于任务完成状态和里程碑标识
+    /// </summary>
+    private string GetBarClass(TaskItem task)
+    {
+        if (task.IsMilestone)
+            return "bar-milestone bar-milestone-flag" + (task.IsCritical ? " bar-critical" : "");
+
+        if (task.IsCritical)
+            return "bar-critical";
+
+        if (task.CompletionPercentage >= 100)
+            return "bar-completed";
+
+        if (task.CompletionPercentage > 0)
+            return "bar-in-progress";
+
+        return "bar-not-started";
+    }
+
+    /// <summary>
+    /// 获取任务状态文字
+    /// </summary>
+    private string GetTaskStatusText(TaskItem task)
+    {
+        if (task.IsMilestone) return "里程碑";
+        if (task.IsCritical) return "关键";
+        if (task.CompletionPercentage >= 100) return "完成";
+        if (task.CompletionPercentage > 0) return "进行";
+        return "未开始";
+    }
+
+    /// <summary>
+    /// 获取任务状态徽标HTML（左侧列表显示）
+    /// </summary>
+    private RenderFragment GetTaskStatusBadge(TaskItem task) => builder =>
+    {
+        string badgeClass;
+        string badgeText;
+
+        if (task.IsMilestone)
+        {
+            badgeClass = "milestone";
+            badgeText = "M";
+        }
+        else if (task.IsCritical)
+        {
+            badgeClass = "critical";
+            badgeText = "!";
+        }
+        else if (task.CompletionPercentage >= 100)
+        {
+            badgeClass = "completed";
+            badgeText = "✓";
+        }
+        else if (task.CompletionPercentage > 0)
+        {
+            badgeClass = "in-progress";
+            badgeText = "~";
+        }
+        else
+        {
+            badgeClass = "not-started";
+            badgeText = "○";
+        }
+
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", $"task-status-badge {badgeClass}");
+        builder.AddAttribute(2, "title", GetTaskStatusText(task));
+        builder.AddContent(3, badgeText);
+        builder.CloseElement();
+    };
+
+    // ========== 拖拽调整日期 ==========
+    private void OnBarDragStart(DragEventArgs e, TaskItem task)
+    {
+        draggingTask = task;
+        dragStartX = e.ClientX;
+        originalBarLeft = Math.Max(0, (task.PlanStartDate - projectStartDate).Days) * dayWidth;
+        isDragging = true;
+    }
+
+    private void OnBarDrag(DragEventArgs e)
+    {
+        // 可以在这里添加实时预览效果
+    }
+
+    private async Task OnBarDragEnd(DragEventArgs e, TaskItem task)
+    {
+        if (!isDragging || draggingTask == null) return;
+        
+        var deltaX = e.ClientX - dragStartX;
+        var deltaDays = (int)(deltaX / dayWidth);
+        
+        // 不自动应用：JS 弹出偏移输入框 → 确认后调用 MoveTaskDays
+        isDragging = false;
+        draggingTask = null;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task MoveTaskDays(int taskId, int deltaDays)
+    {
+        if (deltaDays == 0) return;
+        // 限制 ±3650 天（约10年），防止溢出
+        deltaDays = Math.Clamp(deltaDays, -3650, 3650);
+        // 加载当前任务和项目
+        var allTasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
+        var task = allTasks.FirstOrDefault(t => t.Id == taskId);
+        if (task == null) return;
+        
+        var newStart = task.PlanStartDate.AddDays(deltaDays);
+        task.PlanStartDate = newStart;
+        task.PlanEndDate = newStart.AddDays(task.PlanDuration - 1);
+        task.IsManualSchedule = true;
+        await ProjectService.UpdateTaskAsync(task);
+        await ProjectService.CalculateScheduleAsync(currentProjectId);
+        await LoadTasks();
+        StateHasChanged();
+    }
+
+    // ========== 页面预览 ==========
+    private void PrintPage()
+    {
+        JS.InvokeVoidAsync("window.print");
+    }
+
+    // ========== 导出Excel ==========
+    private async Task ExportToExcel()
+    {
+        if (tasks.Count == 0)
+        {
+            await JS.InvokeVoidAsync("alert", "没有数据可导出");
+            return;
+        }
+
+        // 触发下载 - 使用ClosedXML生成的.xlsx文件
+        await JS.InvokeVoidAsync("window.open", $"/api/export-excel/{currentProjectId}", "_blank");
+    }
+
+    // ========== 导入Excel ==========
+    private async Task DownloadTemplate()
+    {
+        await JS.InvokeVoidAsync("window.open", "/download/blank-template", "_blank");
+    }
+
+    private async Task TriggerGanttImport()
+    {
+        if (currentProjectId == 0) return;
+        await JS.InvokeVoidAsync("eval", "document.getElementById('ganttFileInput').click()");
+    }
+
+    private async Task HandleGanttFileSelected(InputFileChangeEventArgs e)
+    {
+        if (e.File == null || currentProjectId == 0) return;
+
+        try
+        {
+            using var stream = e.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+
+            var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(memoryStream.ToArray()), "file", e.File.Name);
+
+            var baseUri = new Uri(NavManager.BaseUri);
+            var response = await HttpClient.PostAsync(new Uri(baseUri, $"/api/excel/import/{currentProjectId}"), content);
+            var result = await response.Content.ReadFromJsonAsync<ExcelImportResult>();
+
+            if (result != null)
+            {
+                if (result.Success)
+                {
+                    await JS.InvokeVoidAsync("alert", $"导入成功！\n任务: {result.TasksImported}\n资源: {result.ResourcesImported}\n分配: {result.AssignmentsImported}");
+                    // 重新加载项目列表（获取最新的项目起止日期）
+                    projects = await ProjectService.GetAllProjectsAsync();
+                    await LoadTasks();
+                    StateHasChanged();
+                }
+                else
+                {
+                    var errorMsg = result.Errors.Count > 0
+                        ? string.Join("\n", result.Errors.Take(5))
+                        : result.Message;
+                    await JS.InvokeVoidAsync("alert", $"导入完成但有错误:\n{errorMsg}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"导入出错: {ex.Message}");
+        }
+    }
+
+    // ========== MS Project XML 导入 ==========
+    private async Task TriggerProjectXmlImport()
+    {
+        if (currentProjectId == 0)
+        {
+            await JS.InvokeVoidAsync("alert", "请先选择项目");
+            return;
+        }
+        await JS.InvokeVoidAsync("eval", "document.getElementById('projectXmlInput').click()");
+    }
+
+    private async Task HandleProjectXmlSelected(InputFileChangeEventArgs e)
+    {
+        if (e.File == null || currentProjectId == 0) return;
+
+        try
+        {
+            using var stream = e.File.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+
+            var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(memoryStream.ToArray()), "file", e.File.Name);
+
+            var baseUri = new Uri(NavManager.BaseUri);
+            var response = await HttpClient.PostAsync(
+                new Uri(baseUri, $"/api/projectxml/import/{currentProjectId}"), content);
+            var result = await response.Content.ReadFromJsonAsync<ProjectImportResult>();
+
+            if (result != null)
+            {
+                if (result.Success)
+                {
+                    await JS.InvokeVoidAsync("alert",
+                        $"Project 导入成功！\n任务: {result.TasksImported}\n关系: {result.RelationsImported}");
+                    projects = await ProjectService.GetAllProjectsAsync();
+                    await LoadTasks();
+                    StateHasChanged();
+                }
+                else
+                {
+                    var errorMsg = result.Errors.Count > 0
+                        ? string.Join("\n", result.Errors.Take(5))
+                        : result.Message;
+                    await JS.InvokeVoidAsync("alert", $"导入失败:\n{errorMsg}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Project 导入出错: {ex.Message}");
+        }
+    }
+
+    // 需要 using NetPlan.Server.Services 引用 ProjectImportResult
+
+    // ========== 多选任务 ==========
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        var check = (bool)(e.Value ?? false);
+        if (check) selectedTasks = tasks.Select(t => t.Id).ToHashSet();
+        else selectedTasks.Clear();
+    }
+
+    private void ToggleTaskSelect(int taskId, bool isChecked)
+    {
+        if (isChecked) selectedTasks.Add(taskId);
+        else selectedTasks.Remove(taskId);
+    }
+
+    // ========== 降级/升级（层级管理）==========
+    private async Task IndentSelected()
+    {
+        if (!selectedTasks.Any()) return;
+        await IndentTasksAsync(selectedTasks.ToList());
+        selectedTasks.Clear();
+        await LoadTasks();
+        StateHasChanged();
+    }
+
+    private async Task OutdentSelected()
+    {
+        if (!selectedTasks.Any()) return;
+        await OutdentTasksAsync(selectedTasks.ToList());
+        selectedTasks.Clear();
+        await LoadTasks();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// 降级：将选中的任务设为列表中上一个低层级任务的子任务
+    /// </summary>
+    private async Task IndentTasksAsync(List<int> taskIds)
+    {
+        var ordered = tasks.OrderBy(t => t.SortOrder).ToList();
+        foreach (var tid in taskIds.OrderBy(id => tasks.FindIndex(t => t.Id == id)))
+        {
+            var task = tasks.FirstOrDefault(t => t.Id == tid);
+            if (task == null || task.OutlineLevel >= 10) continue; // 最多10层
+            var idx = ordered.FindIndex(t => t.Id == tid);
+            // 找上一个更低层级（OutlineLevel < current）的任务作为父任务
+            for (int i = idx - 1; i >= 0; i--)
+            {
+                if (ordered[i].OutlineLevel <= task.OutlineLevel)
+                {
+                    task.ParentTaskId = ordered[i].Id;
+                    task.OutlineLevel = ordered[i].OutlineLevel + 1;
+                    task.IsManualSchedule = false;
+                    await ProjectService.UpdateTaskAsync(task);
+
+                    // 递归更新子任务层级
+                    await UpdateChildrenOutlineLevel(task);
+                    break;
+                }
+            }
+            // 重算父任务工期
+            if (task.ParentTaskId.HasValue)
+                await RecalcParentDurationAsync(task.ParentTaskId.Value);
+        }
+    }
+
+    private async Task UpdateChildrenOutlineLevel(TaskItem parent)
+    {
+        var children = tasks.Where(t => t.ParentTaskId == parent.Id).ToList();
+        foreach (var child in children)
+        {
+            child.OutlineLevel = parent.OutlineLevel + 1;
+            await ProjectService.UpdateTaskAsync(child);
+            await UpdateChildrenOutlineLevel(child);
+        }
+    }
+
+    /// <summary>
+    /// 升级：取消父任务关联，提升到父任务层级
+    /// </summary>
+    private async Task OutdentTasksAsync(List<int> taskIds)
+    {
+        foreach (var tid in taskIds)
+        {
+            var task = tasks.FirstOrDefault(t => t.Id == tid);
+            if (task == null || !task.ParentTaskId.HasValue) continue;
+            var oldParentId = task.ParentTaskId;
+            var parent = tasks.FirstOrDefault(t => t.Id == task.ParentTaskId);
+            if (parent != null)
+            {
+                task.ParentTaskId = parent.ParentTaskId; // 挂到祖父
+                task.OutlineLevel = Math.Max(1, task.OutlineLevel - 1);
+                task.IsManualSchedule = false;
+                await ProjectService.UpdateTaskAsync(task);
+                await UpdateChildrenOutlineLevel(task);
+                await RecalcParentDurationAsync(oldParentId.Value);
+                if (task.ParentTaskId.HasValue)
+                    await RecalcParentDurationAsync(task.ParentTaskId.Value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 重算父任务工期 = 所有子任务的总工期跨度
+    /// </summary>
+    private async Task RecalcParentDurationAsync(int parentId)
+    {
+        var children = tasks.Where(t => t.ParentTaskId == parentId).ToList();
+        if (!children.Any()) return;
+
+        var minStart = children.Min(c => c.PlanStartDate);
+        var maxEnd = children.Max(c => c.PlanEndDate);
+        var parent = tasks.FirstOrDefault(t => t.Id == parentId);
+        if (parent != null && !parent.IsManualSchedule)
+        {
+            parent.PlanStartDate = minStart;
+            parent.PlanEndDate = maxEnd;
+            parent.PlanDuration = Math.Max(1, (maxEnd - minStart).Days + 1);
+            parent.IsMilestone = children.All(c => c.IsMilestone);
+            await ProjectService.UpdateTaskAsync(parent);
+        }
+    }
+
+    [Inject] private HttpClient HttpClient { get; set; } = default!;
 }

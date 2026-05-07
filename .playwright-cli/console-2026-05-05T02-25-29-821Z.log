@@ -1,0 +1,24 @@
+[      39ms] [INFO] [2026-05-05T02:25:29.860Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[      44ms] [INFO] [2026-05-05T02:25:29.864Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=iYkBuE4NhOM8s49T7L9OWw. @ http://localhost:5000/_framework/blazor.server.js:0
+[    1801ms] [LOG] [NET] poller: calling renderNetwork... @ http://localhost:5000/js/netplan.js:1075
+[    1801ms] [LOG] [NET] SVG render. opts: {"totalDays":598,"dayWidth":40,"showTodayLine":true,"showProgressLine":true} @ http://localhost:5000/js/netplan.js:801
+[    1801ms] [LOG] [NET] tasks: 16 | rels: 17 @ http://localhost:5000/js/netplan.js:818
+[    1802ms] [LOG] [NET] SVG size: 24100 x 1420 @ http://localhost:5000/js/netplan.js:835
+[    1802ms] [LOG] [SVG] opts: todayLine= true progressLine= true dayWidth= 40 critical= true float= true @ http://localhost:5000/js/netplan.js:487
+[    1806ms] [LOG] [NET] SVG rendered. @ http://localhost:5000/js/netplan.js:845
+[  315778ms] [ERROR] [2026-05-05T02:30:45.598Z] Error: Connection disconnected with error 'Error: WebSocket closed with status code: 1006 (no reason given).'. @ http://localhost:5000/_framework/blazor.server.js:0
+[  318784ms] [INFO] [2026-05-05T02:30:48.605Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[  321130ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5000/_blazor/negotiate?negotiateVersion=1:0
+[  321130ms] [WARNING] [2026-05-05T02:30:50.951Z] Warning: Error from HTTP request. TypeError: Failed to fetch. @ http://localhost:5000/_framework/blazor.server.js:0
+[  321131ms] [ERROR] [2026-05-05T02:30:50.951Z] Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[  321131ms] [ERROR] [2026-05-05T02:30:50.951Z] Error: Failed to start the connection: Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[  321131ms] [ERROR] [2026-05-05T02:30:50.951Z] Error: Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[  321131ms] [ERROR] [2026-05-05T02:30:50.951Z] Error: Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[  338437ms] [INFO] [2026-05-05T02:31:08.258Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[  338449ms] [INFO] [2026-05-05T02:31:08.270Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=387_v3gSdH6Asvjk6macQw. @ http://localhost:5000/_framework/blazor.server.js:0
+[  338743ms] [LOG] [NET] poller: calling renderNetwork... @ http://localhost:5000/js/netplan.js:1082
+[  338743ms] [LOG] [NET] SVG render. opts: {"totalDays":598,"dayWidth":40,"showTodayLine":true,"showProgressLine":true} @ http://localhost:5000/js/netplan.js:802
+[  338743ms] [LOG] [NET] tasks: 16 | rels: 17 @ http://localhost:5000/js/netplan.js:819
+[  338744ms] [LOG] [NET] SVG size: 24100 x 1420 @ http://localhost:5000/js/netplan.js:836
+[  338744ms] [LOG] [SVG] opts: todayLine= true progressLine= true dayWidth= 40 critical= true float= true @ http://localhost:5000/js/netplan.js:494
+[  338749ms] [LOG] [NET] SVG rendered. @ http://localhost:5000/js/netplan.js:846

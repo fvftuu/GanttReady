@@ -1,18 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>NetPlan.Server</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="ClosedXML" Version="0.102.2" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="2.16.0" />
   </ItemGroup>
+
+  <!-- Post-build: 复制原生 e_sqlite3.dll（避免 Referen​ce 丢失原生库路径） -->
+  <Target Name="CopyNativeSqlite" AfterTargets="Build">
+    <Copy SourceFiles="bin\Debug\net8.0\runtimes\win-x64\native\e_sqlite3.dll"
+          DestinationFolder="$(OutputPath)"
+          Condition="Exists('bin\Debug\net8.0\runtimes\win-x64\native\e_sqlite3.dll')"
+          SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

@@ -63,7 +63,8 @@ public class NetPlanDbContext : DbContext
             entity.HasOne(r => r.Project)
                 .WithMany(p => p.Resources)
                 .HasForeignKey(r => r.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ResourceAssignment 配置

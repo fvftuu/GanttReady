@@ -1,0 +1,967 @@
+// NetPlan.js - 甘特图交互脚本
+
+// 双向滚动同步锁（防止左右互相触发导致无限循环）
+var _syncLock = false;
+
+function syncRightToLeft() {
+    if (_syncLock) return;
+    _syncLock = true;
+    var rightDiv = document.getElementById('gantt-right');
+    var leftDiv = document.getElementById('gantt-left-body');
+    if (rightDiv && leftDiv) {
+        leftDiv.scrollTop = rightDiv.scrollTop;
+    }
+    _syncLock = false;
+}
+
+function syncLeftToRight() {
+    if (_syncLock) return;
+    _syncLock = true;
+    var rightDiv = document.getElementById('gantt-right');
+    var leftDiv = document.getElementById('gantt-left-body');
+    if (rightDiv && leftDiv) {
+        rightDiv.scrollTop = leftDiv.scrollTop;
+    }
+    _syncLock = false;
+}
+
+// 供 C# 调用的入口
+window.syncGanttScrollVertical = syncRightToLeft;
+window.syncGanttScrollById = syncRightToLeft;
+
+// 初始化双向滚动绑定
+window.initGanttScroll = function() {
+    var attempts = 0;
+    var interval = setInterval(function() {
+        var rightDiv = document.getElementById('gantt-right');
+        var leftBody = document.getElementById('gantt-left-body');
+        if (rightDiv && leftBody) {
+            rightDiv.addEventListener('scroll', syncRightToLeft);
+            leftBody.addEventListener('scroll', syncLeftToRight);
+            clearInterval(interval);
+        }
+        attempts++;
+        if (attempts > 50) clearInterval(interval);
+    }, 100);
+};
+
+// ========== 左侧面板拖拽调整宽度 ==========
+window.initPanelResize = function() {
+    var attempts = 0;
+    var interval = setInterval(function() {
+        var handle = document.getElementById('gantt-resize-handle');
+        var left = document.getElementById('gantt-left');
+        if (handle && left) {
+            clearInterval(interval);
+            setupResize(handle, left);
+        }
+        attempts++;
+        if (attempts > 50) clearInterval(interval);
+    }, 100);
+};
+
+function setupResize(handle, leftPanel) {
+    var startX, startWidth;
+    var minWidth = 400;
+    var maxWidth = 1400;
+
+    handle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        startX = e.clientX;
+        startWidth = leftPanel.getBoundingClientRect().width;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        handle.classList.add('active');
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+
+    function onMouseMove(e) {
+        var delta = e.clientX - startX;
+        var newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + delta));
+        leftPanel.style.width = newWidth + 'px';
+        leftPanel.style.minWidth = newWidth + 'px';
+    }
+
+    function onMouseUp() {
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        handle.classList.remove('active');
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    window.initGanttScroll();
+    window.initPanelResize();
+});
+
+// ========== 拖拽条形时隐藏鬼影 ==========
+window.hideDragGhost = function(e) {
+    var img = new Image();
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    e.dataTransfer.setDragImage(img, 0, 0);
+};
+
+// ========== Chart.js 资源投入折线图 ==========
+let resourceChart = null;
+window.initResourceChart = function(chartData) {
+    if (typeof window.Chart === 'undefined') { console.warn('Chart.js not loaded'); return; }
+    var canvas = document.getElementById('resource-chart');
+    if (!canvas) { console.warn('resource-chart canvas not found'); return; }
+    var ctx = canvas.getContext('2d');
+    if (resourceChart) resourceChart.destroy();
+
+    var datasets = chartData.lines.map(function(line) {
+        return {
+            label: line.name,
+            data: line.points,
+            borderColor: line.color,
+            backgroundColor: line.color + '33',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            tension: 0.3,
+            fill: false
+        };
+    });
+
+    resourceChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top', labels: { boxWidth: 12, boxHeight: 12, font: { size: 12 } } },
+                tooltip: { enabled: true }
+            },
+            scales: {
+                x: {
+                    ticks: { font: { size: 11 }, maxRotation: 45 },
+                    grid: { display: false }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { font: { size: 11 } },
+                    title: { display: true, text: '资源数量' }
+                }
+            }
+        }
+    });
+};
+
+// ========== Cytoscape.js 时标网络计划图（时差标注 + 关键路径高亮 + 时间标尺）==========
+var _cy = null;
+var _netDotNet = null;
+var _lastRenderedToken = null;
+var _lastOpts = null;
+
+window.setNetworkDotNet = function(ref) {
+    _netDotNet = ref;
+};
+
+window.networkFit = function() {
+    if (_cy) _cy.fit(undefined, 40);
+};
+
+// ========== 时间标尺渲染 ==========
+window.renderTimeRuler = function(containerId, opts) {
+    var ruler = document.getElementById('time-ruler');
+    if (!ruler) return;
+    ruler.innerHTML = '';
+
+    var startDate = opts.startDate; // 'yyyy-MM-dd'
+    var totalDays = opts.totalDays;
+    var dayWidth = opts.dayWidth;
+    var rulerHeight = 42;
+
+    var parts = startDate.split('-');
+    var start = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    var end = new Date(start);
+    end.setDate(end.getDate() + totalDays);
+
+    // 创建画布
+    var canvas = document.createElement('canvas');
+    canvas.width = totalDays * dayWidth;
+    canvas.height = rulerHeight;
+    canvas.style.cssText = 'display:block; height:' + rulerHeight + 'px; min-width:100%; cursor:default;';
+    ruler.appendChild(canvas);
+
+    var ctx = canvas.getContext('2d');
+
+    // 判断刻度模式
+    var useDailyTicks = dayWidth >= 20;
+    var useWeeklyTicks = dayWidth >= 5 && dayWidth < 20;
+    var useMonthlyTicks = dayWidth < 5;
+
+    // 上层：年月/季度
+    var upperLabels = [];
+    // 下层：日/周/月
+    var lowerLabels = [];
+
+    var d = new Date(start);
+    var dayIndex = 0;
+    while (d <= end) {
+        var year = d.getFullYear();
+        var month = d.getMonth(); // 0-based
+        var day = d.getDate();
+        var dayOfWeek = d.getDay();
+
+        if (useDailyTicks) {
+            // 日模式：上层月，下层日
+            if (day === 1) {
+                upperLabels.push({
+                    x: dayIndex * dayWidth,
+                    label: year + '/' + String(month + 1).padStart(2, '0')
+                });
+            }
+            var isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            lowerLabels.push({
+                x: dayIndex * dayWidth,
+                w: dayWidth,
+                label: String(day).padStart(2, '0'),
+                isWeekend: isWeekend,
+                isMonthStart: day === 1
+            });
+        } else if (useWeeklyTicks) {
+            // 周模式：上层年，下层月
+            if (month === 0 && day === 1) {
+                upperLabels.push({
+                    x: dayIndex * dayWidth,
+                    label: String(year)
+                });
+            }
+            if (day === 1) {
+                lowerLabels.push({
+                    x: dayIndex * dayWidth,
+                    w: dayWidth,
+                    label: month + 1 + '月',
+                    isMonthStart: true
+                });
+            }
+        } else {
+            // 月模式：上层年，下层季度
+            if (month === 0 && day === 1) {
+                upperLabels.push({
+                    x: dayIndex * dayWidth,
+                    label: String(year)
+                });
+            }
+            if (month % 3 === 0 && day === 1) {
+                lowerLabels.push({
+                    x: dayIndex * dayWidth,
+                    w: dayWidth,
+                    label: 'Q' + (Math.floor(month / 3) + 1),
+                    isMonthStart: true
+                });
+            }
+        }
+
+        d.setDate(d.getDate() + 1);
+        dayIndex++;
+    }
+
+    // 绘制背景
+    ctx.fillStyle = '#f5f5f5';
+    ctx.fillRect(0, 0, canvas.width, rulerHeight);
+
+    // 绘制分隔线
+    ctx.strokeStyle = '#d9d9d9';
+    ctx.lineWidth = 1;
+
+    // 上层标签
+    ctx.font = '11px -apple-system, BlinkMacSystemFont, Consolas, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#333';
+    upperLabels.forEach(function(item) {
+        var labelWidth = 60;
+        var endX = canvas.width;
+        for (var i = 0; i < upperLabels.length; i++) {
+            if (upperLabels[i].x > item.x) {
+                endX = upperLabels[i].x;
+                break;
+            }
+        }
+        // 上层分隔线
+        ctx.strokeStyle = '#bbb';
+        ctx.beginPath();
+        ctx.moveTo(item.x, 0);
+        ctx.lineTo(item.x, rulerHeight);
+        ctx.stroke();
+
+        ctx.fillText(item.label, item.x + (endX - item.x) / 2, 14);
+    });
+
+    // 上层下边框
+    ctx.strokeStyle = '#d9d9d9';
+    ctx.beginPath();
+    ctx.moveTo(0, rulerHeight / 2);
+    ctx.lineTo(canvas.width, rulerHeight / 2);
+    ctx.stroke();
+
+    // 下层标签 + 网格线
+    ctx.font = '10px -apple-system, BlinkMacSystemFont, Consolas, sans-serif';
+    lowerLabels.forEach(function(item) {
+        if (item.isWeekend) {
+            ctx.fillStyle = 'rgba(200, 220, 255, 0.4)';
+            ctx.fillRect(item.x, rulerHeight / 2, item.w, rulerHeight / 2);
+        }
+        ctx.fillStyle = item.isWeekend ? '#888' : '#555';
+        ctx.textAlign = 'center';
+        ctx.fillText(item.label, item.x + item.w / 2, rulerHeight - 6);
+
+        // 月/季度开始分隔线
+        if (item.isMonthStart) {
+            ctx.strokeStyle = '#999';
+            ctx.beginPath();
+            ctx.moveTo(item.x, rulerHeight / 2);
+            ctx.lineTo(item.x, rulerHeight);
+            ctx.stroke();
+        }
+    });
+
+    // 下层底线
+    ctx.strokeStyle = '#d9d9d9';
+    ctx.beginPath();
+    ctx.moveTo(0, rulerHeight);
+    ctx.lineTo(canvas.width, rulerHeight);
+    ctx.stroke();
+};
+
+// 自动轮询检测 token 变化并触发渲染（绕开 Blazor script DOM diff 问题）
+(function startNetworkPoller() {
+    setInterval(function() {
+        var tokenEl = document.getElementById('netplan-render-token');
+        if (!tokenEl) return;
+        var token = tokenEl.value;
+        if (token === _lastRenderedToken) return;
+        if (typeof window.renderNetwork !== 'function') return;
+        var el = document.getElementById('cy');
+        if (!el || el.clientHeight === 0) return;
+        var dataEl = document.getElementById('netplan-data');
+        var optsEl = document.getElementById('netplan-options');
+        if (!dataEl || !optsEl) return;
+        _lastRenderedToken = token;
+        _lastOpts = null;
+        try {
+            window.renderNetwork(dataEl.value, JSON.parse(optsEl.value));
+        } catch(e) { console.error('renderNetwork error', e); }
+    }, 300);
+})();
+
+// ========== 时标双代号网络图（规范版）==========
+// 按 GB/T 13400 绘制：时间轴、实箭线、波形线自由时差、虚箭线逻辑
+
+function waveLineTo(ctx, x1, y1, x2, y2, amplitude) {
+    var dx = x2 - x1, dy = y2 - y1;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var steps = Math.max(8, Math.floor(len / 6));
+    var ux = dx / len, uy = dy / len;
+    var vx = -uy, vy = ux; // 垂直单位向量
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    for (var i = 1; i <= steps; i++) {
+        var t = i / steps;
+        var wave = amplitude * Math.sin(Math.PI * 2 * t * Math.floor(steps / 2));
+        ctx.lineTo(x1 + dx * t + vx * wave, y1 + dy * t + vy * wave);
+    }
+    ctx.stroke();
+}
+
+window.renderNetwork = function(elementsJson, opts) {
+    opts = opts || {};
+    var showCritical = opts.showCritical !== false;
+    var showFloat = opts.showFloat !== false;
+    var projectStartDate = opts.projectStartDate || new Date().toISOString().slice(0, 10);
+    var totalDays = opts.totalDays || 90;
+    var dayWidth = opts.dayWidth || 5;
+    _lastOpts = opts;
+
+    if (typeof cytoscape === 'undefined') {
+        setTimeout(function() { window.renderNetwork(elementsJson, opts); }, 500);
+        return;
+    }
+
+    window.renderTimeRuler('time-ruler', { startDate: projectStartDate, totalDays: totalDays, dayWidth: dayWidth });
+
+    function tryRender(retries) {
+        var container = document.getElementById('cy');
+        if (!container || container.clientHeight === 0) {
+            if (retries > 0) setTimeout(function() { tryRender(retries - 1); }, 200);
+            return;
+        }
+
+        if (_cy) { try { _cy.destroy(); } catch(e){} _cy = null; }
+        container.innerHTML = '';
+
+        // 移除旧的覆盖层
+        var oldOverlay = document.getElementById('network-overlay');
+        if (oldOverlay) oldOverlay.remove();
+
+        var elements = JSON.parse(elementsJson);
+
+        // ===== 1. 建立节点数据映射 =====
+        var nodeMap = {};
+        elements.forEach(function(el) {
+            if (el.data && el.data.es !== undefined) {
+                nodeMap[el.data.id] = {
+                    es: el.data.es || 0,
+                    ef: el.data.ef || 0,
+                    ls: el.data.ls || 0,
+                    lf: el.data.lf || 0,
+                    tf: el.data.tf || 0,
+                    duration: el.data.duration || 0,
+                    name: el.data.name || '',
+                    code: el.data.label || '',
+                    eventNum: el.data.eventNum || 0,
+                    isCritical: el.data.isCritical || false,
+                    isMilestone: el.data.isMilestone || false,
+                    completion: el.data.completion || 0
+                };
+            }
+        });
+
+        // ===== 2. 用 dagre 计算 Y 层级 =====
+        var MARGIN_X = 80;
+        var NODE_R = showFloat ? 30 : 22;
+        var RANK_GAP = showFloat ? 130 : 95;
+
+        var tempCy = cytoscape({
+            elements: elements,
+            layout: { name: 'dagre', rankDir: 'TB', nodeSep: 50, rankSep: 160, padding: 30 },
+            style: [{ selector: 'node', style: { 'width': 1, 'height': 1 } }],
+            headless: true
+        });
+        tempCy.layout({ name: 'dagre', rankDir: 'TB', nodeSep: 50, rankSep: 160, padding: 30 }).run();
+
+        var rankGroups = {};
+        tempCy.nodes().forEach(function(node) {
+            var r = String(node.data('rank') || 0);
+            if (!rankGroups[r]) rankGroups[r] = [];
+            rankGroups[r].push({
+                id: node.id(),
+                es: nodeMap[node.id()] ? nodeMap[node.id()].es : 0,
+                duration: nodeMap[node.id()] ? nodeMap[node.id()].duration : 0
+            });
+        });
+
+        var sortedRanks = Object.keys(rankGroups).sort(function(a,b){ return parseInt(a)-parseInt(b); });
+        var presetPos = {};
+        var maxEndX = MARGIN_X;
+
+        sortedRanks.forEach(function(rank, idx) {
+            var nodes = rankGroups[rank];
+            nodes.sort(function(a,b){ return a.es - b.es; });
+            var y = 80 + idx * RANK_GAP;
+            nodes.forEach(function(n) {
+                var x = n.es * dayWidth + MARGIN_X;
+                presetPos[n.id] = { x: x, y: y };
+                maxEndX = Math.max(maxEndX, x + (nodeMap[n.id] ? nodeMap[n.id()].duration || 0 : 0) * dayWidth);
+            });
+        });
+        tempCy.destroy();
+
+        // ===== 3. Cytoscape 只画节点（圆圈）=====
+        _cy = cytoscape({
+            container: container,
+            elements: elements.filter(function(el) {
+                // 只保留节点，边由 Canvas 覆盖层画
+                return el.data && el.data.es !== undefined;
+            }).map(function(el) {
+                return { data: el.data, position: presetPos[el.data.id] || { x: MARGIN_X, y: 80 } };
+            }),
+            style: [
+                {
+                    selector: 'node',
+                    style: {
+                        'shape': 'ellipse',
+                        'width': NODE_R * 2,
+                        'height': NODE_R * 2,
+                        'background-color': '#1890ff',
+                        'background-opacity': 0.95,
+                        'label': function(ele){ return String(ele.data('eventNum') || ''); },
+                        'font-size': showFloat ? 12 : 10,
+                        'font-family': 'Consolas, "Microsoft YaHei", sans-serif',
+                        'color': '#fff',
+                        'text-valign': 'center',
+                        'text-halign': 'center',
+                        'border-width': 2.5,
+                        'border-color': '#096dd9',
+                        'z-index': 10
+                    }
+                },
+                {
+                    selector: 'node[?isCritical]',
+                    style: {
+                        'background-color': showCritical ? '#e63946' : '#1890ff',
+                        'border-color': showCritical ? '#b30000' : '#096dd9'
+                    }
+                },
+                {
+                    selector: 'node[?isMilestone]',
+                    style: {
+                        'shape': 'diamond',
+                        'background-color': '#722ed1',
+                        'width': NODE_R * 2.4,
+                        'height': NODE_R * 2.4
+                    }
+                },
+                {
+                    selector: 'node:selected',
+                    style: { 'border-color': '#fadb14', 'border-width': 3 }
+                }
+            ],
+            layout: { name: 'preset', positions: presetPos },
+            wheelSensitivity: 0.3,
+            minZoom: 0.05,
+            maxZoom: 4
+        });
+
+        _cy.fit(undefined, 50);
+
+        // ===== 4. Canvas 覆盖层画时标箭线 =====
+        var overlay = document.createElement('canvas');
+        overlay.id = 'network-overlay';
+        overlay.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:6;';
+        container.appendChild(overlay);
+
+        function drawEdges() {
+            var rect = container.getBoundingClientRect();
+            var dpr = window.devicePixelRatio || 1;
+            overlay.width = rect.width * dpr;
+            overlay.height = rect.height * dpr;
+            overlay.style.width = rect.width + 'px';
+            overlay.style.height = rect.height + 'px';
+
+            var ctx = overlay.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, rect.width, rect.height);
+
+            var pan = _cy.pan();
+            var zoom = _cy.zoom();
+            function s(pos) { return { x: pos.x * zoom + pan.x, y: pos.y * zoom + pan.y }; }
+
+            // 收集边数据
+            var edges = elements.filter(function(el) { return el.data && el.data.source; });
+
+            edges.forEach(function(edgeEl) {
+                var srcId = String(edgeEl.data.source);
+                var tgtId = String(edgeEl.data.target);
+                var srcN = _cy.getElementById(srcId);
+                var tgtN = _cy.getElementById(tgtId);
+                if (!srcN.length || !tgtN.length) return;
+
+                var srcS = s(srcN.position());
+                var tgtS = s(tgtN.position());
+                var d = nodeMap[srcId];
+                if (!d) return;
+
+                var isCrit = edgeEl.data.isCritical && showCritical;
+                var dur = d.duration || 0;
+                var tf = d.tf || 0;
+                var isDummy = dur <= 0;
+
+                // 时标 X 坐标（按 ES + duration）
+                var endX_time = (d.es + dur) * dayWidth + MARGIN_X;
+                endX_time = endX_time * zoom + pan.x;
+                var endY = tgtS.y;
+
+                // 箭线起点（圆圈右边缘）
+                var srcX = srcS.x + NODE_R * zoom;
+                var srcY = srcS.y;
+
+                ctx.save();
+                ctx.lineWidth = isCrit ? 3 : (isDummy ? 1.2 : 1.8);
+                ctx.strokeStyle = isCrit ? '#e63946' : (isDummy ? '#aaa' : '#555');
+                ctx.fillStyle = ctx.strokeStyle;
+
+                if (isDummy) {
+                    // 虚箭线（逻辑关系）
+                    ctx.setLineDash([6, 4]);
+                } else {
+                    ctx.setLineDash([]);
+                }
+
+                // 画箭线（时标规范：先水平，再垂直）
+                ctx.beginPath();
+                if (Math.abs(endY - srcY) < 2) {
+                    // 同行：水平线，长度 = 工期 × dayWidth
+                    ctx.moveTo(srcX, srcY);
+                    ctx.lineTo(endX_time, endY);
+                } else {
+                    // 不同行：L 形（水平 → 垂直 → 水平）
+                    var midX = endX_time;
+                    var cornerX = Math.min(midX - 20, srcX + (midX - srcX) * 0.5);
+                    ctx.moveTo(srcX, srcY);
+                    ctx.lineTo(cornerX, srcY);
+                    ctx.lineTo(cornerX, endY);
+                    ctx.lineTo(midX, endY);
+                }
+                ctx.stroke();
+
+                // 箭头
+                if (!isDummy) {
+                    var ax = endX_time;
+                    var angle = Math.PI / 6;
+                    var alen = 10 * zoom;
+                    // 计算箭头方向
+                    var prevX = Math.max(srcX, endX_time - 10 * zoom);
+                    var dir = endX_time > srcX ? 0 : Math.PI;
+                    ctx.beginPath();
+                    ctx.moveTo(ax, endY);
+                    ctx.lineTo(ax - alen * Math.cos(angle), endY - alen * Math.sin(angle));
+                    ctx.moveTo(ax, endY);
+                    ctx.lineTo(ax - alen * Math.cos(angle), endY + alen * Math.sin(angle));
+                    ctx.stroke();
+                } else {
+                    // 虚箭线箭头（小三角）
+                    ctx.setLineDash([]);
+                    ctx.beginPath();
+                    ctx.moveTo(endX_time, endY);
+                    ctx.lineTo(endX_time - 8, endY - 4);
+                    ctx.moveTo(endX_time, endY);
+                    ctx.lineTo(endX_time - 8, endY + 4);
+                    ctx.stroke();
+                }
+
+                // 自由时差波形线（橙色波浪线）
+                if (showFloat && tf > 0 && !isDummy) {
+                    var ffEndX = (d.es + dur + tf) * dayWidth + MARGIN_X;
+                    ffEndX = ffEndX * zoom + pan.x;
+                    ctx.setLineDash([]);
+                    ctx.strokeStyle = '#fa8c16';
+                    ctx.lineWidth = 1.5;
+                    waveLineTo(ctx, endX_time, endY, ffEndX - NODE_R * zoom, endY, 4 * zoom);
+                }
+
+                // 标注：上方工作代号+名称，下方工期
+                ctx.setLineDash([]);
+                ctx.textAlign = 'center';
+                var labelX = (srcX + endX_time) / 2;
+
+                // 上方：代号 + 名称
+                ctx.font = (isCrit ? 'bold ' : '') + (11 * zoom) + 'px Consolas, "Microsoft YaHei", sans-serif';
+                ctx.fillStyle = isCrit ? '#e63946' : '#333';
+                var upperTxt = (d.code || '') + ' ' + (d.name || '');
+                ctx.fillText(upperTxt, labelX, srcY - 14 * zoom);
+
+                // 下方：工期
+                ctx.font = (10 * zoom) + 'px Consolas, sans-serif';
+                ctx.fillStyle = '#888';
+                ctx.fillText(dur + 'd', labelX, srcY + 22 * zoom);
+
+                ctx.restore();
+            });
+        }
+
+        _cy.on('render', drawEdges);
+        _cy.on('pan zoom resize', function() { requestAnimationFrame(drawEdges); });
+        requestAnimationFrame(drawEdges);
+
+        // 双击节点编辑
+        _cy.on('dblclick', 'node', function(evt) {
+            var tid = parseInt(evt.target.id());
+            if (_netDotNet && !isNaN(tid)) _netDotNet.invokeMethodAsync('OpenTaskEditor', tid);
+        });
+    }
+
+    tryRender(20);
+};
+
+    if (typeof cytoscape === 'undefined') {
+        console.warn('cytoscape not loaded, retrying...');
+        setTimeout(function() { window.renderNetwork(elementsJson, opts); }, 500);
+        return;
+    }
+
+    // 先渲染时间标尺
+    window.renderTimeRuler('time-ruler', {
+        startDate: projectStartDate,
+        totalDays: totalDays,
+        dayWidth: dayWidth
+    });
+
+    function tryRender(retries) {
+        var container = document.getElementById('cy');
+        if (!container || container.clientHeight === 0) {
+            if (retries > 0) { setTimeout(function() { tryRender(retries - 1); }, 200); }
+            return;
+        }
+
+        // 销毁旧实例
+        if (_cy) { try { _cy.destroy(); } catch(e){} _cy = null; }
+        container.innerHTML = '';
+
+        var elements = JSON.parse(elementsJson);
+
+        // 节点标签构建：三行六格（中文版）
+        // 行1: 早开始  工期  早完成
+        // 行2: 任务名称（里程碑用特殊样式）
+        // 行3: 晚开始  总时差  晚完成
+        elements.forEach(function(el) {
+            if (el.data && el.data.es !== undefined) {
+                var d = el.data;
+                if (showFloat) {
+                    el.data.displayLabel =
+                        '早' + d.es + '  ' + d.duration + 'd  ' + '早' + d.ef + '\n' +
+                        (d.name.length > 10 ? d.name.substring(0, 10) + '…' : d.name) + '\n' +
+                        '晚' + d.ls + '  TF:' + d.tf + '  ' + '晚' + d.lf;
+                } else {
+                    el.data.displayLabel =
+                        (d.name.length > 8 ? d.name.substring(0, 8) + '…' : d.name) + '\n' + d.duration + 'd';
+                }
+            }
+        });
+
+        // 时标布局：先跑 dagre 计算 Y 层级，再根据 ES 计算 X
+        // 双代号规范：节点为事件圆圈，箭线表示工作
+        var MARGIN_X = 100;
+        var NODE_R = showFloat ? 28 : 22; // 圆圈半径
+        var EVENT_SPACING_Y = showFloat ? 100 : 72;
+
+        // 先用 dagre 获取 Y 位置（事件层级）
+        var tempCy = cytoscape({
+            elements: elements,
+            layout: { name: 'dagre', rankDir: 'LR', nodeSep: 50, rankSep: 140, padding: 30 },
+            style: [{ selector: 'node', style: { 'width': 1, 'height': 1 } }],
+            headless: true
+        });
+        tempCy.layout({ name: 'dagre', rankDir: 'LR', nodeSep: 50, rankSep: 140, padding: 30 }).run();
+
+        // 建立事件节点位置表：key=任务ID，value={es, ef, rank, ...}
+        var nodeES = {};
+        var nodeRank = {};
+        tempCy.nodes().forEach(function(node) {
+            var d = node.data();
+            nodeES[d.id] = d.es || 0;
+            nodeRank[d.id] = node.data('rank') || 0;
+        });
+
+        // 计算画布宽度
+        var maxES = 0, maxEF = 0;
+        elements.forEach(function(el) {
+            if (el.data && el.data.es !== undefined) {
+                maxES = Math.max(maxES, el.data.es);
+                maxEF = Math.max(maxEF, el.data.ef);
+            }
+        });
+        var totalW = Math.max(container.clientWidth, (maxEF + 20) * dayWidth + MARGIN_X + 100);
+
+        // 按 rank 分组，同一 rank 的事件 Y 相同，X 按 ES 排序
+        var rankGroups = {};
+        tempCy.nodes().forEach(function(node) {
+            var r = String(node.data('rank') || 0);
+            if (!rankGroups[r]) rankGroups[r] = [];
+            rankGroups[r].push({
+                id: node.id(),
+                es: node.data('es') || 0,
+                ef: node.data('ef') || 0
+            });
+        });
+
+        var sortedRanks = Object.keys(rankGroups).sort(function(a,b){ return parseInt(a)-parseInt(b); });
+        var presetPositions = {};
+        var eventNum = 0;
+
+        sortedRanks.forEach(function(rank, rankIdx) {
+            var nodesInRank = rankGroups[rank];
+            nodesInRank.sort(function(a,b){ return a.es - b.es; });
+            var y = 60 + rankIdx * EVENT_SPACING_Y;
+
+            nodesInRank.forEach(function(n) {
+                var x = n.es * dayWidth + MARGIN_X;
+                presetPositions[n.id] = { x: x, y: y };
+                eventNum++;
+            });
+        });
+
+        tempCy.destroy();
+
+        // 双代号规范：节点样式（圆圈事件）
+        var criticalNodeColor  = showCritical ? '#e63946' : '#1890ff';
+        var normalBorderColor = showCritical ? 'rgba(230,57,70,0.6)' : 'rgba(24,144,255,0.6)';
+
+        _cy = cytoscape({
+            container: container,
+            elements: elements,
+            style: [
+                // ========== 双代号规范：事件圆圈 ==========
+                {
+                    selector: 'node',
+                    style: {
+                        'shape': 'elipse',
+                        'width': function(ele){ return NODE_R * 2; },
+                        'height': function(ele){ return NODE_R * 2; },
+                        'background-color': '#1890ff',
+                        'background-opacity': 0.95,
+                        'label': function(ele){
+                            // 双代号规范：圆圈内显示事件编号
+                            return String(ele.data('eventNum') || ele.data('id'));
+                        },
+                        'font-size': 11,
+                        'font-family': 'Consolas, "Microsoft YaHei", sans-serif',
+                        'color': '#fff',
+                        'text-valign': 'center',
+                        'text-halign': 'center',
+                        'border-width': 2,
+                        'border-color': '#096dd9'
+                    }
+                },
+                {
+                    selector: 'node[?isCritical]',
+                    style: {
+                        'background-color': showCritical ? '#e63946' : '#1890ff',
+                        'border-color': showCritical ? '#b30000' : '#096dd9',
+                        'border-width': showCritical ? 3 : 2
+                    }
+                },
+                {
+                    selector: 'node[?isMilestone]',
+                    style: {
+                        'shape': 'diamond',
+                        'background-color': '#722ed1',
+                        'width': NODE_R * 2.2,
+                        'height': NODE_R * 2.2
+                    }
+                },
+                {
+                    selector: 'node:selected',
+                    style: {
+                        'border-color': '#fadb14',
+                        'border-width': 3,
+                        'background-color': '#096dd9'
+                    }
+                },
+                // ========== 双代号规范：箭线表示工作 ==========
+                {
+                    selector: 'edge',
+                    style: {
+                        'width': 1.8,
+                        'line-color': '#555',
+                        'target-arrow-color': '#555',
+                        'target-arrow-shape': 'triangle',
+                        'curve-style': 'bezier',
+                        'arrow-scale': 1.2,
+                        'font-size': 10,
+                        'label': function(ele){
+                            // 箭线上方标注：工作名称 + 工期
+                            var src = ele.source().data();
+                            var tgt = ele.target().data();
+                            var name = src.name || src.label || '';
+                            var dur = src.duration || 0;
+                            return name + '  ' + dur + 'd';
+                        },
+                        'text-rotation': 'autorotate',
+                        'text-margin-y': -12,
+                        'color': '#333',
+                        'text-background-color': '#fff',
+                        'text-background-opacity': 0.85,
+                        'text-background-padding': 2
+                    }
+                },
+                {
+                    selector: 'edge[?isCritical]',
+                    style: {
+                        'line-color': showCritical ? '#e63946' : '#555',
+                        'target-arrow-color': showCritical ? '#e63946' : '#555',
+                        'width': showCritical ? 3 : 1.8
+                    }
+                }
+            ],
+            layout: {
+                name: 'preset',
+                positions: presetPositions
+            },
+            wheelSensitivity: 0.3,
+            minZoom: 0.05,
+            maxZoom: 4
+        });
+
+        _cy.fit(undefined, 40);
+
+        // 双击节点打开编辑
+        _cy.on('dblclick', 'node', function(evt) {
+            var node = evt.target;
+            var taskId = parseInt(node.id());
+            if (_netDotNet && !isNaN(taskId)) {
+                _netDotNet.invokeMethodAsync('OpenTaskEditor', taskId);
+            }
+        });
+
+        // Hover 提示（中文）
+        _cy.on('mouseover', 'node', function(evt) {
+            var d = evt.target.data();
+            if (d.name) {
+                var floatInfo = showFloat
+                    ? '早' + d.es + 'd  早' + d.ef + 'd\n晚' + d.ls + 'd  晚' + d.lf + 'd\nTF:' + d.tf + 'd  完成:' + d.completion + '%'
+                    : d.label + ' / ' + d.completion + '%';
+                evt.target.style('label', d.name + '\n' + floatInfo);
+            }
+        });
+        _cy.on('mouseout', 'node', function(evt) {
+            var d = evt.target.data();
+            evt.target.style('label', d.displayLabel || d.label);
+        });
+    }
+
+    tryRender(20);
+};
+
+// ========== 分析页面柱状图 ==========
+window.renderAnalysisBarChart = function(canvasId, chartData) {
+    if (typeof window.Chart === 'undefined') { console.warn('Chart.js not loaded'); return; }
+    var canvas = document.getElementById(canvasId);
+    if (!canvas) { console.warn(canvasId + ' not found'); return; }
+    var ctx = canvas.getContext('2d');
+
+    // 销毁旧图表
+    if (canvas._chartInstance) {
+        canvas._chartInstance.destroy();
+    }
+
+    var datasets = chartData.datasets.map(function(ds) {
+        return {
+            label: ds.label,
+            data: ds.data,
+            backgroundColor: ds.backgroundColor,
+            borderColor: ds.borderColor || ds.backgroundColor,
+            borderWidth: 1,
+            barPercentage: 0.7,
+            categoryPercentage: 0.8
+        };
+    });
+
+    canvas._chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartData.labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { boxWidth: 12, font: { size: 12 } }
+                },
+                tooltip: { mode: 'index', intersect: false }
+            },
+            scales: {
+                x: {
+                    ticks: { font: { size: 11 }, maxRotation: 45 }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { font: { size: 11 } }
+                }
+            }
+        }
+    });
+};

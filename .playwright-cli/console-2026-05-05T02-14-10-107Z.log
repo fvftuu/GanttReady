@@ -1,0 +1,33 @@
+[      46ms] [INFO] [2026-05-05T02:14:10.152Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[      59ms] [INFO] [2026-05-05T02:14:10.166Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=R45eWB7R7lMFWK_LBjv_Yg. @ http://localhost:5000/_framework/blazor.server.js:0
+[     354ms] [LOG] [NET] poller: calling renderNetwork... @ http://localhost:5000/js/netplan.js:1075
+[     354ms] [LOG] [NET] SVG render. opts: {"totalDays":641,"dayWidth":40,"showTodayLine":true,"showProgressLine":true} @ http://localhost:5000/js/netplan.js:801
+[     355ms] [LOG] [NET] tasks: 16 | rels: 17 @ http://localhost:5000/js/netplan.js:818
+[     355ms] [LOG] [NET] SVG size: 25820 x 1420 @ http://localhost:5000/js/netplan.js:835
+[     356ms] [LOG] [SVG] opts: todayLine= true progressLine= true dayWidth= 40 critical= true float= true @ http://localhost:5000/js/netplan.js:487
+[     360ms] [LOG] [NET] SVG rendered. @ http://localhost:5000/js/netplan.js:845
+[     360ms] [ERROR] [NET] renderNetwork error ReferenceError: _netEventOffsets is not defined
+    at window.renderNetwork (http://localhost:5000/js/netplan.js:860:5)
+    at http://localhost:5000/js/netplan.js:1077:20 @ http://localhost:5000/js/netplan.js:1077
+[   15968ms] [INFO] [2026-05-05T02:14:26.074Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[   15972ms] [INFO] [2026-05-05T02:14:26.078Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=Q-ZUJk8uaKd28X8ASg65Yw. @ http://localhost:5000/_framework/blazor.server.js:0
+[   16283ms] [LOG] [NET] poller: calling renderNetwork... @ http://localhost:5000/js/netplan.js:1075
+[   16283ms] [LOG] [NET] SVG render. opts: {"totalDays":641,"dayWidth":40,"showTodayLine":true,"showProgressLine":true} @ http://localhost:5000/js/netplan.js:801
+[   16283ms] [LOG] [NET] tasks: 16 | rels: 17 @ http://localhost:5000/js/netplan.js:818
+[   16284ms] [LOG] [NET] SVG size: 25820 x 1420 @ http://localhost:5000/js/netplan.js:835
+[   16284ms] [LOG] [SVG] opts: todayLine= true progressLine= true dayWidth= 40 critical= true float= true @ http://localhost:5000/js/netplan.js:487
+[   16289ms] [LOG] [NET] SVG rendered. @ http://localhost:5000/js/netplan.js:845
+[   16289ms] [ERROR] [NET] renderNetwork error ReferenceError: _netEventOffsets is not defined
+    at window.renderNetwork (http://localhost:5000/js/netplan.js:860:5)
+    at http://localhost:5000/js/netplan.js:1077:20 @ http://localhost:5000/js/netplan.js:1077
+[   96881ms] [ERROR] [2026-05-05T02:15:46.988Z] Error: Connection disconnected with error 'Error: WebSocket closed with status code: 1006 (no reason given).'. @ http://localhost:5000/_framework/blazor.server.js:0
+[   99885ms] [INFO] [2026-05-05T02:15:49.992Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[   99937ms] [INFO] [2026-05-05T02:15:50.043Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=c2-5W7O7CjILd4cpkh4xXg. @ http://localhost:5000/_framework/blazor.server.js:0
+[  101162ms] [INFO] [2026-05-05T02:15:51.269Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[  101169ms] [INFO] [2026-05-05T02:15:51.275Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=JzviE-v-uzOMG3_XMfB0qw. @ http://localhost:5000/_framework/blazor.server.js:0
+[  101463ms] [LOG] [NET] poller: calling renderNetwork... @ http://localhost:5000/js/netplan.js:1075
+[  101463ms] [LOG] [NET] SVG render. opts: {"totalDays":641,"dayWidth":40,"showTodayLine":true,"showProgressLine":true} @ http://localhost:5000/js/netplan.js:801
+[  101463ms] [LOG] [NET] tasks: 16 | rels: 17 @ http://localhost:5000/js/netplan.js:818
+[  101464ms] [LOG] [NET] SVG size: 25820 x 1420 @ http://localhost:5000/js/netplan.js:835
+[  101464ms] [LOG] [SVG] opts: todayLine= true progressLine= true dayWidth= 40 critical= true float= true @ http://localhost:5000/js/netplan.js:487
+[  101468ms] [LOG] [NET] SVG rendered. @ http://localhost:5000/js/netplan.js:845

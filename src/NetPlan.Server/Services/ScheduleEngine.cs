@@ -5,6 +5,12 @@ namespace NetPlan.Server.Services;
 /// <summary>
 /// 进度计划调度引擎 - 实现关键路径法（CPM）
 /// </summary>
+/// <remarks>
+/// <b>时间参数存储设计</b>: ES/EF/LS/LF/TF/FF 使用 <c>int?</c> 存储<b>相对天数偏移</b>（相对于 Project.PlanStartDate），
+/// 而非 <c>DateTime?</c>。原因：① CPM 算法天然以天为单位运算，避免日期边界复杂性；
+/// ② 绝对日期通过 <c>PlanStartDate.AddDays(offset)</c> 转换，由 <c>CalculateScheduleAsync</c> 负责写回；
+/// ③ 支持跨项目对比和计算不依赖具体日历。
+/// </remarks>
 public class ScheduleEngine : IScheduleEngine
 {
     public int Calculate(List<TaskItem> tasks, List<TaskRelation> relations, DateTime projectStartDate)
@@ -43,7 +49,7 @@ public class ScheduleEngine : IScheduleEngine
         // Step 5: 计算时差
         foreach (var task in tasks)
         {
-            CalculateFloat(task);
+            CalculateFloat(task, relations);
         }
 
         // Step 6: 识别关键路径
@@ -57,11 +63,17 @@ public class ScheduleEngine : IScheduleEngine
         // 获取所有紧前任务
         var predecessors = relations.Where(r => r.SuccessorTaskId == task.Id).ToList();
 
+        // 手动排程任务：以当前 PlanStartDate 作为最早开始基线
+        int manualEarlyStart = -1;
+        if (task.IsManualSchedule)
+        {
+            manualEarlyStart = Math.Max(0, (task.PlanStartDate - projectStartDate).Days);
+        }
+
+        int cpmEarlyStart;
         if (predecessors.Count == 0)
         {
-            // 起始任务
-            task.EarlyStart = 0;
-            task.EarlyFinish = task.PlanDuration;
+            cpmEarlyStart = 0;
         }
         else
         {
@@ -78,19 +90,15 @@ public class ScheduleEngine : IScheduleEngine
                 switch (predecessor.Type)
                 {
                     case RelationType.FS:
-                        // successor.ES = predecessor.EF + lag
                         ef = predecessor.PredecessorTask.EarlyFinish.Value + lag;
                         break;
                     case RelationType.SS:
-                        // successor.ES = predecessor.ES + lag
                         ef = predecessor.PredecessorTask.EarlyStart.Value + lag;
                         break;
                     case RelationType.SF:
-                        // successor.LF = predecessor.EF + lag (这里计算的是 LS)
                         ef = predecessor.PredecessorTask.EarlyStart.Value + lag - task.PlanDuration;
                         break;
                     case RelationType.FF:
-                        // successor.LF = predecessor.EF + lag (这里计算的是 LS)
                         ef = predecessor.PredecessorTask.EarlyFinish.Value + lag - task.PlanDuration;
                         break;
                 }
@@ -99,17 +107,14 @@ public class ScheduleEngine : IScheduleEngine
                     maxEarlyFinish = ef;
             }
 
-            if (maxEarlyFinish == int.MinValue)
-            {
-                task.EarlyStart = 0;
-            }
-            else
-            {
-                task.EarlyStart = maxEarlyFinish;
-            }
-
-            task.EarlyFinish = task.EarlyStart + task.PlanDuration;
+            cpmEarlyStart = maxEarlyFinish == int.MinValue ? 0 : maxEarlyFinish;
         }
+
+        // 手动排程：取 CPM 值和手动值的较大者（紧前任务可推后，但不早于手动设置）
+        task.EarlyStart = task.IsManualSchedule
+            ? Math.Max(cpmEarlyStart, manualEarlyStart)
+            : cpmEarlyStart;
+        task.EarlyFinish = task.EarlyStart + task.PlanDuration;
     }
 
     public void CalculateLateTimes(TaskItem task, List<TaskRelation> relations, int projectDuration)
@@ -172,11 +177,39 @@ public class ScheduleEngine : IScheduleEngine
         }
     }
 
-    public void CalculateFloat(TaskItem task)
+    public void CalculateFloat(TaskItem task, List<TaskRelation> relations)
     {
         if (task.EarlyStart.HasValue && task.LateStart.HasValue)
         {
             task.TotalFloat = task.LateStart - task.EarlyStart;
+
+            // 计算自由时差 = min(所有紧后任务的ES/EF - 关系调整) - 本任务的EF/ES
+            var successors = relations.Where(r => r.PredecessorTaskId == task.Id).ToList();
+            int? minSuccessorStart = null;
+            foreach (var s in successors)
+            {
+                var succTask = s.SuccessorTask;
+                if (succTask?.EarlyStart == null) continue;
+                int adjusted;
+                switch (s.Type)
+                {
+                    case RelationType.SS:
+                        adjusted = succTask.EarlyStart.Value - (task.EarlyStart.Value + s.Lag);
+                        break;
+                    case RelationType.FF:
+                        adjusted = (succTask.EarlyFinish ?? succTask.EarlyStart.Value) - (task.EarlyFinish.Value + s.Lag);
+                        break;
+                    case RelationType.SF:
+                        adjusted = (succTask.EarlyFinish ?? succTask.EarlyStart.Value) - (task.EarlyStart.Value + s.Lag);
+                        break;
+                    default: // FS
+                        adjusted = succTask.EarlyStart.Value - (task.EarlyFinish.Value + s.Lag);
+                        break;
+                }
+                if (minSuccessorStart == null || adjusted < minSuccessorStart)
+                    minSuccessorStart = adjusted;
+            }
+            task.FreeFloat = minSuccessorStart ?? task.TotalFloat; // 无紧后任务时=总时差
         }
     }
 

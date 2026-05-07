@@ -1,0 +1,30 @@
+[      51ms] [INFO] [2026-05-03T07:11:25.740Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[      57ms] [INFO] [2026-05-03T07:11:25.747Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=YTRqQk96J8b8rpL0MvUdaw. @ http://localhost:5000/_framework/blazor.server.js:0
+[     304ms] SyntaxError: Failed to execute 'appendChild' on 'Node': Unexpected end of input
+    at G (http://localhost:5000/_framework/blazor.server.js:1:20794)
+    at G (http://localhost:5000/_framework/blazor.server.js:1:20990)
+    at j (http://localhost:5000/_framework/blazor.server.js:1:19561)
+    at de.insertMarkup (http://localhost:5000/_framework/blazor.server.js:1:27421)
+    at de.insertFrame (http://localhost:5000/_framework/blazor.server.js:1:26242)
+    at de.insertFrameRange (http://localhost:5000/_framework/blazor.server.js:1:27792)
+    at de.insertElement (http://localhost:5000/_framework/blazor.server.js:1:26680)
+    at de.insertFrame (http://localhost:5000/_framework/blazor.server.js:1:25680)
+    at de.applyEdits (http://localhost:5000/_framework/blazor.server.js:1:24333)
+    at de.updateComponent (http://localhost:5000/_framework/blazor.server.js:1:23620)
+[     351ms] [ERROR] [2026-05-03T07:11:26.040Z] Error: Microsoft.JSInterop.JSException: Could not find 'setNetworkDotNet' ('setNetworkDotNet' was undefined).
+Error: Could not find 'setNetworkDotNet' ('setNetworkDotNet' was undefined).
+    at http://localhost:5000/_framework/blazor.server.js:1:537
+    at Array.forEach (<anonymous>)
+    at l.findFunction (http://localhost:5000/_framework/blazor.server.js:1:505)
+    at _ (http://localhost:5000/_framework/blazor.server.js:1:5248)
+    at http://localhost:5000/_framework/blazor.server.js:1:3041
+    at new Promise (<anonymous>)
+    at y.beginInvokeJSFromDotNet (http://localhost:5000/_framework/blazor.server.js:1:3004)
+    at Xt._invokeClientMethod (http://localhost:5000/_framework/blazor.server.js:1:60890)
+    at Xt._processIncomingData (http://localhost:5000/_framework/blazor.server.js:1:58279)
+    at Xt.connection.onreceive (http://localhost:5000/_framework/blazor.server.js:1:51920)
+   at Microsoft.JSInterop.JSRuntime.InvokeAsync[TValue](Int64 targetInstanceId, String identifier, Object[] args)
+   at Microsoft.JSInterop.JSRuntimeExtensions.InvokeVoidAsync(IJSRuntime jsRuntime, String identifier, Object[] args)
+   at NetPlan.Server.Pages.Project.Network.OnAfterRenderAsync(Boolean firstRender) in I:\NetPlan\src\NetPlan.Server\Pages\Project\Network.razor:line 142
+   at Microsoft.AspNetCore.Components.RenderTree.Renderer.GetErrorHandledTask(Task taskToHandle, ComponentState owningComponentState) @ http://localhost:5000/_framework/blazor.server.js:0
+[     352ms] [INFO] [2026-05-03T07:11:26.041Z] Information: Connection disconnected. @ http://localhost:5000/_framework/blazor.server.js:0

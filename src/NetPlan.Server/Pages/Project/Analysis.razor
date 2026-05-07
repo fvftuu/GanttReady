@@ -1,22 +1,144 @@
+@page "/analysis"
 @page "/project/{ProjectId:int}/analysis"
 @inject IAnalysisService AnalysisService
 @inject IProjectService ProjectService
+@inject IResourceService ResourceService
+@inject IJSRuntime JS
 
 <PageTitle>计划分析 - NetPlan</PageTitle>
 
 <div class="page-header">
-    <h1>📊 计划分析</h1>
+    <div class="header-left">
+        <select class="form-control" @bind="selectedScope" @bind:after="OnScopeChanged" style="width:220px;">
+            <option value="all">🌐 所有项目（共享资源）</option>
+            @foreach (var project in projects)
+            {
+                <option value="@("p-"+project.Id)">📁 @project.Name</option>
+            }
+        </select>
+        <span class="page-title">计划分析仪表板</span>
+    </div>
 </div>
 
 <div class="page-body">
     <div class="page-main" style="padding:20px;">
         @if (isLoading)
         {
-            <div class="loading">加载中，计算关键路径...</div>
+            <div class="loading">加载中，正在分析资源数据...</div>
+        }
+        else if (isAllProjects)
+        {
+            @* ========== 所有项目共享资源分析 ========== *@
+            <div class="dashboard-cards">
+                <div class="card">
+                    <div class="card-title">项目总数</div>
+                    <div class="card-value">@projectSummaries.Count 个</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">共享资源数</div>
+                    <div class="card-value">@allProjectResources.Count 个</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">有冲突项目</div>
+                    <div class="card-value @(projectSummaries.Any(p => p.ConflictCount > 0) ? "highlight" : "")">
+                        @projectSummaries.Count(p => p.ConflictCount > 0) 个
+                    </div>
+                </div>
+            </div>
+
+            @* 图表：各项目任务数与冲突数 *@
+            <div class="section">
+                <h3>📊 各项目资源冲突概览</h3>
+                <div style="height:300px;">
+                    <canvas id="all-projects-chart"></canvas>
+                </div>
+            </div>
+
+            @* 各项目汇总表格 *@
+            <div class="section">
+                <h3>📋 各项目汇总</h3>
+                @if (!projectSummaries.Any())
+                {
+                    <div class="empty-state">库中没有项目，请先创建项目。</div>
+                }
+                else
+                {
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>项目名称</th>
+                                <th>任务数</th>
+                                <th>资源数</th>
+                                <th>冲突数</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var ps in projectSummaries)
+                            {
+                                <tr class="@(ps.ConflictCount > 0 ? "conflict-row" : "")">
+                                    <td>@ps.ProjectName</td>
+                                    <td>@ps.TaskCount</td>
+                                    <td>@ps.ResourceCount</td>
+                                    <td>
+                                        @if (ps.ConflictCount > 0)
+                                        {
+                                            <span class="badge danger">@ps.ConflictCount 项</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge success">✓ 正常</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <a href="/project/@ps.ProjectId/analysis" class="btn btn-sm btn-outline">查看详情</a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+
+            @* 共享资源使用详情 *@
+            <div class="section">
+                <h3>🌐 共享资源跨项目使用情况</h3>
+                @if (!allProjectResources.Any())
+                {
+                    <div class="empty-state">当前没有共享资源（所有资源均绑定到具体项目）。</div>
+                }
+                else
+                {
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>资源名称</th>
+                                <th>类型</th>
+                                <th>总容量</th>
+                                <th>使用单位</th>
+                                <th>使用项目</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in allProjectResources)
+                            {
+                                <tr>
+                                    <td>@item.ResourceName</td>
+                                    <td><span class="badge @GetResourceTypeBadgeClass(item.ResourceType)">@GetResourceTypeLabel(item.ResourceType)</span></td>
+                                    <td>@item.TotalCapacity @item.Unit</td>
+                                    <td>@item.Unit</td>
+                                    <td>@string.Join("、", item.UsedByProjects)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
         }
         else if (analysisResult != null)
         {
-            <div class="summary-cards">
+            @* ========== 单个项目分析（原有逻辑 + 图表）========== *@
+            <div class="dashboard-cards">
                 <div class="card">
                     <div class="card-title">项目工期</div>
                     <div class="card-value">@analysisResult.ProjectDurationDays 天</div>
@@ -33,7 +155,25 @@
                     <div class="card-title">最早完成</div>
                     <div class="card-value">@analysisResult.EarliestFinish.ToString("yyyy-MM-dd")</div>
                 </div>
+                @if (resourceConflicts.Any())
+                {
+                    <div class="card" style="border-left:4px solid #ff4d4f;">
+                        <div class="card-title" style="color:#ff4d4f;">⚠ 资源冲突</div>
+                        <div class="card-value" style="color:#ff4d4f;">@resourceConflicts.Count 项</div>
+                    </div>
+                }
             </div>
+
+            @* 资源容量 vs 峰值使用图表 *@
+            @if (resourceUsages.Any())
+            {
+                <div class="section">
+                    <h3>📊 资源容量 vs 峰值使用</h3>
+                    <div style="height:300px;">
+                        <canvas id="single-project-chart"></canvas>
+                    </div>
+                </div>
+            }
 
             <div class="section">
                 <h3>📊 项目统计</h3>
@@ -54,6 +194,10 @@
                         <span class="stat-label">里程碑节点:</span>
                         <span class="stat-value">@analysisResult.Milestones.Count</span>
                     </div>
+                    <div class="stat-item">
+                        <span class="stat-label">资源分配项:</span>
+                        <span class="stat-value">@totalAssignments</span>
+                    </div>
                 </div>
             </div>
 
@@ -61,7 +205,7 @@
                 <h3>🔴 关键路径任务</h3>
                 @if (analysisResult.CriticalPathTasks.Count == 0)
                 {
-                    <div class="empty-state">未检测到关键路径（请先点击"重算计划"计算关键路径）</div>
+                    <div class="empty-state">未检测到关键路径（请先在甘特图中点击「重算计划」）</div>
                 }
                 else
                 {
@@ -136,6 +280,66 @@
                     </div>
                 </div>
             }
+
+            @* 资源冲突检测 *@
+            <div class="section">
+                <h3>⚙️ 资源冲突检测</h3>
+                @if (!resourceUsages.Any())
+                {
+                    <div class="empty-state">本项目暂无资源分配数据，请先在甘特图中为任务分配资源。</div>
+                }
+                else
+                {
+                    @if (!resourceConflicts.Any())
+                    {
+                        <div style="color:#52c41a;padding:8px 0;">✅ 未发现资源过度分配，所有资源在容量范围内。</div>
+                    }
+                    else
+                    {
+                        <div style="color:#ff4d4f;margin-bottom:12px;">发现 <strong>@resourceConflicts.Count</strong> 项资源过度分配，请调整任务排期或增加资源容量。</div>
+                    }
+
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>资源名称</th>
+                                <th>类型</th>
+                                <th>总容量</th>
+                                <th>峰值使用</th>
+                                <th>峰值时段</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var usage in resourceUsages)
+                            {
+                                var isConflict = usage.PeakUsage > usage.Capacity;
+                                var pct = usage.Capacity > 0 ? (int)(usage.PeakUsage / usage.Capacity * 100) : 0;
+                                <tr class="@(isConflict ? "conflict-row" : "")">
+                                    <td>@usage.ResourceName</td>
+                                    <td><span class="badge @GetResourceTypeBadgeClass(usage.ResourceType)">@GetResourceTypeLabel(usage.ResourceType)</span></td>
+                                    <td>@usage.Capacity @usage.Unit</td>
+                                    <td style="color:@(isConflict ? "#ff4d4f" : "#52c41a"); font-weight:bold;">
+                                        @usage.PeakUsage @usage.Unit
+                                        <small>(@pct%)</small>
+                                    </td>
+                                    <td>@usage.PeakPeriod</td>
+                                    <td>
+                                        @if (isConflict)
+                                        {
+                                            <span class="badge danger">⚠ 超额 @((usage.PeakUsage - usage.Capacity).ToString("0.#")) @usage.Unit</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge success">✓ 正常</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
         }
         else
         {
@@ -148,13 +352,36 @@
 </div>
 
 @code {
-    [Parameter]
-    public int ProjectId { get; set; }
+    [Parameter] public int? ProjectId { get; set; }
+
+    private List<Models.Project> projects = new();
+    private string selectedScope = "all";  // "all" 或 "p-{id}"
+    private bool isAllProjects => selectedScope == "all";
+    private int? selectedProjectId =>
+        selectedScope.StartsWith("p-") && int.TryParse(selectedScope.Substring(2), out var id) ? id : null;
 
     private ProjectAnalysisResult? analysisResult;
     private bool isLoading = true;
+    private int totalAssignments = 0;
+
+    // 所有项目分析数据
+    private List<AllProjectResourceItem> allProjectResources = new();
+    private List<ProjectResourceSummary> projectSummaries = new();
+
+    // 资源使用情况
+    private List<ResourceUsageSummary> resourceUsages = new();
+    private List<ResourceConflict> resourceConflicts = new();
 
     protected override async Task OnInitializedAsync()
+    {
+        projects = await ProjectService.GetAllProjectsAsync();
+        // 如果 URL 中有 ProjectId，则选中对应项目
+        if (ProjectId.HasValue)
+            selectedScope = "p-" + ProjectId.Value;
+        await LoadAnalysis();
+    }
+
+    private async Task OnScopeChanged()
     {
         await LoadAnalysis();
     }
@@ -162,18 +389,268 @@
     private async Task LoadAnalysis()
     {
         isLoading = true;
+        analysisResult = null;
+        resourceUsages = new();
+        resourceConflicts = new();
+        allProjectResources = new();
+        projectSummaries = new();
+        StateHasChanged();
+
         try
         {
-            var project = await ProjectService.GetProjectByIdAsync(ProjectId);
-            if (project != null)
+            if (isAllProjects)
             {
-                var tasks = await ProjectService.GetTasksByProjectIdAsync(ProjectId);
-                analysisResult = AnalysisService.AnalyzeProject(project, tasks);
+                await LoadAllProjectsAnalysis();
+            }
+            else if (selectedProjectId.HasValue)
+            {
+                await LoadSingleProjectAnalysis(selectedProjectId.Value);
             }
         }
         finally
         {
             isLoading = false;
+            StateHasChanged();
         }
+    }
+
+    private async Task LoadAllProjectsAnalysis()
+    {
+        var allProjects = await ProjectService.GetAllProjectsAsync();
+        var allResources = await ResourceService.GetAllResourcesAsync();
+
+        // 各项目资源使用汇总
+        foreach (var proj in allProjects)
+        {
+            try
+            {
+                var tasks = await ProjectService.GetTasksByProjectIdAsync(proj.Id);
+                var assignments = await ResourceService.GetAssignmentsByProjectAsync(proj.Id);
+                var resUsages = CalculateResourceUsages(assignments, tasks, allResources.Where(r => r.ProjectId == null || r.ProjectId == proj.Id).ToList());
+                projectSummaries.Add(new ProjectResourceSummary
+                {
+                    ProjectId = proj.Id,
+                    ProjectName = proj.Name,
+                    TaskCount = tasks.Count,
+                    ResourceCount = resUsages.Count,
+                    ConflictCount = resUsages.Count(r => r.PeakUsage > r.Capacity && r.Capacity > 0)
+                });
+            }
+            catch (Exception ex)
+            {
+                projectSummaries.Add(new ProjectResourceSummary
+                {
+                    ProjectId = proj.Id,
+                    ProjectName = proj.Name + " (加载失败)",
+                    TaskCount = 0,
+                    ResourceCount = 0,
+                    ConflictCount = 0
+                });
+            }
+        }
+
+        // 共享资源跨项目分析
+        var sharedResources = allResources.Where(r => r.ProjectId == null).ToList();
+        foreach (var res in sharedResources)
+        {
+            var allAssignments = await ResourceService.GetAllAssignmentsAsync();
+            var resAssignments = allAssignments.Where(a => a.ResourceId == res.Id).ToList();
+            if (!resAssignments.Any()) continue;
+
+            var projectNames = new List<string>();
+            foreach (var a in resAssignments)
+            {
+                var task = (await ProjectService.GetTaskByIdAsync(a.TaskId));
+                if (task != null)
+                {
+                    var proj = allProjects.FirstOrDefault(p => p.Id == task.ProjectId);
+                    if (proj != null && !projectNames.Contains(proj.Name))
+                        projectNames.Add(proj.Name);
+                }
+            }
+
+            allProjectResources.Add(new AllProjectResourceItem
+            {
+                ResourceName = res.Name,
+                ResourceType = res.Type,
+                TotalCapacity = res.Quantity,
+                Unit = res.Unit ?? "",
+                UsedByProjects = projectNames
+            });
+        }
+
+        // 渲染图表
+        await RenderAllProjectsChart();
+    }
+
+    private async Task LoadSingleProjectAnalysis(int projectId)
+    {
+        var project = await ProjectService.GetProjectByIdAsync(projectId);
+        if (project != null)
+        {
+            var tasks = await ProjectService.GetTasksByProjectIdAsync(projectId);
+            analysisResult = AnalysisService.AnalyzeProject(project, tasks);
+            await AnalyzeResourceConflicts(tasks, project);
+        }
+        await RenderSingleProjectChart(projectId);
+    }
+
+    private List<ResourceUsageSummary> CalculateResourceUsages(
+        List<Models.ResourceAssignment> assignments,
+        List<Models.TaskItem> tasks,
+        List<Models.Resource> resources)
+    {
+        var result = new List<ResourceUsageSummary>();
+        var byResource = assignments.GroupBy(a => a.ResourceId).ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var kv in byResource)
+        {
+            var resource = resources.FirstOrDefault(r => r.Id == kv.Key);
+            if (resource == null) continue;
+            var taskAssignments = kv.Value;
+            var monthlyUsage = new Dictionary<string, decimal>();
+            foreach (var asgn in taskAssignments)
+            {
+                var task = tasks.FirstOrDefault(t => t.Id == asgn.TaskId);
+                if (task == null) continue;
+                var start = task.PlanStartDate;
+                var end = task.PlanEndDate;
+                var cur = new DateTime(start.Year, start.Month, 1);
+                while (cur <= end)
+                {
+                    var key = cur.ToString("yyyy-MM");
+                    if (!monthlyUsage.ContainsKey(key)) monthlyUsage[key] = 0;
+                    monthlyUsage[key] += asgn.Quantity;
+                    cur = cur.AddMonths(1);
+                }
+            }
+            if (!monthlyUsage.Any()) continue;
+            var peakKey = monthlyUsage.OrderByDescending(x => x.Value).First().Key;
+            var peakUsage = monthlyUsage[peakKey];
+            result.Add(new ResourceUsageSummary
+            {
+                ResourceId = resource.Id,
+                ResourceName = resource.Name,
+                ResourceType = resource.Type,
+                Unit = resource.Unit ?? "",
+                Capacity = resource.Quantity,
+                PeakUsage = peakUsage,
+                PeakPeriod = peakKey
+            });
+        }
+        return result.OrderByDescending(r => r.PeakUsage / Math.Max(0.001m, r.Capacity)).ToList();
+    }
+
+    private async Task AnalyzeResourceConflicts(List<Models.TaskItem> tasks, Models.Project project)
+    {
+        resourceUsages = new();
+        resourceConflicts = new();
+        var assignments = await ResourceService.GetAssignmentsByProjectAsync(project.Id);
+        totalAssignments = assignments.Count;
+        if (!assignments.Any()) return;
+        var resources = await ResourceService.GetResourcesByProjectAsync(project.Id);
+        resourceUsages = CalculateResourceUsages(assignments, tasks, resources);
+
+        foreach (var usage in resourceUsages)
+        {
+            if (usage.PeakUsage > usage.Capacity && usage.Capacity > 0)
+            {
+                resourceConflicts.Add(new ResourceConflict
+                {
+                    ResourceName = usage.ResourceName,
+                    ConflictPeriod = usage.PeakPeriod,
+                    ConflictTasks = new()
+                });
+            }
+        }
+    }
+
+    private async Task RenderAllProjectsChart()
+    {
+        await Task.Delay(100);
+        var labels = projectSummaries.Select(p => p.ProjectName).ToArray();
+        var taskData = projectSummaries.Select(p => p.TaskCount).ToArray();
+        var conflictData = projectSummaries.Select(p => p.ConflictCount).ToArray();
+        var chartData = new
+        {
+            labels = labels,
+            datasets = new[]
+            {
+                new { label = "任务数", data = taskData, backgroundColor = "#1890ff" },
+                new { label = "资源冲突", data = conflictData, backgroundColor = "#ff4d4f" }
+            }
+        };
+        try { await JS.InvokeVoidAsync("renderAnalysisBarChart", "all-projects-chart", chartData); } catch {}
+    }
+
+    private async Task RenderSingleProjectChart(int projectId)
+    {
+        await Task.Delay(100);
+        if (!resourceUsages.Any()) return;
+        var labels = resourceUsages.Select(r => r.ResourceName).ToArray();
+        var capacityData = resourceUsages.Select(r => (double)r.Capacity).ToArray();
+        var usageData = resourceUsages.Select(r => (double)r.PeakUsage).ToArray();
+        var chartData = new
+        {
+            labels = labels,
+            datasets = new[]
+            {
+                new { label = "总容量", data = capacityData, backgroundColor = "#52c41a" },
+                new { label = "峰值使用", data = usageData, backgroundColor = "#faad14" }
+            }
+        };
+        try { await JS.InvokeVoidAsync("renderAnalysisBarChart", "single-project-chart", chartData); } catch {}
+    }
+
+    private string GetResourceTypeBadgeClass(Models.ResourceType type) => type switch
+    {
+        Models.ResourceType.Labor => "badge-blue",
+        Models.ResourceType.Material => "badge-green",
+        Models.ResourceType.Equipment => "badge-orange",
+        _ => "badge-gray"
+    };
+
+    private string GetResourceTypeLabel(Models.ResourceType type) => type switch
+    {
+        Models.ResourceType.Labor => "人工",
+        Models.ResourceType.Material => "材料",
+        Models.ResourceType.Equipment => "设备",
+        _ => "其他"
+    };
+
+    // DTOs
+    private class AllProjectResourceItem
+    {
+        public string ResourceName { get; set; } = "";
+        public Models.ResourceType ResourceType { get; set; }
+        public decimal TotalCapacity { get; set; }
+        public string Unit { get; set; } = "";
+        public List<string> UsedByProjects { get; set; } = new();
+    }
+
+    private class ProjectResourceSummary
+    {
+        public int ProjectId { get; set; }
+        public string ProjectName { get; set; } = "";
+        public int TaskCount { get; set; }
+        public int ResourceCount { get; set; }
+        public int ConflictCount { get; set; }
+    }
+
+    private class ResourceUsageSummary
+    {
+        public int ResourceId { get; set; }
+        public string ResourceName { get; set; } = "";
+        public Models.ResourceType ResourceType { get; set; }
+        public string Unit { get; set; } = "";
+        public decimal Capacity { get; set; }
+        public decimal PeakUsage { get; set; }
+        public string PeakPeriod { get; set; } = "";
+    }
+
+    private class ResourceConflict
+    {
+        public string ResourceName { get; set; } = "";
+        public string ConflictPeriod { get; set; } = "";
+        public List<string> ConflictTasks { get; set; } = new();
     }
 }

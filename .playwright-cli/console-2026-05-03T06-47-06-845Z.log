@@ -1,0 +1,20 @@
+[     112ms] [INFO] [2026-05-03T06:47:06.956Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[     125ms] [INFO] [2026-05-03T06:47:06.969Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=4T4oUnfQLK79dmza37mgNw. @ http://localhost:5000/_framework/blazor.server.js:0
+[    1976ms] [WARNING] You have set a custom wheel sensitivity.  This will make your app zoom unnaturally when using mainstream mice.  You should change this value from the default only if you can guarantee that all your users will use the same hardware and OS configuration as your current machine. @ https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js:22
+[ 1351103ms] [ERROR] [2026-05-03T07:09:37.948Z] Error: Connection disconnected with error 'Error: WebSocket closed with status code: 1006 (no reason given).'. @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1354108ms] [INFO] [2026-05-03T07:09:40.952Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1356455ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5000/_blazor/negotiate?negotiateVersion=1:0
+[ 1356455ms] [WARNING] [2026-05-03T07:09:43.299Z] Warning: Error from HTTP request. TypeError: Failed to fetch. @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1356455ms] [ERROR] [2026-05-03T07:09:43.299Z] Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1356455ms] [ERROR] [2026-05-03T07:09:43.299Z] Error: Failed to start the connection: Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1356455ms] [ERROR] [2026-05-03T07:09:43.299Z] Error: Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1356455ms] [ERROR] [2026-05-03T07:09:43.300Z] Error: Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1376459ms] [INFO] [2026-05-03T07:10:03.303Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1378808ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:5000/_blazor/negotiate?negotiateVersion=1:0
+[ 1378808ms] [WARNING] [2026-05-03T07:10:05.653Z] Warning: Error from HTTP request. TypeError: Failed to fetch. @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1378808ms] [ERROR] [2026-05-03T07:10:05.653Z] Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1378808ms] [ERROR] [2026-05-03T07:10:05.653Z] Error: Failed to start the connection: Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1378808ms] [ERROR] [2026-05-03T07:10:05.653Z] Error: Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1378808ms] [ERROR] [2026-05-03T07:10:05.653Z] Error: Error: Failed to complete negotiation with the server: TypeError: Failed to fetch @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1398810ms] [INFO] [2026-05-03T07:10:25.655Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[ 1398825ms] [INFO] [2026-05-03T07:10:25.670Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=1t3w4lgpDRxZ0QMTVk9WRQ. @ http://localhost:5000/_framework/blazor.server.js:0

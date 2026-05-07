@@ -1,0 +1,8 @@
+[      52ms] [INFO] [2026-05-05T07:29:27.609Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
+[      66ms] [INFO] [2026-05-05T07:29:27.624Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=in2txp2ZNi5qNNC_TfeJig. @ http://localhost:5000/_framework/blazor.server.js:0
+[    1605ms] [LOG] [NET] poller: calling renderNetwork... @ http://localhost:5000/js/netplan.js:1232
+[    1606ms] [LOG] [NET] SVG render. opts: {"totalDays":397,"dayWidth":40,"showTodayLine":true,"showProgressLine":true} @ http://localhost:5000/js/netplan.js:905
+[    1606ms] [LOG] [NET] tasks: 16 | rels: 17 @ http://localhost:5000/js/netplan.js:922
+[    1606ms] [LOG] [NET] SVG size: 16060 x 1420 @ http://localhost:5000/js/netplan.js:939
+[    1607ms] [LOG] [SVG] opts: todayLine= true progressLine= true dayWidth= 40 critical= true float= true @ http://localhost:5000/js/netplan.js:586
+[    1610ms] [LOG] [NET] SVG rendered. @ http://localhost:5000/js/netplan.js:949

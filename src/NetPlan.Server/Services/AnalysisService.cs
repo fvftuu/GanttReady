@@ -191,7 +191,7 @@ public class AnalysisService : IAnalysisService
             OnTimeTasks = tasks.Where(t => t.TotalFloat is > 0 and <= 5).ToList(),
             EarlyStartTasks = tasks.Where(t => t.TotalFloat > 5).ToList(),
             LateStartTasks = tasks.Where(t => t.TotalFloat < 0).ToList(),
-            Milestones = tasks.Where(t => t.PlanDuration == 1)
+            Milestones = tasks.Where(t => t.IsMilestone)
                 .Select(t => new MilestoneInfo { Name = t.Name, Date = t.PlanEndDate })
                 .ToList()
         };

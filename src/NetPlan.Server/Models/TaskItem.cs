@@ -23,6 +23,7 @@ public class TaskItem
 
     // 支持 WBS 层级（父子任务）
     public int? ParentTaskId { get; set; }
+    public int OutlineLevel { get; set; } = 1;                   // 大纲级别（MS Project 兼容）
 
     // 计划信息
     public DateTime PlanStartDate { get; set; }
@@ -33,6 +34,18 @@ public class TaskItem
     public DateTime? ActualStartDate { get; set; }
     public DateTime? ActualEndDate { get; set; }
     public int? ActualDuration { get; set; }                    // 实际工期
+
+    // 模板扩展字段
+    [MaxLength(50)]
+    public string? ResponsiblePerson { get; set; }              // 负责人
+
+    public int CompletionPercentage { get; set; }               // 完成率(%)
+
+    public bool IsMilestone { get; set; }                        // 是否里程碑任务
+    public bool IsManualSchedule { get; set; }                    // 是否手动排程（拖拽调整后标记）
+
+    [MaxLength(500)]
+    public string? Notes { get; set; }                          // 备注
 
     // 计算字段（调度引擎填充）
     public int? EarlyStart { get; set; }                          // 最早开始（相对于项目开始的天数）

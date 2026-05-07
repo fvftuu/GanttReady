@@ -66,12 +66,35 @@ public class ProjectService : IProjectService
 
     public async Task DeleteProjectAsync(int id)
     {
-        var project = await _db.Projects.FindAsync(id);
-        if (project != null)
-        {
-            _db.Projects.Remove(project);
-            await _db.SaveChangesAsync();
-        }
+        var project = await _db.Projects
+            .Include(p => p.Tasks)
+                .ThenInclude(t => t.Predecessors)
+            .Include(p => p.Tasks)
+                .ThenInclude(t => t.Successors)
+            .Include(p => p.Tasks)
+                .ThenInclude(t => t.ResourceAssignments)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (project == null) return;
+
+        // 按依赖顺序删除：先删除关系/分配，再删除任务/资源，最后删除项目
+        var taskRelations = project.Tasks.SelectMany(t => t.Predecessors)
+            .Union(project.Tasks.SelectMany(t => t.Successors))
+            .DistinctBy(r => r.Id);
+        _db.TaskRelations.RemoveRange(taskRelations);
+
+        var assignments = project.Tasks.SelectMany(t => t.ResourceAssignments);
+        _db.ResourceAssignments.RemoveRange(assignments);
+
+        var resources = await _db.Resources.Where(r => r.ProjectId == id).ToListAsync();
+        _db.Resources.RemoveRange(resources);
+
+        var columns = await _db.ColumnDefinitions.Where(c => c.ProjectId == id).ToListAsync();
+        _db.ColumnDefinitions.RemoveRange(columns);
+
+        _db.Tasks.RemoveRange(project.Tasks);
+        _db.Projects.Remove(project);
+        await _db.SaveChangesAsync();
     }
 
     #endregion
@@ -84,6 +107,8 @@ public class ProjectService : IProjectService
             .Where(t => t.ProjectId == projectId)
             .Include(t => t.Predecessors)
                 .ThenInclude(r => r.PredecessorTask)
+            .Include(t => t.Successors)
+                .ThenInclude(r => r.SuccessorTask)
             .Include(t => t.ResourceAssignments)
                 .ThenInclude(a => a.Resource)
             .OrderBy(t => t.SortOrder)
@@ -123,6 +148,11 @@ public class ProjectService : IProjectService
         existing.Name = task.Name;
         existing.SortOrder = task.SortOrder;
         existing.ParentTaskId = task.ParentTaskId;
+        existing.ResponsiblePerson = task.ResponsiblePerson;
+        existing.CompletionPercentage = task.CompletionPercentage;
+        existing.IsMilestone = task.IsMilestone;
+        existing.IsManualSchedule = task.IsManualSchedule;
+        existing.Notes = task.Notes;
         existing.PlanStartDate = task.PlanStartDate;
         existing.PlanEndDate = task.PlanEndDate;
         existing.PlanDuration = task.PlanDuration;
@@ -137,12 +167,19 @@ public class ProjectService : IProjectService
 
     public async Task DeleteTaskAsync(int id)
     {
-        var task = await _db.Tasks.FindAsync(id);
-        if (task != null)
-        {
-            _db.Tasks.Remove(task);
-            await _db.SaveChangesAsync();
-        }
+        var task = await _db.Tasks
+            .Include(t => t.Predecessors)
+            .Include(t => t.Successors)
+            .FirstOrDefaultAsync(t => t.Id == id);
+
+        if (task == null) return;
+
+        // 先删除所有关联的任务关系（前后置）
+        var allRelations = task.Predecessors.Concat(task.Successors).ToList();
+        _db.TaskRelations.RemoveRange(allRelations);
+
+        _db.Tasks.Remove(task);
+        await _db.SaveChangesAsync();
     }
 
     #endregion
@@ -153,6 +190,15 @@ public class ProjectService : IProjectService
     {
         return await _db.TaskRelations
             .Where(r => r.PredecessorTask.ProjectId == projectId)
+            .Include(r => r.PredecessorTask)
+            .Include(r => r.SuccessorTask)
+            .ToListAsync();
+    }
+
+    public async Task<List<TaskRelation>> GetRelationsByTaskIdAsync(int taskId)
+    {
+        return await _db.TaskRelations
+            .Where(r => r.PredecessorTaskId == taskId || r.SuccessorTaskId == taskId)
             .Include(r => r.PredecessorTask)
             .Include(r => r.SuccessorTask)
             .ToListAsync();
@@ -192,6 +238,16 @@ public class ProjectService : IProjectService
         var relations = await GetRelationsByProjectIdAsync(projectId);
 
         int projectDuration = _scheduleEngine.Calculate(tasks, relations, project.PlanStartDate);
+
+        // 将调度结果（ES/EF偏移天数）写入任务的实际日期
+        foreach (var task in tasks)
+        {
+            if (task.EarlyStart.HasValue && task.EarlyFinish.HasValue)
+            {
+                task.PlanStartDate = project.PlanStartDate.AddDays(task.EarlyStart.Value);
+                task.PlanEndDate = project.PlanStartDate.AddDays(task.EarlyFinish.Value - 1);
+            }
+        }
 
         // 更新项目结束日期
         project.PlanEndDate = project.PlanStartDate.AddDays(projectDuration);
@@ -244,6 +300,49 @@ public class ProjectService : IProjectService
 
         _db.ColumnDefinitions.AddRange(defaultColumns);
         await _db.SaveChangesAsync();
+    }
+
+    #endregion
+
+    #region 导出
+
+    public async Task<string> ExportTasksToExcelAsync(int projectId)
+    {
+        var project = await _db.Projects.FindAsync(projectId);
+        if (project == null)
+            throw new InvalidOperationException($"Project {projectId} not found");
+
+        var tasks = await GetTasksByProjectIdAsync(projectId);
+
+        // 将任务数据保存到临时文件，供下载
+        var tempFilePath = Path.Combine(Path.GetTempPath(), $"NetPlan_Export_{project.Name}_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+        
+        using var writer = new StreamWriter(tempFilePath, false, System.Text.Encoding.UTF8);
+        
+        // 写入CSV头（带BOM以便Excel正确识别中文）
+        await writer.WriteLineAsync("\uFEFF序号,代号,任务名称,计划开始,计划完成,工期(天),实际开始,实际完成,总时差,最早开始,最早完成,最迟开始,最迟完成,关键任务");
+        
+        // 写入数据行
+        int index = 1;
+        foreach (var task in tasks)
+        {
+            var line = $"{index},{EscapeCsv(task.Code)},{EscapeCsv(task.Name)},{task.PlanStartDate:yyyy-MM-dd},{task.PlanEndDate:yyyy-MM-dd},{task.PlanDuration},{task.ActualStartDate?.ToString("yyyy-MM-dd") ?? ""},{task.ActualEndDate?.ToString("yyyy-MM-dd") ?? ""},{task.TotalFloat ?? 0},{task.EarlyStart},{task.EarlyFinish},{task.LateStart},{task.LateFinish},{(task.IsCritical ? "是" : "否")}";
+            await writer.WriteLineAsync(line);
+            index++;
+        }
+
+        return tempFilePath;
+    }
+
+    private static string EscapeCsv(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+        // 如果包含逗号、引号或换行符，需要用引号包裹
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+        return value;
     }
 
     #endregion

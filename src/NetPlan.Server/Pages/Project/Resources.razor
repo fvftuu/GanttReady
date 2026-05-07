@@ -1,11 +1,22 @@
 @page "/project/{ProjectId:int}/resources"
 @inject IResourceService ResourceService
+@inject IProjectService ProjectService
+@inject IJSRuntime JS
 @inject NavigationManager Navigation
 
 <PageTitle>资源管理 - NetPlan</PageTitle>
 
 <div class="page-header">
-    <h1>👥 资源管理</h1>
+    <div class="header-left">
+        <select class="form-control" @bind="currentProjectId" @bind:after="OnProjectChanged">
+            <option value="0">选择项目</option>
+            @foreach (var project in projects)
+            {
+                <option value="@project.Id">@project.Name</option>
+            }
+        </select>
+        <span class="page-title">资源管理</span>
+    </div>
 </div>
 
 <div class="page-body">
@@ -16,17 +27,43 @@
         }
         else
         {
+            @* 工具栏 *@
             <div class="toolbar">
-                <button class="btn btn-primary" @onclick="ShowAddDialog">➕ 添加资源</button>
+                <button class="btn btn-primary" @onclick="ShowAddDialog">
+                    <span class="oi oi-plus"></span> 添加资源
+                </button>
+                <button class="btn btn-outline" @onclick="ExportResources" disabled="@(currentProjectId == 0)">
+                    <span class="oi oi-data-download"></span> 导出资源
+                </button>
+                <button class="btn btn-outline" @onclick="TriggerImport">
+                    <span class="oi oi-data-upload"></span> 导入资源
+                </button>
+                <InputFile id="resFileInput" OnChange="HandleFileSelected" accept=".xlsx,.xls" style="display:none" />
                 <span class="spacer"></span>
                 <span>总计: @ResourceList.Count 个资源</span>
             </div>
 
-            @if (ResourceList.Count == 0)
+            @* 分类筛选标签 *@
+            <div class="category-tabs">
+                <button class="category-tab @(activeCategory == null ? "active" : "")" @onclick="() => SetCategory(null)">
+                    全部 (@ResourceList.Count)
+                </button>
+                <button class="category-tab labor @(activeCategory == ResourceType.Labor ? "active" : "")" @onclick="() => SetCategory(ResourceType.Labor)">
+                    👤 人工 (@ResourceList.Count(r => r.Type == ResourceType.Labor))
+                </button>
+                <button class="category-tab material @(activeCategory == ResourceType.Material ? "active" : "")" @onclick="() => SetCategory(ResourceType.Material)">
+                    📦 材料 (@ResourceList.Count(r => r.Type == ResourceType.Material))
+                </button>
+                <button class="category-tab equipment @(activeCategory == ResourceType.Equipment ? "active" : "")" @onclick="() => SetCategory(ResourceType.Equipment)">
+                    🔧 设备 (@ResourceList.Count(r => r.Type == ResourceType.Equipment))
+                </button>
+            </div>
+
+            @if (filteredResources.Count == 0)
             {
                 <div class="empty-state">
                     <div style="font-size:48px; margin-bottom:16px;">👥</div>
-                    <p>暂无资源。</p>
+                    <p>@(activeCategory == null ? "暂无资源" : $"暂无{GetTypeDisplayName(activeCategory.Value)}类资源")。</p>
                     <button class="btn btn-primary" @onclick="ShowAddDialog">添加第一个资源</button>
                 </div>
             }
@@ -35,22 +72,29 @@
                 <table class="table">
                     <thead>
                         <tr>
+                            <th style="width:40px;">
+                                <input type="checkbox" @bind="selectAll" @bind:after="ToggleSelectAll" />
+                            </th>
                             <th>代号</th>
                             <th>名称</th>
                             <th>类型</th>
                             <th>数量</th>
                             <th>单位</th>
                             <th>成本/小时</th>
-                            <th>备注</th>
+                            <th>归属</th>
                             <th>操作</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var resource in ResourceList)
+                        @foreach (var resource in filteredResources)
                         {
-                            <tr>
-                                <td>@resource.Code</td>
-                                <td>@resource.Name</td>
+                            <tr class="@(selectedIds.Contains(resource.Id) ? "selected" : "")">
+                                <td>
+                                    <input type="checkbox" checked="@selectedIds.Contains(resource.Id)"
+                                           @onchange="(ChangeEventArgs e) => ToggleSelect(resource.Id, (bool)(e.Value ?? false))" />
+                                </td>
+                                <td><span class="badge primary">@resource.Code</span></td>
+                                <td><strong>@resource.Name</strong></td>
                                 <td>
                                     <span class="badge @(resource.Type.ToString().ToLower())">
                                         @GetTypeDisplayName(resource.Type)
@@ -58,8 +102,18 @@
                                 </td>
                                 <td>@resource.Quantity</td>
                                 <td>@resource.Unit</td>
-                                <td>@(resource.HourlyCost.HasValue ? resource.HourlyCost.Value.ToString("C2") : "-")</td>
-                                <td>@resource.Notes</td>
+                                <td>@(resource.HourlyCost.HasValue ? $"¥{resource.HourlyCost.Value:F2}" : "-")</td>
+                                <td>
+                                    @if (resource.ProjectId == null)
+                                    {
+                                        <span class="badge success" title="所有项目可用">🌐 共享</span>
+                                    }
+                                    else
+                                    {
+                                        var proj = projects.FirstOrDefault(p => p.Id == resource.ProjectId);
+                                        <span class="badge" style="background:#f0f0f0;color:#666;" title="@proj?.Name">📁 @(proj?.Name ?? "未知")</span>
+                                    }
+                                </td>
                                 <td>
                                     <button class="btn-link" @onclick="() => EditResource(resource)">编辑</button>
                                     <button class="btn-link danger" @onclick="() => DeleteResource(resource)">删除</button>
@@ -69,54 +123,99 @@
                     </tbody>
                 </table>
             }
+
+            @* 批量操作栏 *@
+            @if (selectedIds.Count > 0)
+            {
+                <div class="batch-actions">
+                    <span>已选 @selectedIds.Count 个资源</span>
+                    <button class="btn btn-outline btn-sm" @onclick="BatchExport">导出选中</button>
+                    <button class="btn btn-danger btn-sm" @onclick="BatchDelete">批量删除</button>
+                    <button class="btn btn-outline btn-sm" @onclick="ClearSelection">取消选择</button>
+                </div>
+            }
         }
     </div>
 </div>
 
+@* ========== 编辑对话框 ========== *@
 @if (showDialog && editingResource != null)
 {
     <div class="modal-overlay" @onclick="CloseDialog">
         <div class="modal-content" @onclick:stopPropagation>
             <h3>@(editingResource.Id == 0 ? "添加资源" : "编辑资源")</h3>
 
-            <div class="form-group">
-                <label>代号 *</label>
-                <input type="text" @bind="editingResource.Code" placeholder="例如: R001" />
-            </div>
-
-            <div class="form-group">
-                <label>名称 *</label>
-                <input type="text" @bind="editingResource.Name" placeholder="资源名称" />
-            </div>
-
-            <div class="form-group">
-                <label>类型</label>
-                <select @bind="editingResource.Type">
-                    <option value="@ResourceType.Labor">👤 人工</option>
-                    <option value="@ResourceType.Equipment">🔧 设备</option>
-                    <option value="@ResourceType.Material">📦 材料</option>
-                </select>
+            <div class="form-row">
+                <div class="form-group" style="flex:1;">
+                    <label>代号 *</label>
+                    <input type="text" class="form-control" @bind="editingResource.Code" placeholder="例如: R001" />
+                </div>
+                <div class="form-group" style="flex:2;">
+                    <label>名称 *</label>
+                    <input type="text" class="form-control" @bind="editingResource.Name" placeholder="资源名称" />
+                </div>
             </div>
 
             <div class="form-row">
-                <div class="form-group">
-                    <label>数量</label>
-                    <input type="number" @bind="editingResource.Quantity" min="1" />
+                <div class="form-group" style="flex:1;">
+                    <label>类型</label>
+                    <select class="form-control" @bind="editingResource.Type">
+                        <option value="@ResourceType.Labor">👤 人工</option>
+                        <option value="@ResourceType.Equipment">🔧 设备</option>
+                        <option value="@ResourceType.Material">📦 材料</option>
+                    </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="flex:1;">
                     <label>单位</label>
-                    <input type="text" @bind="editingResource.Unit" placeholder="人/台/件" />
+                    <input type="text" class="form-control" @bind="editingResource.Unit" placeholder="人/台/件/m³" />
                 </div>
             </div>
 
-            <div class="form-group">
-                <label>成本/小时 (¥)</label>
-                <input type="number" @bind="editingResource.HourlyCost" min="0" step="0.01" />
+            <div class="form-row">
+                <div class="form-group" style="flex:1;">
+                    <label>数量</label>
+                    <input type="number" class="form-control" @bind="editingResource.Quantity" min="0" step="0.01" />
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>成本/小时 (¥)</label>
+                    <input type="number" class="form-control" @bind="editingResource.HourlyCost" min="0" step="0.01" />
+                </div>
             </div>
+
+            @* 资源归属设置 *@
+            <div class="form-group">
+                <label>资源归属</label>
+            </div>
+            <div class="form-row" style="align-items:center;">
+                <label class="radio-label" style="margin-right:20px;">
+                    <input type="radio" name="resourceScope" value="shared" 
+                           checked="@(editingResource.ProjectId == null)"
+                           @onchange="() => SetResourceShared(true)" />
+                    🌐 共享资源（所有项目可用）
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="resourceScope" value="project"
+                           checked="@(editingResource.ProjectId != null)"
+                           @onchange="() => SetResourceShared(false)" />
+                    📁 项目专属
+                </label>
+            </div>
+            @if (editingResource.ProjectId != null)
+            {
+                <div class="form-group" style="margin-top:6px;">
+                    <select class="form-control" @bind="editingResource.ProjectId">
+                        <option value="@currentProjectId">当前项目</option>
+                        @foreach (var p in projects.Where(p => p.Id != currentProjectId))
+                        {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    </select>
+                </div>
+            }
 
             <div class="form-group">
                 <label>备注</label>
-                <textarea @bind="editingResource.Notes" rows="2" placeholder="备注信息"></textarea>
+                <textarea class="form-control" @bind="editingResource.Notes" rows="2" placeholder="备注信息"></textarea>
             </div>
 
             <div class="dialog-actions">
@@ -129,24 +228,63 @@
 
 @code {
     [Parameter]
-    public int ProjectId { get; set; }
+    public int? ProjectId { get; set; }
 
+    private List<Models.Project> projects = new();
+    private int currentProjectId { get; set; }
     private List<Resource> ResourceList = new();
+    private List<Resource> filteredResources => activeCategory == null 
+        ? ResourceList 
+        : ResourceList.Where(r => r.Type == activeCategory.Value).ToList();
     private Resource? editingResource;
     private bool isLoading = true;
     private bool showDialog = false;
+    
+    // 分类筛选
+    private ResourceType? activeCategory = null;
+    
+    // 多选功能
+    private HashSet<int> selectedIds = new();
+    private bool selectAll = false;
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            projects = await ProjectService.GetAllProjectsAsync();
+            if (ProjectId.HasValue && ProjectId.Value > 0)
+                currentProjectId = ProjectId.Value;
+            await LoadResources();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Resources] Init error: {ex.Message}");
+            isLoading = false;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ProjectId.HasValue && ProjectId.Value != currentProjectId && projects.Any(p => p.Id == ProjectId.Value))
+        {
+            currentProjectId = ProjectId.Value;
+            await LoadResources();
+        }
+    }
+
+    private async Task OnProjectChanged()
+    {
+        ClearSelection();
         await LoadResources();
     }
 
     private async Task LoadResources()
     {
+        if (currentProjectId == 0) { ResourceList = new(); isLoading = false; return; }
         isLoading = true;
         try
         {
-            ResourceList = await ResourceService.GetResourcesByProjectAsync(ProjectId);
+            ResourceList = await ResourceService.GetResourcesByProjectAsync(currentProjectId);
         }
         finally
         {
@@ -154,17 +292,31 @@
         }
     }
 
+    private void SetCategory(ResourceType? type)
+    {
+        activeCategory = type;
+        ClearSelection();
+    }
+
     private void ShowAddDialog()
     {
         editingResource = new Resource
         {
-            ProjectId = ProjectId,
-            Type = ResourceType.Labor,
+            ProjectId = null,  // 新建资源默认为共享
+            Type = activeCategory ?? ResourceType.Labor,
             Quantity = 1,
-            Unit = "人"
+            Unit = GetDefaultUnit(activeCategory ?? ResourceType.Labor)
         };
         showDialog = true;
     }
+
+    private string GetDefaultUnit(ResourceType type) => type switch
+    {
+        ResourceType.Labor => "人",
+        ResourceType.Material => "m³",
+        ResourceType.Equipment => "台",
+        _ => "个"
+    };
 
     private void EditResource(Resource resource)
     {
@@ -183,24 +335,44 @@
         showDialog = true;
     }
 
+    private void SetResourceShared(bool isShared)
+    {
+        if (editingResource == null) return;
+        editingResource.ProjectId = isShared ? null : currentProjectId;
+    }
+
     private async Task SaveResource()
     {
         if (editingResource == null || string.IsNullOrWhiteSpace(editingResource.Name))
             return;
+        try
+        {
+            if (editingResource.Id == 0)
+                await ResourceService.CreateResourceAsync(editingResource);
+            else
+                await ResourceService.UpdateResourceAsync(editingResource);
 
-        if (editingResource.Id == 0)
-            await ResourceService.CreateResourceAsync(editingResource);
-        else
-            await ResourceService.UpdateResourceAsync(editingResource);
-
-        CloseDialog();
-        await LoadResources();
+            CloseDialog();
+            await LoadResources();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"保存失败: {ex.Message}");
+        }
     }
 
     private async Task DeleteResource(Resource resource)
     {
-        await ResourceService.DeleteResourceAsync(resource.Id);
-        await LoadResources();
+        try
+        {
+            await ResourceService.DeleteResourceAsync(resource.Id);
+            selectedIds.Remove(resource.Id);
+            await LoadResources();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"删除失败: {ex.Message}");
+        }
     }
 
     private void CloseDialog()
@@ -208,6 +380,118 @@
         showDialog = false;
         editingResource = null;
     }
+
+    // ========== 批量选择和操作 ==========
+    
+    private void ToggleSelect(int id, bool selected)
+    {
+        if (selected) selectedIds.Add(id);
+        else selectedIds.Remove(id);
+    }
+
+    private void ToggleSelectAll()
+    {
+        if (selectAll)
+            selectedIds = filteredResources.Select(r => r.Id).ToHashSet();
+        else
+            selectedIds.Clear();
+    }
+
+    private void ClearSelection()
+    {
+        selectedIds.Clear();
+        selectAll = false;
+    }
+
+    private async Task BatchDelete()
+    {
+        try
+        {
+            foreach (var id in selectedIds.ToList())
+            {
+                await ResourceService.DeleteResourceAsync(id);
+            }
+            ClearSelection();
+            await LoadResources();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"批量删除失败: {ex.Message}");
+        }
+    }
+
+    private async Task BatchExport()
+    {
+        try
+        {
+            var selectedResources = ResourceList.Where(r => selectedIds.Contains(r.Id)).ToList();
+            // 通过JS下载
+            var url = $"/api/export-resources/{currentProjectId}";
+            await JS.InvokeVoidAsync("window.open", url, "_blank");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"导出失败: {ex.Message}");
+        }
+    }
+
+    // ========== 导入导出 ==========
+    
+    private async Task ExportResources()
+    {
+        if (currentProjectId == 0) return;
+        try
+        {
+            var url = $"/api/export-resources/{currentProjectId}";
+            await JS.InvokeVoidAsync("window.open", url, "_blank");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"导出失败: {ex.Message}");
+        }
+    }
+
+    private async Task TriggerImport()
+    {
+        if (currentProjectId == 0) return;
+        await JS.InvokeVoidAsync("eval", "document.getElementById('resFileInput').click()");
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        if (e.File == null || currentProjectId == 0) return;
+
+        try
+        {
+            using var stream = e.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+
+            var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(ms.ToArray()), "file", e.File.Name);
+
+            var baseUri = new Uri(Navigation.BaseUri);
+            var response = await HttpClient.PostAsync(new Uri(baseUri, $"/api/import-resources/{currentProjectId}"), content);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var resultText = await response.Content.ReadAsStringAsync();
+                await JS.InvokeVoidAsync("alert", $"导入成功！\n{resultText}");
+                await LoadResources();
+            }
+            else
+            {
+                var errorText = await response.Content.ReadAsStringAsync();
+                await JS.InvokeVoidAsync("alert", $"导入失败: {errorText}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"导入出错: {ex.Message}");
+        }
+    }
+
+    [Inject] private HttpClient HttpClient { get; set; } = default!;
 
     private string GetTypeDisplayName(ResourceType type) => type switch
     {

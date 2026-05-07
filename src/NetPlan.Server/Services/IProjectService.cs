@@ -20,6 +20,7 @@ public interface IProjectService
 
     // 任务关系 CRUD
     Task<List<TaskRelation>> GetRelationsByProjectIdAsync(int projectId);
+    Task<List<TaskRelation>> GetRelationsByTaskIdAsync(int taskId);
     Task<TaskRelation> CreateRelationAsync(TaskRelation relation);
     Task DeleteRelationAsync(int id);
 
@@ -29,4 +30,7 @@ public interface IProjectService
     // 列定义
     Task<List<ColumnDefinition>> GetColumnDefinitionsAsync(int projectId, string viewName);
     Task UpdateColumnDefinitionAsync(ColumnDefinition column);
+
+    // 导出
+    Task<string> ExportTasksToExcelAsync(int projectId);
 }

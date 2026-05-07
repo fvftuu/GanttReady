@@ -1,105 +1,402 @@
-@page "/project/network/{ProjectId:int}"
+@page "/project/{ProjectId:int}/network"
 @inject IProjectService ProjectService
 @inject IJSRuntime JS
+@implements IDisposable
 
 <div class="page-header">
     <div class="header-left">
-        <select class="form-control" @bind="currentProjectId">
+        <select class="form-control" @bind="currentProjectId" @bind:after="OnProjectChanged">
             <option value="0">选择项目</option>
             @foreach (var project in projects)
             {
                 <option value="@project.Id">@project.Name</option>
             }
         </select>
-        <span class="page-title">时标双代号网络图</span>
+        <span class="page-title">时标网络计划图</span>
+        <div class="display-toggles">
+            <label class="toggle-switch" title="显示前锋线">
+                <input type="checkbox" @bind="showProgressLine" @bind:after="RerenderGraph" />
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">前锋线</span>
+            <label class="toggle-switch" title="显示今日线">
+                <input type="checkbox" @bind="showTodayLine" @bind:after="RerenderGraph" />
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">今日线</span>
+            @if (statusMessage != null)
+            {
+                <span class="status-msg" style="margin-left:8px;font-size:12px;color:#888;">@statusMessage</span>
+            }
+        </div>
+    </div>
+    <div class="header-right">
+        <button class="btn btn-default" @onclick="PrintPage" title="页面预览">
+            <span class="oi oi-print"></span> 预览
+        </button>
+        <div class="zoom-control">
+            <button class="zoom-btn" @onclick="ZoomOut" title="缩小">
+                <span class="oi oi-minus"></span>
+            </button>
+            <span class="zoom-label">@((int)zoomLevel)%</span>
+            <button class="zoom-btn" @onclick="ZoomIn" title="放大">
+                <span class="oi oi-plus"></span>
+            </button>
+        </div>
+        <button class="btn btn-default btn-icon" @onclick="ZoomToFitAsync" title="适应页面（全部显示）">
+            <span class="oi oi-magnifying-glass"></span>
+        </button>
+        <button class="btn btn-default" @onclick="RecalcAndRender">重算计划</button>
+        <label class="toggle-label" style="margin-left:12px;">
+            <input type="checkbox" @bind="showCriticalHighlight" @bind:after="RerenderGraph" />
+            <span>关键路径</span>
+        </label>
     </div>
 </div>
 
-<div id="network-container" style="width: 100%; height: 600px; border: 1px solid #f0f0f0;">
-    <div id="cy" style="width: 100%; height: 100%;"></div>
+<div class="network-wrapper">
+    @* ===== 网络图主体（SVG，浏览器原生滚动）===== *@
+    <div id="network-body">
+        <div id="cy"></div>
+        @if (isLoading)
+        {
+            <div class="network-loading">
+                <div style="font-size:24px;">⏳</div>
+                <div>计算中…</div>
+            </div>
+        }
+        @if (!isLoading && string.IsNullOrEmpty(graphJson))
+        {
+            <div class="network-empty">
+                <div style="font-size:48px;">🕸️</div>
+                <div style="margin-top:12px;">请选择项目或先在甘特图中点击「重算计划」</div>
+            </div>
+        }
+    </div>
+    @* 固定横向滚动条（始终在可视区域底部） *@
+    <div id="network-hscroll" class="network-hscroll">
+        <div id="network-hscroll-inner"></div>
+    </div>
 </div>
 
-@if (projects.Any() && tasks.Any())
+@* 编辑对话框 *@
+@if (editingTask != null)
 {
-    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
-    <script>@* cytoscape-dagre integration *@</script>
+    <div class="modal-overlay" @onclick="CloseEditDialog">
+        <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width:480px;">
+            <div class="modal-header">
+                <span>✏️ 编辑任务 — @editingTask.Code</span>
+                <button class="modal-close" @onclick="CloseEditDialog">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <label>代号</label>
+                    <input class="form-control" @bind="editingTask.Code" />
+                </div>
+                <div class="form-row">
+                    <label>任务名称</label>
+                    <input class="form-control" @bind="editingTask.Name" />
+                </div>
+                <div class="form-row">
+                    <label>计划工期（天）</label>
+                    <input class="form-control" type="number" min="1" @bind="editingTask.PlanDuration" />
+                </div>
+                <div class="form-row">
+                    <label>完成百分比</label>
+                    <input class="form-control" type="number" min="0" max="100" @bind="editingTask.CompletionPercentage" />
+                </div>
+                <div class="form-row">
+                    <label>
+                        <input type="checkbox" @bind="editingTask.IsMilestone" />
+                        里程碑节点
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" @onclick="SaveEditAsync">💾 保存</button>
+                <button class="btn btn-secondary" @onclick="CloseEditDialog">取消</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(graphJson) && renderToken > 0)
+{
+    <input type="hidden" id="netplan-data" value="@graphJson" />
+    <input type="hidden" id="netplan-options" value="@optionsJson" />
+    <input type="hidden" id="netplan-render-token" value="@renderToken" />
 }
 
 @code {
-    [Parameter]
-    public int? ProjectId { get; set; }
-
+    [Parameter] public int? ProjectId { get; set; }
     private List<Models.Project> projects = new();
-    private int currentProjectId { get; set; }
-    private bool loading = true;
-    private List<TaskItem> tasks = new();
-    private List<TaskRelation> relations = new();
+    private int currentProjectId;
+    private string? graphJson;
+    private string optionsJson = "{}";
+    private int renderToken = 0;
+    private bool isLoading = false;
+    private string? statusMessage;
+
+    private bool showCriticalHighlight = true;
+    private bool showFloatLabels = true;
+    private bool showProgressLine = true;
+    private bool showTodayLine = true;
+    private double zoomLevel = 100;
+
+    private Models.TaskItem? editingTask;
+    private DotNetObjectReference<Network>? dotNetRef;
 
     protected override async Task OnInitializedAsync()
     {
         projects = await ProjectService.GetAllProjectsAsync();
-        if (ProjectId.HasValue)
-        {
+        // 从URL参数读取，或让用户手动选择（不自动切到第一个项目）
+        if (ProjectId.HasValue && ProjectId.Value > 0)
             currentProjectId = ProjectId.Value;
-        }
-        else if (projects.Any())
-        {
-            currentProjectId = projects.First().Id;
-        }
-        loading = false;
-
-        if (currentProjectId > 0)
-        {
-            await LoadNetworkData();
-        }
+        if (currentProjectId > 0) await BuildData();
     }
 
-    protected override async Task OnParametersSetAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (ProjectId.HasValue && ProjectId.Value != currentProjectId)
+        // 只在非预渲染时（有浏览器时）注册dotnet引用
+        if (firstRender && dotNetRef == null)
         {
-            currentProjectId = ProjectId.Value;
-            await LoadNetworkData();
-        }
-    }
-
-    private async Task LoadNetworkData()
-    {
-        tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
-        relations = await ProjectService.GetRelationsByProjectIdAsync(currentProjectId);
-
-        // Build Cytoscape elements
-        var nodes = tasks.Select(t => new
-        {
-            data = new
+            try
             {
-                id = t.Id.ToString(),
-                label = $"{t.Code}\n{t.PlanDuration}天",
-                isCritical = t.IsCritical
+                dotNetRef = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("setNetworkDotNet", dotNetRef);
             }
-        }).ToList();
-
-        var edges = relations.Select(r => new
-        {
-            data = new
+            catch
             {
-                source = r.PredecessorTaskId.ToString(),
-                target = r.SuccessorTaskId.ToString(),
-                label = $"{r.Type}({r.Lag})"
+                // 预渲染时忽略错误，浏览器端boot()会重试
             }
-        }).ToList();
-
-        // We'll invoke JS to initialize Cytoscape
-        // For now, just load the data
-        await Task.CompletedTask;
+        }
     }
 
-    private async Task OnProjectChanged(ChangeEventArgs e)
+    private async Task OnProjectChanged()
     {
-        if (int.TryParse(e.Value?.ToString(), out int projectId))
+        await BuildData();
+    }
+
+    private async Task BuildData()
+    {
+        if (currentProjectId == 0) { graphJson = null; return; }
+        isLoading = true;
+        StateHasChanged();
+
+        var tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
+        var relations = await ProjectService.GetRelationsByProjectIdAsync(currentProjectId);
+        var project = projects.FirstOrDefault(p => p.Id == currentProjectId);
+
+        if (!tasks.Any())
         {
-            currentProjectId = projectId;
-            await LoadNetworkData();
+            graphJson = null;
+            isLoading = false;
+            return;
         }
+
+        // 如果还没有CPM数据，自动运行一次
+        if (tasks.All(t => t.EarlyStart == null))
+        {
+            await ProjectService.CalculateScheduleAsync(currentProjectId);
+            tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
+        }
+
+        // 计算时间轴参数（时标网络图核心）
+        var projectStartDate = project?.PlanStartDate ?? DateTime.Today;
+        var maxES = tasks.Max(t => t.EarlyStart ?? 0);
+        var maxEF = tasks.Max(t => t.EarlyFinish ?? (t.EarlyStart ?? 0) + t.PlanDuration);
+        var totalDays = Math.Max(maxEF + 30, 90);
+        var dayWidth = 40.0 * (zoomLevel / 100.0); // 同甘特图缩放逻辑
+
+        var sb = new System.Text.StringBuilder("[");
+        int eventNum = 1;
+        foreach (var t in tasks)
+        {
+            var es = t.EarlyStart ?? 0;
+            var ef = t.EarlyFinish ?? (es + t.PlanDuration);
+            var ls = t.LateStart ?? es;
+            var lf = t.LateFinish ?? ef;
+            var tf = t.TotalFloat ?? (ls - es);
+            var ff = t.FreeFloat ?? tf;
+            var nameSafe = t.Name.Replace("\"", "\\\"").Replace("\n", " ");
+            var codeSafe = t.Code.Replace("\"", "\\\"");
+
+            sb.Append("{\"data\":{")
+              .Append("\"id\":\"").Append(t.Id).Append("\",")
+              .Append("\"label\":\"").Append(codeSafe).Append("\",")
+              .Append("\"name\":\"").Append(nameSafe).Append("\",")
+              .Append("\"eventNum\":").Append(eventNum++).Append(",")
+              .Append("\"duration\":").Append(t.PlanDuration).Append(",")
+              .Append("\"es\":").Append(es).Append(",")
+              .Append("\"ef\":").Append(ef).Append(",")
+              .Append("\"ls\":").Append(ls).Append(",")
+              .Append("\"lf\":").Append(lf).Append(",")
+              .Append("\"tf\":").Append(tf).Append(",")
+              .Append("\"ff\":").Append(ff).Append(",")
+              .Append("\"completion\":").Append(t.CompletionPercentage).Append(",")
+              .Append("\"isCritical\":").Append(t.IsCritical ? "true" : "false").Append(",")
+              .Append("\"isMilestone\":").Append(t.IsMilestone ? "true" : "false")
+              .Append("}},");
+        }
+
+        foreach (var r in relations)
+        {
+            // 判断关系是否在关键路径上（两端都是关键任务）
+            var predTask = tasks.FirstOrDefault(t => t.Id == r.PredecessorTaskId);
+            var succTask = tasks.FirstOrDefault(t => t.Id == r.SuccessorTaskId);
+            bool isCriticalEdge = (predTask?.IsCritical ?? false) && (succTask?.IsCritical ?? false);
+
+            sb.Append("{\"data\":{")
+              .Append("\"source\":\"").Append(r.PredecessorTaskId).Append("\",")
+              .Append("\"target\":\"").Append(r.SuccessorTaskId).Append("\",")
+              .Append("\"relType\":\"").Append(r.Type).Append("\",")
+              .Append("\"lag\":").Append(r.Lag).Append(",")
+              .Append("\"isCritical\":").Append(isCriticalEdge ? "true" : "false")
+              .Append("}},");
+        }
+
+        if (sb.Length > 1 && sb[^1] == ',') sb.Length--;
+        sb.Append(']');
+
+        graphJson = sb.ToString();
+        // 总工期对齐甘特图算法：首末任务日期跨度+1
+        var totalDuration = tasks.Any() ? (tasks.Max(t => t.PlanEndDate) - tasks.Min(t => t.PlanStartDate)).Days + 1 : 0;
+        optionsJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            showCritical = showCriticalHighlight,
+            showFloat = showFloatLabels,
+            showTodayLine = showTodayLine,
+            showProgressLine = showProgressLine,
+            projectStartDate = projectStartDate.ToString("yyyy-MM-dd"),
+            totalDays = totalDays,
+            totalDuration = totalDuration,
+            dayWidth = dayWidth,
+            projectName = project?.Name ?? ""
+        });
+        renderToken++;
+        statusMessage = $"共 {tasks.Count} 任务，{relations.Count} 关系，总工期 {totalDuration} 天";
+        isLoading = false;
+    }
+
+    private async Task RecalcAndRender()
+    {
+        if (currentProjectId == 0) return;
+        isLoading = true;
+        StateHasChanged();
+        await ProjectService.CalculateScheduleAsync(currentProjectId);
+        statusMessage = "CPM 已重算";
+        await BuildData();
+    }
+
+    private async Task RerenderGraph()
+    {
+        if (string.IsNullOrEmpty(graphJson)) return;
+        var project = projects.FirstOrDefault(p => p.Id == currentProjectId);
+        var tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
+        var maxES = tasks.Any() ? tasks.Max(t => t.EarlyStart ?? 0) : 0;
+        var maxEF = tasks.Any() ? tasks.Max(t => t.EarlyFinish ?? (t.EarlyStart ?? 0) + t.PlanDuration) : 90;
+        var totalDays = Math.Max(maxEF + 30, 90);
+        var totalDuration = tasks.Any() ? (tasks.Max(t => t.PlanEndDate) - tasks.Min(t => t.PlanStartDate)).Days + 1 : 0;
+        var dayWidth = 40.0 * (zoomLevel / 100.0); // 缩放
+
+        optionsJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            showCritical = showCriticalHighlight,
+            showFloat = showFloatLabels,
+            showTodayLine = showTodayLine,
+            showProgressLine = showProgressLine,
+            projectStartDate = (project?.PlanStartDate ?? DateTime.Today).ToString("yyyy-MM-dd"),
+            totalDays = totalDays,
+            totalDuration = totalDuration,
+            dayWidth = dayWidth,
+            projectName = project?.Name ?? ""
+        });
+        renderToken++;
+        StateHasChanged();
+        await Task.Delay(50);
+    }
+
+    private void ZoomIn()
+    {
+        zoomLevel = Math.Min(3000, zoomLevel + 5); // 同甘特图：±5%
+        _ = RerenderGraph();
+    }
+
+    private void ZoomOut()
+    {
+        zoomLevel = Math.Max(1, zoomLevel - 5);
+        _ = RerenderGraph();
+    }
+
+    private async Task ZoomToFitAsync()
+    {
+        if (string.IsNullOrEmpty(graphJson) || currentProjectId == 0) return;
+        var tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
+        if (!tasks.Any()) return;
+        var maxEF = tasks.Max(t => t.EarlyFinish ?? (t.EarlyStart ?? 0 + t.PlanDuration));
+        var totalDays = Math.Max(maxEF + 30, 90);
+        var bodyWidth = await JS.InvokeAsync<double>("eval",
+            "document.getElementById('network-body')?.clientWidth || 800");
+        var targetDayW = (bodyWidth - 100) / Math.Max(1, totalDays);
+        var newZoom = targetDayW / 40.0 * 100.0;
+        zoomLevel = Math.Max(1, Math.Min(3000, (int)Math.Round(newZoom)));
+        await RerenderGraph();
+    }
+
+    private async Task PrintPage()
+    {
+        await JS.InvokeVoidAsync("eval", "window.print()");
+    }
+
+    [JSInvokable]
+    public async Task OpenTaskEditor(int taskId)
+    {
+        var tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
+        editingTask = tasks.FirstOrDefault(t => t.Id == taskId);
+        if (editingTask != null) StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task SyncNodeDrag(string eventId, double dxDays)
+    {
+        if (string.IsNullOrEmpty(eventId) || eventId.Length < 2) return;
+        // 限制 ±3650 天
+        dxDays = Math.Clamp(dxDays, -3650, 3650);
+        var taskId = int.Parse(eventId[1..]);
+        var tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
+        var task = tasks.FirstOrDefault(t => t.Id == taskId);
+        if (task == null) return;
+
+        try
+        {
+            var newStart = task.PlanStartDate.AddDays(dxDays);
+            task.PlanStartDate = newStart;
+            task.PlanEndDate = newStart.AddDays(task.PlanDuration - 1);
+            task.IsManualSchedule = true;
+            await ProjectService.UpdateTaskAsync(task);
+            await ProjectService.CalculateScheduleAsync(currentProjectId);
+        }
+        finally
+        {
+            await BuildData();
+        }
+    }
+
+    private void CloseEditDialog()
+    {
+        editingTask = null;
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (editingTask == null) return;
+        await ProjectService.UpdateTaskAsync(editingTask);
+        CloseEditDialog();
+        await BuildData();
+    }
+
+    public void Dispose()
+    {
+        dotNetRef?.Dispose();
     }
 }
