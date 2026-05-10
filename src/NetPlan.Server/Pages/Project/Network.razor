@@ -14,37 +14,37 @@
             }
         </select>
         <span class="page-title">@(netMode == "logic" ? "逻辑双代号网络图" : "时标网络计划图")</span>
-        <div class="display-toggles">
-            <button class="@GetTimeBtnClass()" @onclick="SetTimeMode" title="时标网络图">时标图</button>
-            <button class="@GetLogicBtnClass()" @onclick="SetLogicMode" title="逻辑双代号图">逻辑图</button>
-            <label class="toggle-switch" title="显示前锋线">
+        <div class="display-toggles" style="display:flex;flex-wrap:wrap;gap:4px;font-size:11px;">
+            <button class="@GetTimeBtnClass()" @onclick="SetTimeMode" title="时标网络图" style="font-size:11px;padding:2px 6px;">时标图</button>
+            <button class="@GetLogicBtnClass()" @onclick="SetLogicMode" title="逻辑双代号图" style="font-size:11px;padding:2px 6px;">逻辑图</button>
+            <label class="toggle-switch" title="显示前锋线" style="margin:0;">
                 <input type="checkbox" @bind="showProgressLine" @bind:after="RerenderGraph" />
                 <span class="toggle-slider"></span>
             </label>
-            <span class="toggle-label">前锋线</span>
-            <label class="toggle-switch" title="显示今日线">
+            <span class="toggle-label" style="font-size:11px;">前锋线</span>
+            <label class="toggle-switch" title="显示今日线" style="margin:0;">
                 <input type="checkbox" @bind="showTodayLine" @bind:after="RerenderGraph" />
                 <span class="toggle-slider"></span>
             </label>
-            <span class="toggle-label">今日线</span>
-            <label class="toggle-switch" title="显示虚工作">
+            <span class="toggle-label" style="font-size:11px;">今日线</span>
+            <label class="toggle-switch" title="显示虚工作" style="margin:0;">
                 <input type="checkbox" @bind="showDummyArrows" @bind:after="RerenderGraph" />
                 <span class="toggle-slider"></span>
             </label>
-            <span class="toggle-label">虚工作</span>
-            <label class="toggle-switch" title="显示关键路径">
+            <span class="toggle-label" style="font-size:11px;">虚工作</span>
+            <label class="toggle-switch" title="显示关键路径" style="margin:0;">
                 <input type="checkbox" @bind="showCriticalHighlight" @bind:after="RerenderGraph" />
                 <span class="toggle-slider"></span>
             </label>
-            <span class="toggle-label">关键路径</span>
-            <label class="toggle-switch" title="显示进度曲线">
+            <span class="toggle-label" style="font-size:11px;">关键路径</span>
+            <label class="toggle-switch" title="显示进度曲线" style="margin:0;">
                 <input type="checkbox" @bind="showProgressCurve" @bind:after="RerenderGraph" />
                 <span class="toggle-slider"></span>
             </label>
-            <span class="toggle-label">曲线</span>
+            <span class="toggle-label" style="font-size:11px;">曲线</span>
             @if (statusMessage != null)
             {
-                <span class="status-msg" style="margin-left:8px;font-size:12px;color:#888;">@statusMessage</span>
+                <span class="status-msg" style="margin-left:4px;font-size:11px;color:#888;">@statusMessage</span>
             }
         </div>
     </div>
@@ -64,24 +64,7 @@
         <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelTF" @bind:after="RerenderGraph" />TF</label>
         <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelFF" @bind:after="RerenderGraph" />FF</label>
     </div>
-    <div class="header-extra">
-        <details style="display:inline-block;margin-left:8px;">
-            <summary style="font-size:12px;cursor:pointer;color:#888;">分组/过滤</summary>
-            <div style="position:absolute;background:#fff;border:1px solid #ddd;padding:8px;margin-top:4px;z-index:100;border-radius:4px;">
-                <div style="margin-bottom:6px;">
-                    <label style="font-size:11px;color:#999;">工作分组:</label>
-                    <select class="form-control" disabled style="width:180px;font-size:11px;">
-                        <option>按 WBS 分组</option>
-                        <option>按类型分组</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="font-size:11px;color:#999;">工作过滤:</label>
-                    <input type="text" class="form-control" disabled style="width:180px;font-size:11px;" placeholder="输入关键词过滤（暂未实现）" />
-                </div>
-            </div>
-        </details>
-    </div>
+
     <div class="header-extra">
         <button class="btn btn-sm btn-default" @onclick="ToggleGraphProps">图属性</button>
     </div>
@@ -89,19 +72,19 @@
         <button class="btn btn-default" @onclick="PrintPage" title="页面预览">
             <span class="oi oi-print"></span> 预览
         </button>
-        <div class="zoom-control">
-            <button class="zoom-btn" @onclick="ZoomOut" title="缩小">
+        <div class="zoom-control" style="gap:2px;font-size:12px;">
+            <button class="zoom-btn" @onclick="ZoomOut" title="缩小" style="padding:1px 5px;font-size:12px;">
                 <span class="oi oi-minus"></span>
             </button>
-            <span class="zoom-label">@((int)zoomLevel)%</span>
-            <button class="zoom-btn" @onclick="ZoomIn" title="放大">
+            <span class="zoom-label" style="font-size:12px;min-width:30px;">@((int)zoomLevel)%</span>
+            <button class="zoom-btn" @onclick="ZoomIn" title="放大" style="padding:1px 5px;font-size:12px;">
                 <span class="oi oi-plus"></span>
             </button>
         </div>
         <button class="btn btn-default btn-icon" @onclick="ZoomToFitAsync" title="适应页面（全部显示）">
             <span class="oi oi-magnifying-glass"></span>
         </button>
-        <button class="btn btn-default" @onclick="() => AddNewTask()" title="新增工作">+ 新增工作</button>
+
         <button class="btn btn-default" @onclick="ExportSVG" title="导出SVG">导出SVG</button>
         <button class="btn btn-default" @onclick="ExportPNG" title="导出PNG">导出PNG</button>
         <button class="btn btn-default" @onclick="RecalcAndRender">重算计划</button>
@@ -110,7 +93,7 @@
 
 <div class="network-wrapper">
     @* ===== 网络图主体（SVG，浏览器原生滚动）===== *@
-    <div id="network-body">
+    <div id="network-body" style="min-height:calc(100vh - 200px);">
         <div id="cy"></div>
         @if (isLoading)
         {

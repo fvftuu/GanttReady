@@ -650,6 +650,8 @@ function buildNetworkSvg(params) {
     var mode = p.mode || 'time';
     var restDayPattern = p.restDayPattern !== false; // A3: show rest day highlight
     var singleStartEnd = p.singleStartEnd === true; // A3: force single start/end (placeholder)
+    // Bug 1: 1080p adaptation — smaller fonts when viewport < 1400px
+    var isNarrowViewport = (window.innerWidth || document.documentElement.clientWidth || 1920) < 1400;
     console.log('[SVG] opts:', 'todayLine=', p.showTodayLine, 'progressLine=', p.showProgressLine,
         'dayWidth=', p.dayWidth, 'critical=', p.showCritical, 'float=', p.showFloat, 'mode=', mode,
         'restDayPattern=', restDayPattern, 'singleStartEnd=', singleStartEnd);
@@ -810,31 +812,60 @@ function buildNetworkSvg(params) {
         });
     }
 
-    // === 虚箭线(V6.1:从前驱EF节点 → 后继ES节点)===
+    // === 虚箭线(V6.1:从前驱EF节点 → 后继ES节点) ===
+    // Bug 6: 补齐隐式虚箭线（事件邻接但无实际工作的边）
     var showDummy = p.showDummyArrows !== false;
     if (showDummy) {
+        // Build set of real activity edges (source→target)
+        var realEdges = {};
+        p.timeParams.activities.forEach(function(a) {
+            realEdges[a.source + '->' + a.target] = true;
+        });
+        var drawnDummies = {};
+        var dummyColorUsed = dummyColor;
+
         // 预建 taskId→es/ef 映射
         var taskEsMap = {}, taskEfMap = {};
         p.timeParams.activities.forEach(function(a) {
             taskEsMap[a.id] = parseInt(a.source.replace('T',''));
             taskEfMap[a.id] = parseInt(a.target.replace('T',''));
         });
-    p.timeParams.relations.forEach(function(rel) {
-        var predEf = taskEfMap[rel.source];
-        var succEs = taskEsMap[rel.target];
-        if (predEf === undefined || succEs === undefined) return;
-        var srcId = 'T' + predEf, tgtId = 'T' + succEs;
-        if (srcId === tgtId) return; // 同节点不画虚线
-        var src = p.layout.events[srcId];
-        var tgt = p.layout.events[tgtId];
-        if (!src || !tgt) return;
-        var mx = src.x + (tgt.x - src.x) / 2;
-        var d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y
-              + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
-        parts.push('<g class="dummy-rel" data-dummy-src="' + srcId + '" data-dummy-tgt="' + tgtId + '">');
-        parts.push('<path d="' + d + '" fill="none" stroke="' + dummyColor + '" stroke-width="1" stroke-dasharray="5,3"/>');
-        parts.push('</g>');
-    });
+        p.timeParams.relations.forEach(function(rel) {
+            var predEf = taskEfMap[rel.source];
+            var succEs = taskEsMap[rel.target];
+            if (predEf === undefined || succEs === undefined) return;
+            var srcId = 'T' + predEf, tgtId = 'T' + succEs;
+            var key = srcId + '->' + tgtId;
+            if (srcId === tgtId || realEdges[key] || drawnDummies[key]) return;
+            drawnDummies[key] = true;
+            var src = p.layout.events[srcId];
+            var tgt = p.layout.events[tgtId];
+            if (!src || !tgt) return;
+            var mx = src.x + (tgt.x - src.x) / 2;
+            var d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y
+                  + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
+            parts.push('<g class="dummy-rel" data-dummy-src="' + srcId + '" data-dummy-tgt="' + tgtId + '">');
+            parts.push('<path d="' + d + '" fill="none" stroke="' + dummyColorUsed + '" stroke-width="1" stroke-dasharray="5,3"/>');
+            parts.push('</g>');
+        });
+
+        // Implicit dummies: event adjacency not covered by activities or explicit relations
+        var evtSucc = p.timeParams.eventSucc || {};
+        Object.keys(evtSucc).forEach(function(srcId) {
+            (evtSucc[srcId] || []).forEach(function(tgtId) {
+                var key = srcId + '->' + tgtId;
+                if (realEdges[key] || drawnDummies[key]) return;
+                drawnDummies[key] = true;
+                var src = p.layout.events[srcId], tgt = p.layout.events[tgtId];
+                if (!src || !tgt || srcId === tgtId) return;
+                // Draw implicit dummy (orthogonal L-shape)
+                var mx = src.x + (tgt.x - src.x) / 2;
+                var d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
+                parts.push('<g class="dummy-rel" data-dummy-src="' + srcId + '" data-dummy-tgt="' + tgtId + '">');
+                parts.push('<path d="' + d + '" fill="none" stroke="' + dummyColorUsed + '" stroke-width="1" stroke-dasharray="5,3"/>');
+                parts.push('</g>');
+            });
+        });
     } // showDummy
 
     // === 工作箭线 ===
@@ -859,31 +890,34 @@ function buildNetworkSvg(params) {
             + '" stroke-width="' + (isCrit ? criticalWidth : normalWidth) + '"/>');
 
         var lx = (sx + ex) / 2, ly = sy - NODE_R - 6;
-        // A4: 标签字段多选 - 用 labelFields 构建标签文本
+        // A4: 标签字段多选 - 用 labelFields 构建标签文本（Bug 4: 始终先显示 code+name 再追加上层字段）
         var labelFields = p.labelFields || [];
-        var labelParts = [];
+        var label = (act.code || '') + (act.name ? ' ' + act.name : '');
         if (labelFields.length > 0) {
             var aes = act.es || parseInt(act.source.replace('T','') || '0');
             var aef = act.ef || parseInt(act.target.replace('T','') || '0');
+            var extraParts = [];
             labelFields.forEach(function(field) {
-                if (field === 'code') labelParts.push(act.code || '');
-                else if (field === 'name') labelParts.push(act.name || '');
-                else if (field === 'duration') labelParts.push(dur + 'd');
-                else if (field === 'es') labelParts.push('ES=' + aes);
-                else if (field === 'ef') labelParts.push('EF=' + aef);
-                else if (field === 'ls') labelParts.push('LS=' + (act.ls || aes));
-                else if (field === 'lf') labelParts.push('LF=' + (act.lf || aef));
-                else if (field === 'tf') labelParts.push('TF=' + act.tf);
-                else if (field === 'ff') labelParts.push('FF=' + act.ff);
+                if (field === 'duration') extraParts.push(dur + 'd');
+                else if (field === 'es') extraParts.push('ES=' + aes);
+                else if (field === 'ef') extraParts.push('EF=' + aef);
+                else if (field === 'ls') extraParts.push('LS=' + (act.ls || aes));
+                else if (field === 'lf') extraParts.push('LF=' + (act.lf || aef));
+                else if (field === 'tf') extraParts.push('TF=' + act.tf);
+                else if (field === 'ff') extraParts.push('FF=' + act.ff);
             });
+            if (extraParts.length > 0) label += ' ' + extraParts.join(' ');
         }
-        var label = labelParts.length > 0 ? labelParts.join(' ') : (act.code || '') + (act.name ? ' ' + act.name : '');
         if (label.length > 30) label = label.substring(0, 28) + '...';
         // 标签行
         parts.push('<text class="act-label" x="' + lx + '" y="' + ly + '" font-size="10" fill="' + arrow.color
             + '" text-anchor="middle" font-weight="' + (isCrit ? 'bold' : 'normal') + '">' + label + '</text>');
+        // Bug 4: 当 labelFields 包含 duration 时跳过下方的 act-dur（避免重复）
+        var hasDurInLabel = labelFields.indexOf('duration') >= 0;
+        if (!hasDurInLabel) {
         parts.push('<text class="act-dur" x="' + lx + '" y="' + (sy + NODE_R + 10) + '" font-size="9" fill="#666" text-anchor="middle">'
             + dur + 'd</text>');
+        }
 
         if (p.showFloat && act.ff > 0 && !isCrit) {
             var fex = Math.min(ex + act.ff * p.dayWidth, cw - 10);
@@ -969,8 +1003,9 @@ function buildNetworkSvg(params) {
         var acts = p.timeParams.activities || [];
         if (acts.length > 0) {
             var curvePoints = [];
-            var curveYMin = 34; // bottom of curve area (near ruler top)
-            var curveYMax = 4;  // top of curve area
+            // Bug 5: 将进度曲线移至标尺下方（56-88），不覆盖顶部时间标尺（0-52）
+            var curveYMin = 88; // bottom of curve area (below ruler, above events)
+            var curveYMax = 56; // top of curve area (just below ruler bottom)
             var curveYRange = curveYMin - curveYMax;
             for (var d = 0; d < td; d++) {
                 var dayComp = 0;
@@ -1022,7 +1057,8 @@ function buildNetworkSvg(params) {
                 var xb = MARGIN_LEFT + d2 * dw;
                 var ms = Math.min(new Date(dt2.getFullYear(), dt2.getMonth()+1, 0).getDate() - dt2.getDate() + 1, td - d2);
                 var mwb = ms * dw;
-                parts.push('<text x="' + (xb + mwb/2) + '" y="' + (bottomRulerY + 18) + '" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
+                var rulerInnerFs = isNarrowViewport ? '10' : '12';
+                parts.push('<text x="' + (xb + mwb/2) + '" y="' + (bottomRulerY + 18) + '" font-size="' + rulerInnerFs + '" font-weight="600" fill="#333" text-anchor="middle">'
                     + dt2.getFullYear() + '/' + String(dt2.getMonth()+1).padStart(2,'0') + '</text>');
             }
         }
@@ -1149,8 +1185,12 @@ window.renderNetwork = function(elementsJson, opts) {
     var showProgressLine = opts.showProgressLine !== false && mode === 'time';
     var psd = opts.projectStartDate || new Date().toISOString().slice(0, 10);
     var totalDays = opts.totalDays || 90;
-    // 逻辑模式下固定 dayWidth
+    // Bug 1: 1080p adaptation — scale dayWidth down on narrower viewports
+    var vw = window.innerWidth || document.documentElement.clientWidth || 1920;
     var dayWidth = (mode === 'logic') ? 80 : (opts.dayWidth || 8);
+    if (mode !== 'logic' && vw < 1400 && dayWidth > 12) {
+        dayWidth = Math.max(8, dayWidth * 0.7);
+    }
     var pn = opts.projectName || '网络计划';
     console.log('[NET] SVG render. opts:', JSON.stringify({totalDays, dayWidth, showTodayLine, showProgressLine, mode}));
     _netRendered = false;
