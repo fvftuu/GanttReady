@@ -696,8 +696,9 @@ function svgArrowMarker(crit, optCritColor, optNormalColor) {
     _svgArrowId++;
     var color = crit ? (optCritColor || '#e63946') : (optNormalColor || '#333');
     var id = 'arr-' + _svgArrowId;
-    var m = '<marker id="' + id + '" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'
-          + '<path d="M0,0 L8,4 L0,8 Z" fill="' + color + '"/></marker>';
+    // 开口箭头：M0,0→L8,4→L2,4（开口端）→L2,2→M0,0 的V形中空
+    var m = '<marker id="' + id + '" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto" markerUnits="strokeWidth">'
+          + '<path d="M0,0 L8,5 L2,5 L0,0 Z" fill="none" stroke="' + color + '" stroke-width="1.5"/></marker>';
     return { id: 'url(#' + id + ')', html: m, color: color };
 }
 
@@ -990,8 +991,14 @@ function buildNetworkSvg(params) {
 
         var pathD;
         if (isTimeMode) {
-            // 国标: 时标网络图中所有工作箭线必须是水平直线
-            pathD = 'M' + sx + ' ' + sy + ' L' + (ex - 3) + ' ' + sy;
+            // 国标: 时标图中箭线以水平为主，从起始节点右边缘→结束节点左边缘
+            if (Math.abs(ey - sy) < 2) {
+                // 同层: 纯水平线
+                pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + ey;
+            } else {
+                // 跨层: 水平线走到结束节点X处，再垂直到结束节点圆心高度，最后进入结束节点
+                pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + sy + ' L' + ex + ' ' + ey;
+            }
         } else {
             if (Math.abs(ey - sy) < 5) {
                 pathD = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + ey;
@@ -1751,56 +1758,7 @@ if (!window._netDragSetup) {
             var tid = evt ? parseInt(evt.taskId) || 0 : 0;
             console.log('[NET] nodeDrag released: eid=' + eid + ' tid=' + tid + ' deltaDays=' + deltaDays + ' evtType=' + (evt ? evt.type : '?') + ' dayWidth=' + (_netDayWidth||'?') + ' moved=' + nodeDrag.moved);
 
-            // C1d: 从结束节点向右拖出 > 200px且无关联活动 → "创建后续工作"
-            var isCreateNew = false;
-            var endTypes = ['end','both'];
-            var rawDxPx = Math.abs(nodeDrag.rawDx || 0);
-            if (evt && endTypes.indexOf(evt.type) !== -1 && nodeDrag.rawDx > 0 && rawDxPx >= 200) {
-                // 检查该节点是否已有后续活动
-                var hasSucc = false;
-                if (_netActivities) {
-                    _netActivities.forEach(function(a) {
-                        if (a.source === eid) hasSucc = true;
-                    });
-                }
-                // 检查目标位置是否无现有节点
-                var targetEs = (evt.es || 0) + deltaDays;
-                var hasNode = false;
-                if (_netLayout && _netLayout.events) {
-                    var targetEid = 'T' + targetEs;
-                    hasNode = !!_netLayout.events[targetEid];
-                }
-                // 无后续活动 + 空白目标 → 创建新工作
-                var shouldCreate = (!hasSucc && !hasNode);
-                console.log('[NET] isCreateNew check: rawDxPx=' + rawDxPx + ' deltaDays=' + deltaDays + ' endType=' + (evt ? evt.type : '?') + ' hasSucc=' + hasSucc + ' hasNode=' + hasNode + ' => ' + shouldCreate);
-                if (shouldCreate) isCreateNew = true;
-            }
-
-            if (isCreateNew) {
-                // 从节点拖出 → 调用 ShowAddTaskModal(sourceTaskId, dayOffset)
-                var dotNet = _netDotNet || window._netDotNet;
-                if (dotNet) {
-                    _showDayPopup(deltaDays, (nodeDrag.cx || 0), (nodeDrag.cy || 0), function(days) {
-                        if (days > 0) {
-                            // 弹回原位(新建任务的图会随重算刷新)
-                            nodeDrag.group.setAttribute('transform', 'translate(0,0)');
-                            delete _netEventOffsets[eid];
-                            _netUpdateArrows(eid, 0, 0);
-                            _netUpdateDummys(eid, 0, 0);
-                            // 取节点的 es 偏移 + 输入的 days → dayOffset
-                            var dayOff = (evt.es || 0) + days;
-                            dotNet.invokeMethodAsync('ShowAddTaskModal', tid, dayOff);
-                        } else {
-                            // 取消 → 保留 Y 偏移,重置 X
-                            var yOff = _netEventOffsets[eid] ? _netEventOffsets[eid].y : 0;
-                            nodeDrag.group.setAttribute('transform', 'translate(0,' + yOff + ')');
-                            _netEventOffsets[eid] = { x: 0, y: yOff };
-                            _netUpdateArrows(eid, 0, yOff);
-                            _netUpdateDummys(eid, 0, yOff);
-                        }
-                    });
-                }
-            } else if (tid > 0) {
+            if (tid > 0) {
                 // 标准拖拽:修改现有任务日期/工期
                 _netLastPopupTime = Date.now(); // 防松手后 dblclick
                 // Y 偏移保留(纵向微调),只对 X 偏移询问
