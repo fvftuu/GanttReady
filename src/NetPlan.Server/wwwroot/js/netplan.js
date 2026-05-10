@@ -1163,17 +1163,17 @@ window.renderNetwork = function(elementsJson, opts) {
         var cx = ML + totalDays * dayWidth + 100;
     }
 
+    // A3: 应用配置参数(必须在计算高度前初始化)
+    var netLayerHeight = opts.layerHeight || 60;
+    var netNodeRadius = opts.nodeRadius || 11;
+    var netNodeShape = opts.nodeShape || 'circle';
+
     // 自适应高度:基于最大层级 + 底部标尺 + 余量
     var layerKeys = Object.keys(layout.layerEvents || {}).map(Number);
     var maxLayerNum = layerKeys.length > 0 ? Math.max.apply(null, layerKeys) : 1;
     // cySize = 节点区高度(含底部留白),SVG总高 = cySize + 底部标尺
     var cySize = Math.max(100 + maxLayerNum * netLayerHeight + 60, 400);
     console.log('[NET] SVG size:', cx, 'x', cySize);
-
-    // A3: 应用配置参数
-    var netLayerHeight = opts.layerHeight || 60;
-    var netNodeRadius = opts.nodeRadius || 11;
-    var netNodeShape = opts.nodeShape || 'circle';
     // 层级高度缩放
     var layerScale = netLayerHeight / 60;
     if (Math.abs(layerScale - 1) > 0.01) {
