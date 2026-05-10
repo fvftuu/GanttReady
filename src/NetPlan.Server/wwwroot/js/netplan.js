@@ -898,8 +898,7 @@ function buildNetworkSvg(params) {
             var aef = act.ef || parseInt(act.target.replace('T','') || '0');
             var extraParts = [];
             labelFields.forEach(function(field) {
-                if (field === 'duration') extraParts.push(dur + 'd');
-                else if (field === 'es') extraParts.push('ES=' + aes);
+                if (field === 'es') extraParts.push('ES=' + aes);
                 else if (field === 'ef') extraParts.push('EF=' + aef);
                 else if (field === 'ls') extraParts.push('LS=' + (act.ls || aes));
                 else if (field === 'lf') extraParts.push('LF=' + (act.lf || aef));
@@ -912,12 +911,9 @@ function buildNetworkSvg(params) {
         // 标签行
         parts.push('<text class="act-label" x="' + lx + '" y="' + ly + '" font-size="10" fill="' + arrow.color
             + '" text-anchor="middle" font-weight="' + (isCrit ? 'bold' : 'normal') + '">' + label + '</text>');
-        // Bug 4: 当 labelFields 包含 duration 时跳过下方的 act-dur（避免重复）
-        var hasDurInLabel = labelFields.indexOf('duration') >= 0;
-        if (!hasDurInLabel) {
+        // 工期始终显示在箭线下方（标签中不显示工期）
         parts.push('<text class="act-dur" x="' + lx + '" y="' + (sy + NODE_R + 10) + '" font-size="9" fill="#666" text-anchor="middle">'
             + dur + 'd</text>');
-        }
 
         if (p.showFloat && act.ff > 0 && !isCrit) {
             var fex = Math.min(ex + act.ff * p.dayWidth, cw - 10);
@@ -1033,6 +1029,20 @@ function buildNetworkSvg(params) {
             }
         }
     }
+
+    // === 行背景：间隔色区分不同层级 ===
+    var bgLayerYs = {};
+    Object.keys(p.layout.events).forEach(function(eid) {
+        var ey = p.layout.events[eid].y;
+        if (!bgLayerYs[ey]) bgLayerYs[ey] = true;
+    });
+    var sortedBgYs = Object.keys(bgLayerYs).map(Number).sort(function(a,b){return a-b;});
+    sortedBgYs.forEach(function(ey, idx) {
+        if (idx % 2 === 1) {
+            var bgY = ey - (netLayerHeight || 60) / 2;
+            parts.push('<rect x="0" y="' + bgY + '" width="' + cw + '" height="' + (netLayerHeight || 60) + '" fill="#f0f4f8" opacity="0.6"/>');
+        }
+    });
 
     // === 标题 ===
     parts.push('<text x="10" y="80" font-size="13" font-weight="bold" fill="#333">' + (p.projectName || '') + '</text>');

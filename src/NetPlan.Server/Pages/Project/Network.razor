@@ -54,15 +54,19 @@
         <button class="btn btn-sm btn-default" @onclick="InsertBlankRow" title="在选中层上方插入空行">插入</button>
         <button class="btn btn-sm btn-default" @onclick="DeleteBlankRow" title="移除选中层的空行">删除</button>
     </div>
-    <div class="header-extra">
-        <span style="margin-left:12px;font-size:12px;color:#888;">标签:</span>
-        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelDur" @bind:after="RerenderGraph" />工期</label>
-        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelES" @bind:after="RerenderGraph" />ES</label>
-        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelEF" @bind:after="RerenderGraph" />EF</label>
-        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelLS" @bind:after="RerenderGraph" />LS</label>
-        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelLF" @bind:after="RerenderGraph" />LF</label>
-        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelTF" @bind:after="RerenderGraph" />TF</label>
-        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelFF" @bind:after="RerenderGraph" />FF</label>
+    <div class="header-extra" style="position:relative;">
+        <button class="btn btn-sm btn-default" @onclick="ToggleLabelPanel" @onclick:stopPropagation="true">标签</button>
+        @if (showLabelPanel)
+        {
+        <div class="label-panel" @onclick:stopPropagation="true" style="position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1px solid #d9d9d9;border-radius:4px;padding:6px 10px;box-shadow:0 4px 12px rgba(0,0,0,0.12);min-width:100px;">
+            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelES" @bind:after="RerenderGraph" /> ES</label>
+            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelEF" @bind:after="RerenderGraph" /> EF</label>
+            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelLS" @bind:after="RerenderGraph" /> LS</label>
+            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelLF" @bind:after="RerenderGraph" /> LF</label>
+            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelTF" @bind:after="RerenderGraph" /> TF</label>
+            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelFF" @bind:after="RerenderGraph" /> FF</label>
+        </div>
+        }
     </div>
 
     <div class="header-extra">
@@ -467,17 +471,17 @@
     private int currentProjectId;
     private string netMode = "time";
     private int blankRowLayerNum = 0;
-    private bool showLabelDur = true;
+    private bool showLabelPanel = false;
     private bool showLabelES = false;
     private bool showLabelEF = false;
     private bool showLabelLS = false;
     private bool showLabelLF = false;
     private bool showLabelTF = false;
     private bool showLabelFF = false;
+    private void ToggleLabelPanel() { showLabelPanel = !showLabelPanel; }
     private string[] GetLabelFields()
     {
         var fields = new System.Collections.Generic.List<string>();
-        if (showLabelDur) fields.Add("duration");
         if (showLabelES) fields.Add("es");
         if (showLabelEF) fields.Add("ef");
         if (showLabelLS) fields.Add("ls");
