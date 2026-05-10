@@ -648,8 +648,11 @@ function buildNetworkSvg(params) {
     var criticalWidth = p.criticalWidth || 3;
     var normalWidth = p.normalWidth || 1.5;
     var mode = p.mode || 'time';
+    var restDayPattern = p.restDayPattern !== false; // A3: show rest day highlight
+    var singleStartEnd = p.singleStartEnd === true; // A3: force single start/end (placeholder)
     console.log('[SVG] opts:', 'todayLine=', p.showTodayLine, 'progressLine=', p.showProgressLine,
-        'dayWidth=', p.dayWidth, 'critical=', p.showCritical, 'float=', p.showFloat, 'mode=', mode);
+        'dayWidth=', p.dayWidth, 'critical=', p.showCritical, 'float=', p.showFloat, 'mode=', mode,
+        'restDayPattern=', restDayPattern, 'singleStartEnd=', singleStartEnd);
 
     var sd = new Date(p.projectStartDate);
     var dw = p.dayWidth, td = p.totalDays;
@@ -710,7 +713,7 @@ function buildNetworkSvg(params) {
             var x = MARGIN_LEFT + d * dw;
             var dow = dt.getDay();
             var isWeekend = (dow === 0 || dow === 6);
-            if (isWeekend) {
+            if (isWeekend && restDayPattern) {
                 parts.push('<rect x="' + x + '" y="' + lowerY + '" width="' + dw
                     + '" height="' + lowerH + '" fill="#f0f0f0"/>');
             }
@@ -774,20 +777,38 @@ function buildNetworkSvg(params) {
     // E5: 行标注(左侧MARGIN_LEFT区域内)
     var rowLabels = p.rowLabels || [];
     var drawnY = {};
-    var rowIdx = 0;
     Object.keys(p.layout.events).forEach(function(eid) {
         var ey = p.layout.events[eid].y;
         if (!drawnY[ey]) {
             drawnY[ey] = true;
             parts.push('<line x1="0" y1="' + ey + '" x2="' + cw + '" y2="' + ey + '" stroke="#e8e8e8" stroke-width="0.5" stroke-dasharray="4,2"/>');
-            // E5: 行标注
-            var labelText = (rowLabels && rowLabels[rowIdx]) ? rowLabels[rowIdx] : '';
-            if (labelText) {
-                parts.push('<text x="4" y="' + (ey + 4) + '" font-size="10" fill="#999" text-anchor="start">' + labelText + '</text>');
-            }
-            rowIdx++;
         }
     });
+    // E5: 行标注 - 支持对象格式 [{layerIndex:0, text:"基础工程"}, ...]
+    if (rowLabels.length > 0) {
+        var rowLabelMap = {};
+        rowLabels.forEach(function(rl) {
+            if (typeof rl === 'object' && rl.layerIndex !== undefined) {
+                rowLabelMap[rl.layerIndex] = rl.text || '';
+            } else if (typeof rl === 'string') {
+                // fallback for plain string array
+                rowLabelMap[Object.keys(rowLabelMap).length] = rl;
+            }
+        });
+        // Build sortedY list to map layerIndex -> Y coordinate
+        var sortedYList = [];
+        Object.keys(p.layout.events).forEach(function(eid) {
+            var ey = p.layout.events[eid].y;
+            if (sortedYList.indexOf(ey) === -1) sortedYList.push(ey);
+        });
+        sortedYList.sort(function(a,b){return a-b;});
+        sortedYList.forEach(function(ey, idx) {
+            var labelText = rowLabelMap[idx] || '';
+            if (labelText) {
+                parts.push('<text x="' + (MARGIN_LEFT - 4) + '" y="' + (ey + 4) + '" font-size="10" fill="#666" text-anchor="end">' + labelText + '</text>');
+            }
+        });
+    }
 
     // === 虚箭线(V6.1:从前驱EF节点 → 后继ES节点)===
     var showDummy = p.showDummyArrows !== false;
@@ -838,32 +859,31 @@ function buildNetworkSvg(params) {
             + '" stroke-width="' + (isCrit ? criticalWidth : normalWidth) + '"/>');
 
         var lx = (sx + ex) / 2, ly = sy - NODE_R - 6;
-        var label = (act.code || '') + (act.name ? ' ' + act.name : '');
-        if (label.length > 25) label = label.substring(0, 23) + '...';
+        // A4: 标签字段多选 - 用 labelFields 构建标签文本
+        var labelFields = p.labelFields || [];
+        var labelParts = [];
+        if (labelFields.length > 0) {
+            var aes = act.es || parseInt(act.source.replace('T','') || '0');
+            var aef = act.ef || parseInt(act.target.replace('T','') || '0');
+            labelFields.forEach(function(field) {
+                if (field === 'code') labelParts.push(act.code || '');
+                else if (field === 'name') labelParts.push(act.name || '');
+                else if (field === 'duration') labelParts.push(dur + 'd');
+                else if (field === 'es') labelParts.push('ES=' + aes);
+                else if (field === 'ef') labelParts.push('EF=' + aef);
+                else if (field === 'ls') labelParts.push('LS=' + (act.ls || aes));
+                else if (field === 'lf') labelParts.push('LF=' + (act.lf || aef));
+                else if (field === 'tf') labelParts.push('TF=' + act.tf);
+                else if (field === 'ff') labelParts.push('FF=' + act.ff);
+            });
+        }
+        var label = labelParts.length > 0 ? labelParts.join(' ') : (act.code || '') + (act.name ? ' ' + act.name : '');
+        if (label.length > 30) label = label.substring(0, 28) + '...';
         // 标签行
         parts.push('<text class="act-label" x="' + lx + '" y="' + ly + '" font-size="10" fill="' + arrow.color
             + '" text-anchor="middle" font-weight="' + (isCrit ? 'bold' : 'normal') + '">' + label + '</text>');
         parts.push('<text class="act-dur" x="' + lx + '" y="' + (sy + NODE_R + 10) + '" font-size="9" fill="#666" text-anchor="middle">'
             + dur + 'd</text>');
-        // A4: 额外字段
-        var labelFields = p.labelFields || [];
-        if (labelFields.length > 0) {
-            var extraLines = [];
-            var aes = act.es || parseInt(act.source.replace('T','') || '0');
-            var aef = act.ef || parseInt(act.target.replace('T','') || '0');
-            labelFields.forEach(function(field) {
-                if (field === 'duration') extraLines.push('工期=' + dur + 'd');
-                else if (field === 'es') extraLines.push('ES=' + aes);
-                else if (field === 'ef') extraLines.push('EF=' + aef);
-                else if (field === 'ls') extraLines.push('LS=' + (act.ls || aes));
-                else if (field === 'lf') extraLines.push('LF=' + (act.lf || aef));
-                else if (field === 'tf') extraLines.push('TF=' + act.tf);
-                else if (field === 'ff') extraLines.push('FF=' + act.ff);
-            });
-            for (var i = 0; i < extraLines.length; i++) {
-                parts.push('<text class="act-ext" x="' + lx + '" y="' + (ly + 14 + i * 12) + '" font-size="8" fill="#888" text-anchor="middle">' + extraLines[i] + '</text>');
-            }
-        }
 
         if (p.showFloat && act.ff > 0 && !isCrit) {
             var fex = Math.min(ex + act.ff * p.dayWidth, cw - 10);
@@ -884,8 +904,10 @@ function buildNetworkSvg(params) {
         var fill = isCrit ? criticalColor : '#fff', stroke = isCrit ? '#b30000' : criticalColor;
         var tc = isCrit ? '#fff' : '#000';
         parts.push('<g class="net-event" data-task-id="' + evt.taskId + '" data-event-id="' + eid + '" style="cursor:grab;">');
-        if (nodeShape === 'ellipse') {
-            parts.push('<ellipse cx="' + evt.x + '" cy="' + evt.y + '" rx="' + (NODE_R * 1.3) + '" ry="' + NODE_R
+        if (nodeShape === 'ellipse' || p.nodeEllipse) {
+            var rx = nodeShape === 'circle' ? (NODE_R + 4) : (NODE_R * 1.3);
+            var ry = nodeShape === 'circle' ? (NODE_R - 2) : NODE_R;
+            parts.push('<ellipse cx="' + evt.x + '" cy="' + evt.y + '" rx="' + rx + '" ry="' + ry
                 + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"/>');
         } else {
             parts.push('<circle cx="' + evt.x + '" cy="' + evt.y + '" r="' + NODE_R
@@ -942,13 +964,14 @@ function buildNetworkSvg(params) {
         parts.push('<text x="' + (lx + 56) + '" y="' + (iy + 4) + '" font-size="9" fill="#333">' + it.label + '</text>');
     });
 
-    // E1: 进度曲线(基于CompletionPercentage的简易折线图)
+    // E1: 进度曲线(基于CompletionPercentage的折线图+Y轴0-40px)
     if (p.showProgressCurve && isTimeMode) {
         var acts = p.timeParams.activities || [];
         if (acts.length > 0) {
             var curvePoints = [];
-            var curveMaxY = 75;
-            var curveMinY = 56;
+            var curveYMin = 34; // bottom of curve area (near ruler top)
+            var curveYMax = 4;  // top of curve area
+            var curveYRange = curveYMin - curveYMax;
             for (var d = 0; d < td; d++) {
                 var dayComp = 0;
                 var dayCount = 0;
@@ -962,11 +985,16 @@ function buildNetworkSvg(params) {
                 });
                 var avgPct = dayCount > 0 ? dayComp / dayCount : 0;
                 var px = MARGIN_LEFT + d * dw + dw / 2;
-                var py = curveMaxY - (curveMaxY - curveMinY) * (avgPct / 100);
+                var py = curveYMax + curveYRange * (1 - avgPct / 100);
                 curvePoints.push(px + ',' + py);
             }
             if (curvePoints.length > 1) {
-                parts.push('<polyline fill="none" stroke="#27ae60" stroke-width="2" points="' + curvePoints.join(' ') + '"/>');
+                // 构建填充区域路径: 从底部沿折线到最后一个点,再折回底部
+                var fillPath = 'M' + (MARGIN_LEFT + 0 * dw) + ',' + curveYMin + ' L';
+                fillPath += curvePoints.join(' L');
+                fillPath += ' L' + (MARGIN_LEFT + (td - 1) * dw + dw / 2) + ',' + curveYMin + ' Z';
+                parts.push('<path d="' + fillPath + '" fill="rgba(173,216,230,0.3)" stroke="none"/>');
+                parts.push('<polyline fill="none" stroke="#5dade2" stroke-width="2" points="' + curvePoints.join(' ') + '"/>');
             }
         }
     }
@@ -1182,7 +1210,7 @@ window.renderNetwork = function(elementsJson, opts) {
         });
     }
 
-    // 应用存储的额外空行偏移到布局
+    // A2: 应用存储的额外空行偏移到布局(使用 netLayerHeight 替换硬编码 60)
     Object.keys(_netExtraSpacing).forEach(function(key) {
         var extraCount = _netExtraSpacing[key];
         if (!extraCount || extraCount <= 0) return;
@@ -1191,7 +1219,7 @@ window.renderNetwork = function(elementsJson, opts) {
             var evt = layout.events[eid];
             var layerIdx = Math.round((evt.y - 100) / 60);
             if (layerIdx >= layerNum) {
-                evt.y += extraCount * 60;
+                evt.y += extraCount * netLayerHeight;
             }
         });
     });
@@ -1201,8 +1229,14 @@ window.renderNetwork = function(elementsJson, opts) {
         timeParams: tp, layout: layout, mode: mode,
         showCritical: showCritical, showFloat: showFloat,
         showTodayLine: showTodayLine, showProgressLine: showProgressLine, showDummyArrows: opts.showDummyArrows,
+        showProgressCurve: opts.showProgressCurve === true,
         projectName: pn,
-        nodeRadius: netNodeRadius, nodeShape: netNodeShape, layerHeight: netLayerHeight,
+        nodeRadius: netNodeRadius, nodeShape: netNodeShape, nodeEllipse: opts.nodeShape === 'ellipse' ? true : (opts.nodeEllipse === true),
+        layerHeight: netLayerHeight,
+        labelFields: opts.labelFields || [],
+        rowLabels: opts.rowLabels || [],
+        restDayPattern: opts.restDayPattern !== false,
+        singleStartEnd: opts.singleStartEnd === true,
         canvasW: cx, canvasH: cySize
     });
     console.log('[NET] SVG rendered.');
@@ -1225,8 +1259,12 @@ window.renderNetwork = function(elementsJson, opts) {
                 if (!isNaN(aid) && aid > 0) { console.log('[NET] dblclick activity taskId=', aid); dotNet.invokeMethodAsync('OpenTaskEditor', aid); }
                 return;
             }
-            console.log('[NET] dblclick blank area');
-            dotNet.invokeMethodAsync('ShowAddTaskModal', 0, 0);
+            // C1: 双击空白区,从X坐标推算dayOffset
+            var rect = svg.getBoundingClientRect();
+            var clickX = e.clientX - rect.left;
+            var dayOffset = Math.max(0, Math.round((clickX - 80) / dayWidth));
+            console.log('[NET] dblclick blank area, dayOffset=', dayOffset);
+            dotNet.invokeMethodAsync('ShowAddTaskModal', 0, dayOffset);
         };
     }
 
@@ -1379,17 +1417,17 @@ window._netInsertBlankRow = function(layerNum) {
     var key = String(layerNum);
     if (_netExtraSpacing[key] === undefined) _netExtraSpacing[key] = 0;
     _netExtraSpacing[key] += 1;
+    // A2: 动态获取层高
+    var lh = (_networkOpts && _networkOpts.layerHeight) ? _networkOpts.layerHeight : 60;
     if (_netLayout && _netLayout.events) {
         Object.keys(_netLayout.events).forEach(function(eid) {
             var evt = _netLayout.events[eid];
-            // 事件所属层通过 y 坐标推算
             var layerIdx = Math.round((evt.y - 100) / 60);
             if (layerIdx >= layerNum) {
-                evt.y += 60;
+                evt.y += lh;
             }
         });
     }
-    // 触发重新渲染
     _triggerRerender();
 };
 
@@ -1397,12 +1435,13 @@ window._netDeleteBlankRow = function(layerNum) {
     var key = String(layerNum);
     if (!_netExtraSpacing[key] || _netExtraSpacing[key] <= 0) return;
     _netExtraSpacing[key] -= 1;
+    var lh = (_networkOpts && _networkOpts.layerHeight) ? _networkOpts.layerHeight : 60;
     if (_netLayout && _netLayout.events) {
         Object.keys(_netLayout.events).forEach(function(eid) {
             var evt = _netLayout.events[eid];
             var layerIdx = Math.round((evt.y - 100) / 60);
             if (layerIdx >= layerNum) {
-                evt.y -= 60;
+                evt.y -= lh;
             }
         });
     }
@@ -1605,6 +1644,79 @@ window.downloadSVG = function(filename) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+};
+
+// E4: 导出 PNG - SVG -> Canvas -> toBlob -> download
+window.exportNetworkPNG = function(filename) {
+    var svg = document.getElementById('network-svg');
+    if (!svg) { console.warn('[PNG] no SVG found'); return; }
+    var svgData = svg.outerHTML;
+    var svgW = parseFloat(svg.getAttribute('width')) || 800;
+    var svgH = parseFloat(svg.getAttribute('height')) || 600;
+    // 创建内联 SVG Blob
+    var blob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var canvas = document.createElement('canvas');
+    var scale = 2; // 高清输出
+    canvas.width = svgW * scale;
+    canvas.height = svgH * scale;
+    var ctx = canvas.getContext('2d');
+    var img = new Image();
+    img.onload = function() {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(function(pngBlob) {
+            var pngUrl = URL.createObjectURL(pngBlob);
+            var a = document.createElement('a');
+            a.href = pngUrl;
+            a.download = filename || 'network.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(pngUrl);
+        }, 'image/png');
+    };
+    img.onerror = function() {
+        console.warn('[PNG] Image load failed, falling back to data URI download');
+        URL.revokeObjectURL(url);
+        var encoded = encodeURIComponent(svgData);
+        var dataUri = 'data:image/svg+xml,' + encoded;
+        var a = document.createElement('a');
+        a.href = dataUri;
+        a.download = filename || 'network.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+    img.src = url;
+};
+
+// E6: 打印 - 隐藏面板 + 缩放适应 A4 横向
+window.printNetwork = function(printZoomVal) {
+    var zoom = (printZoomVal && printZoomVal > 0) ? printZoomVal / 100 : 1;
+    var svg = document.getElementById('network-svg');
+    if (svg) {
+        svg.style.setProperty('transform', 'scale(' + zoom + ')', 'important');
+        svg.style.setProperty('transform-origin', 'top left', 'important');
+    }
+    // 隐藏 UI 面板
+    var panels = document.querySelectorAll('.page-header, .header-extra, .display-toggles, .header-right, .zoom-control');
+    panels.forEach(function(p) {
+        if (p) p.style.display = 'none';
+    });
+    setTimeout(function() {
+        window.print();
+        // 恢复面板显示
+        panels.forEach(function(p) {
+            if (p) p.style.display = '';
+        });
+        if (svg) {
+            svg.style.removeProperty('transform');
+            svg.style.removeProperty('transform-origin');
+        }
+    }, 100);
 };
 
 // ===== 全局项目选中状态（localStorage）=====

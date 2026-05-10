@@ -101,6 +101,7 @@
         <button class="btn btn-default btn-icon" @onclick="ZoomToFitAsync" title="适应页面（全部显示）">
             <span class="oi oi-magnifying-glass"></span>
         </button>
+        <button class="btn btn-default" @onclick="() => AddNewTask()" title="新增工作">+ 新增工作</button>
         <button class="btn btn-default" @onclick="ExportSVG" title="导出SVG">导出SVG</button>
         <button class="btn btn-default" @onclick="ExportPNG" title="导出PNG">导出PNG</button>
         <button class="btn btn-default" @onclick="RecalcAndRender">重算计划</button>
@@ -421,8 +422,19 @@
                 </select>
             </div>
             <div class="form-group">
-                <label style="font-size:12px;color:#999;">单起单终（暂未实现）</label>
-                <input type="checkbox" disabled />
+                <label style="font-size:12px;">
+                    <input type="checkbox" @bind="showRestDayPattern" @bind:after="ApplyGraphProps" /> 显示休息日
+                </label>
+            </div>
+            <div class="form-group">
+                <label style="font-size:12px;color:#999;">
+                    <input type="checkbox" @bind="showSingleStartEnd" @bind:after="ApplyGraphProps" disabled /> 单起单终（暂未实现）
+                </label>
+            </div>
+            <div class="form-group">
+                <label style="font-size:12px;">
+                    <input type="checkbox" @bind="showNodeEllipse" @bind:after="OnNodeEllipseChanged" /> 椭圆节点
+                </label>
             </div>
             <div class="dialog-actions">
                 <button class="btn btn-default" @onclick="ToggleGraphProps">关闭</button>
@@ -511,6 +523,11 @@
     private int graphNodeRadius = 11;
     private string graphNodeShape = "circle";
     private double zoomLevel = 100;
+    // A3: 图属性设置
+    private bool showRestDayPattern = true;
+    private bool showNodeEllipse = false;
+    // A3: 单起单终(占位)
+    private bool showSingleStartEnd = false;
 
     // === 编辑对话框（与甘特图一致）===
     private bool taskModalVisible => editingTask != null;
@@ -623,10 +640,13 @@
             projectName = project?.Name ?? "",
             mode = netMode,
             labelFields = GetLabelFields(),
-            rowLabels = Array.Empty<string>(),
+            rowLabels = new object[] { },
             layerHeight = graphLayerHeight,
             nodeRadius = graphNodeRadius,
             nodeShape = graphNodeShape,
+            restDayPattern = showRestDayPattern,
+            singleStartEnd = showSingleStartEnd,
+            nodeEllipse = showNodeEllipse,
             criticalColor = "#e63946",
             normalColor = "#333",
             dummyColor = "#aaa",
@@ -674,8 +694,8 @@
     private async Task ExecutePrint()
     {
         showPrintPreview = false;
-        // 应用缩放和页边距后调用浏览器打印
-        await JS.InvokeVoidAsync("eval", $"document.getElementById('network-svg')?.style.setProperty('transform','scale({printZoom/100})');window.print();");
+        // E6: 调用 printNetwork 函数
+        await JS.InvokeVoidAsync("printNetwork", printZoom);
     }
 
     private async Task ExportSVG()
@@ -687,12 +707,8 @@
     private async Task ExportPNG()
     {
         var projectName = projects.FirstOrDefault(p => p.Id == currentProjectId)?.Name ?? "network";
-        var svgContent = await JS.InvokeAsync<string>("exportNetworkSVG");
-        if (string.IsNullOrEmpty(svgContent)) return;
-        // 通过 C# 后端转换 SVG→PNG 并下载（简化：用 Blob URL 在前端完成）
-        var encoded = System.Net.WebUtility.UrlEncode(svgContent);
-        var dataUri = "data:image/svg+xml," + encoded;
-        await JS.InvokeVoidAsync("eval", $"var a=document.createElement('a');a.href='{dataUri}';a.download='{projectName}_network.png';document.body.appendChild(a);a.click();document.body.removeChild(a);");
+        // E4: 调用 exportNetworkPNG 函数
+        await JS.InvokeVoidAsync("exportNetworkPNG", $"{projectName}_network.png");
     }
 
     // ======= JS→C# 接口 =======
@@ -878,6 +894,17 @@
         await RerenderGraph();
     }
 
+    private async Task OnNodeEllipseChanged()
+    {
+        graphNodeShape = showNodeEllipse ? "ellipse" : "circle";
+        await RerenderGraph();
+    }
+
+    private async Task AddNewTask()
+    {
+        await ShowAddTaskModal(0, 0);
+    }
+
     private async Task InsertBlankRow()
     {
         await JS.InvokeVoidAsync("_netInsertBlankRow", blankRowLayerNum);
@@ -978,10 +1005,13 @@
             projectName = project?.Name ?? "",
             mode = netMode,
             labelFields = GetLabelFields(),
-            rowLabels = Array.Empty<string>(),
+            rowLabels = new object[] { },
             layerHeight = graphLayerHeight,
             nodeRadius = graphNodeRadius,
             nodeShape = graphNodeShape,
+            restDayPattern = showRestDayPattern,
+            singleStartEnd = showSingleStartEnd,
+            nodeEllipse = showNodeEllipse,
             criticalColor = "#e63946",
             normalColor = "#333",
             dummyColor = "#aaa",
