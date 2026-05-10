@@ -1,6 +1,6 @@
 // NetPlan.js - 甘特图交互脚本
 
-// 双向滚动同步锁（防止左右互相触发导致无限循环）
+// 双向滚动同步锁(防止左右互相触发导致无限循环)
 var _syncLock = false;
 
 function syncRightToLeft() {
@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.initPanelResize();
 });
 
-// ========== 拖拽偏移输入弹出框（甘特 + 网络公用）==========
+// ========== 拖拽偏移输入弹出框(甘特 + 网络公用)==========
 var _dayPopup = null;
 function _showDayPopup(deltaDays, cx, cy, onConfirm) {
     _hideDayPopup();
@@ -127,7 +127,7 @@ function _hideDayPopup() {
     if (_dayPopup) { _dayPopup.remove(); _dayPopup = null; }
 }
 
-// ========== 甘特图拖拽：防鬼影 + 松手弹出偏移输入 ==========
+// ========== 甘特图拖拽:防鬼影 + 松手弹出偏移输入 ==========
 document.addEventListener('dragstart', function(e) {
     var bar = e.target.closest('.gantt-bar-frame');
     if (!bar) return;
@@ -171,7 +171,7 @@ document.addEventListener('dragend', function() {
 // 注册甘特图 DotNet 引用
 window.setGanttDotNet = function(ref) { window._ganttDotNet = ref; };
 
-// 草稿保存/加载（localStorage 暂存编辑中的任务）
+// 草稿保存/加载(localStorage 暂存编辑中的任务)
 window.loadDraft = function(key) {
     try { return localStorage.getItem('netplan_draft_' + key); } catch(e) { return null; }
 };
@@ -293,7 +293,7 @@ window.renderAnalysisBarChart = function(canvasId, chartData) {
 };
 
 // ============================================================================
-// 时标双代号网络图 - SVG实现（符合JGJ/T 121-2015规范）
+// 时标双代号网络图 - SVG实现(符合JGJ/T 121-2015规范)
 // ============================================================================
 
 var _netDotNet = null;
@@ -305,28 +305,37 @@ var _netActivities = null;
 var _netSvg = null;
 var _netEventOffsets = {};
 var _netDayWidth = 40;
+// 每层额外插入的空行数(数组索引=层索引,值=空行数)
+var _netExtraSpacing = {};
 // 前锋线全局状态
 var _networkCanvas = null;
 var _networkData = null;
 var _networkOpts = null;
 var _netRendered = false;
-var _progressDate = null;   // 前锋线检查日期（Date）
-var _progressCheckDate = null; // 前锋线独立日期（与今日线解耦）
+// 网络图模式: 'time' = 时标网络图, 'logic' = 逻辑双代号图
+var _netMode = 'time';
+var _progressDate = null;   // 前锋线检查日期(Date)
+var _progressCheckDate = null; // 前锋线独立日期(与今日线解耦)
 var _progressX = 0;         // 前锋线像素位置
 var _dragInfo = null;       // 拖动状态 { startX, startScroll }
-var _projStartDate = null;  // 项目开始日期（Date）
+var _projStartDate = null;  // 项目开始日期(Date)
 
 // .NET引用设置
 window.setNetworkDotNet = function(ref) {
     _netDotNet = ref;
 };
 
-// 清除节点偏移（不重置前锋线日期）
+// 设置网络图模式
+window.setNetworkMode = function(mode) {
+    _netMode = mode || 'time';
+};
+
+// 清除节点偏移(不重置前锋线日期)
 window.clearNetworkOffsets = function() {
     _netEventOffsets = {};
 };
 
-// ISO 8601 周次（甘特图/网络图标尺共用）
+// ISO 8601 周次(甘特图/网络图标尺共用)
 function getISOWeek(d) {
     var dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
     var dayNum = dt.getUTCDay() || 7;
@@ -336,11 +345,11 @@ function getISOWeek(d) {
 }
 
 // ============================================================================
-// 第一步：节点计算法时间参数计算
+// 第一步:节点计算法时间参数计算
 // ============================================================================
 
 function calculateTimeParams(tasks, relations) {
-    // 第一步：收集每个任务的 ES/EF，以及每个时间点关联的任务
+    // 第一步:收集每个任务的 ES/EF,以及每个时间点关联的任务
     var starts = {};  // timeOffset -> unique taskIds
     var ends = {};    // timeOffset -> unique taskIds
     var taskEs = {};  // taskId -> es
@@ -359,7 +368,7 @@ function calculateTimeParams(tasks, relations) {
         if (ends[ef].indexOf(task.id) === -1) ends[ef].push(task.id);
     });
 
-    // 第二步：合并事件节点，同 ES 共享开始事件，同 EF 共享结束事件
+    // 第二步:合并事件节点,同 ES 共享开始事件,同 EF 共享结束事件
     var events = {};
     var allTimeOffsets = [];
     Object.keys(starts).forEach(function(t) { if (allTimeOffsets.indexOf(t) === -1) allTimeOffsets.push(t); });
@@ -380,7 +389,7 @@ function calculateTimeParams(tasks, relations) {
             if (associated.indexOf(tid) === -1) associated.push(tid);
         });
 
-        var taskId = parseInt(associated[0]) || 0;          // 第一个关联任务（用于双击编辑）
+        var taskId = parseInt(associated[0]) || 0;          // 第一个关联任务(用于双击编辑)
         var isCritical = false;
         var tf = 0;
         tasks.forEach(function(t) {
@@ -405,7 +414,7 @@ function calculateTimeParams(tasks, relations) {
         };
     });
 
-    // 第三步：构建工作箭线（每个 task 一条）
+    // 第三步:构建工作箭线(每个 task 一条)
     var activities = [];
     tasks.forEach(function(task) {
         var es = taskEs[task.id];
@@ -414,6 +423,10 @@ function calculateTimeParams(tasks, relations) {
             id: task.id,
             source: 'T' + es,
             target: 'T' + ef,
+            es: es,
+            ef: ef,
+            ls: task.ls || task.lateStart || es,
+            lf: task.lf || task.lateFinish || ef,
             duration: task.duration || 0,
             code: task.label || '',
             name: task.name || '',
@@ -424,7 +437,7 @@ function calculateTimeParams(tasks, relations) {
         });
     });
 
-    // 第四步：建立事件邻接关系
+    // 第四步:建立事件邻接关系
     var eventPred = {};
     var eventSucc = {};
     Object.keys(events).forEach(function(eid) {
@@ -432,7 +445,7 @@ function calculateTimeParams(tasks, relations) {
         eventSucc[eid] = [];
     });
 
-    // 辅助：去重添加邻接边
+    // 辅助:去重添加邻接边
     function addEdge(f, t) {
         if (f === t) return;
         if (!events[f] || !events[t]) return;
@@ -440,21 +453,21 @@ function calculateTimeParams(tasks, relations) {
         if (eventPred[t].indexOf(f) === -1) eventPred[t].push(f);
     }
 
-    // 从工作箭线建立实线连接：T{es} -> T{ef}
+    // 从工作箭线建立实线连接:T{es} -> T{ef}
     activities.forEach(function(act) {
         addEdge(act.source, act.target);
     });
 
-    // 从关系建立虚箭线连接（V6.1 虚工作逻辑）
+    // 从关系建立虚箭线连接(V6.1 虚工作逻辑)
     relations.forEach(function(rel) {
         var predEf = taskEf[rel.source];
         var succEs = taskEs[rel.target];
         if (predEf === undefined || succEs === undefined) return;
-        // 虚工作：前驱结束节点 → 后继开始节点
+        // 虚工作:前驱结束节点 → 后继开始节点
         addEdge('T' + predEf, 'T' + succEs);
     });
 
-    // 第五步：拓扑排序并分配事件编号
+    // 第五步:拓扑排序并分配事件编号
     var inDeg = {};
     Object.keys(events).forEach(function(eid) {
         inDeg[eid] = eventPred[eid].length;
@@ -473,12 +486,12 @@ function calculateTimeParams(tasks, relations) {
         });
     }
 
-    // 分配事件编号（拓扑序）
+    // 分配事件编号(拓扑序)
     sortedEvents.forEach(function(eid, idx) {
         if (events[eid]) events[eid].num = idx + 1;
     });
 
-    // 补分配：拓扑未覆盖的事件（孤立 / 循环中）按时间偏移排序后分配
+    // 补分配:拓扑未覆盖的事件(孤立 / 循环中)按时间偏移排序后分配
     var allEids = Object.keys(events).sort(function(a, b) {
         return (events[a].es || 0) - (events[b].es || 0);
     });
@@ -501,7 +514,7 @@ function calculateTimeParams(tasks, relations) {
 }
 
 // ============================================================================
-// 第二步：垂直分层布局（关键线路最上层）
+// 第二步:垂直分层布局(关键线路最上层)
 // ============================================================================
 
 function calculateVerticalLayout(data) {
@@ -510,7 +523,7 @@ function calculateVerticalLayout(data) {
     var eventPred = data.eventPred;
     var eventSucc = data.eventSucc;
 
-    var LAYER_HEIGHT = 60;  // 紧凑布局
+    var LAYER_HEIGHT = 60;
     var MARGIN_TOP = 100;
 
     // 标记关键线路事件
@@ -522,7 +535,7 @@ function calculateVerticalLayout(data) {
         }
     });
 
-    // ===== 改进的分层算法：拓扑BFS（单向推进，不会振荡）=====
+    // ===== 改进的分层算法:拓扑BFS(单向推进,不会振荡)=====
     var eventLayer = {};
     var inDeg = {};
     Object.keys(events).forEach(function(eid) {
@@ -538,12 +551,12 @@ function calculateVerticalLayout(data) {
         }
     });
 
-    // BFS拓扑推进：每往下走一层，层次+1
+    // BFS拓扑推进:每往下走一层,层次+1
     while (queue.length > 0) {
         var current = queue.shift();
         var successorIds = eventSucc[current] || [];
         successorIds.forEach(function(next) {
-            // 计算后继事件的层次：当前层次 + 1（非关键再加1）
+            // 计算后继事件的层次:当前层次 + 1(非关键再加1)
             var proposedLayer = eventLayer[current] + (criticalEvents[next] ? 1 : 2);
             if (eventLayer[next] === undefined || eventLayer[next] < proposedLayer) {
                 eventLayer[next] = proposedLayer;
@@ -555,7 +568,7 @@ function calculateVerticalLayout(data) {
         });
     }
 
-    // 边界处理：未分配层次的事件（孤立节点）
+    // 边界处理:未分配层次的事件(孤立节点)
     Object.keys(events).forEach(function(eid) {
         if (eventLayer[eid] === undefined) {
             eventLayer[eid] = criticalEvents[eid] ? 1 : 2;
@@ -571,9 +584,9 @@ function calculateVerticalLayout(data) {
         }
     });
 
-    // === 事件合并后不再强制同行约束（真双代号图中工作箭线可跨层）===
+    // === 事件合并后不再强制同行约束(真双代号图中工作箭线可跨层)===
     // 之前单代号需要同行是因为 S/E 节点属于同一任务
-    // 现在节点被多个任务共享，拉平会破坏分层
+    // 现在节点被多个任务共享,拉平会破坏分层
 
     // 将事件按层级分组
     var layerEvents = {};
@@ -583,7 +596,7 @@ function calculateVerticalLayout(data) {
         layerEvents[layer].push(eid);
     });
 
-    // 分配Y坐标：将实际层号映射为连续索引（压缩中间空洞），同一层级y相同
+    // 分配Y坐标:将实际层号映射为连续索引(压缩中间空洞),同一层级y相同
     var sortedLayers = Object.keys(layerEvents).map(Number).sort(function(a,b){return a-b;});
     var layerIndex = {};
     sortedLayers.forEach(function(l, idx) { layerIndex[l] = idx; });
@@ -594,7 +607,7 @@ function calculateVerticalLayout(data) {
         });
     });
 
-    // 分配X坐标需要在renderNetwork中做（依赖dayWidth）
+    // 分配X坐标需要在renderNetwork中做(依赖dayWidth)
     // 此处只分配Y坐标和层级
 
     return {
@@ -608,12 +621,12 @@ function calculateVerticalLayout(data) {
 
 
 // ============================================================================
-// SVG 绘制函数（替代 Canvas）
+// SVG 绘制函数(替代 Canvas)
 // ============================================================================
 var _svgArrowId = 0;
-function svgArrowMarker(crit) {
+function svgArrowMarker(crit, optCritColor, optNormalColor) {
     _svgArrowId++;
-    var color = crit ? '#e63946' : '#333';
+    var color = crit ? (optCritColor || '#e63946') : (optNormalColor || '#333');
     var id = 'arr-' + _svgArrowId;
     var m = '<marker id="' + id + '" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">'
           + '<path d="M0,0 L8,4 L0,8 Z" fill="' + color + '"/></marker>';
@@ -622,25 +635,39 @@ function svgArrowMarker(crit) {
 
 function buildNetworkSvg(params) {
     var p = params, parts = [], markers = [];
-    var MARGIN_LEFT = 80, RULER_H = 52, NODE_R = 11; // 节点半径（11px，数字字号12）
+    var MARGIN_LEFT = 80, RULER_H = 52;
+    // A3: 节点半径可配置
+    var NODE_R = (p.nodeRadius && p.nodeRadius >= 8 && p.nodeRadius <= 16) ? p.nodeRadius : 11;
+    // A3: 节点形状
+    var nodeShape = p.nodeShape || 'circle';
     var cw = p.canvasW, ch = p.canvasH;
+    // A5: 线颜色及线宽设置
+    var criticalColor = p.criticalColor || '#e63946';
+    var normalColor = p.normalColor || '#333';
+    var dummyColor = p.dummyColor || '#aaa';
+    var criticalWidth = p.criticalWidth || 3;
+    var normalWidth = p.normalWidth || 1.5;
+    var mode = p.mode || 'time';
     console.log('[SVG] opts:', 'todayLine=', p.showTodayLine, 'progressLine=', p.showProgressLine,
-        'dayWidth=', p.dayWidth, 'critical=', p.showCritical, 'float=', p.showFloat);
+        'dayWidth=', p.dayWidth, 'critical=', p.showCritical, 'float=', p.showFloat, 'mode=', mode);
 
-    // === 时间标尺（精确对齐甘特图：上层28 + 下层24 = 52px）===
     var sd = new Date(p.projectStartDate);
     var dw = p.dayWidth, td = p.totalDays;
     var upperH = 28, lowerY = 28, lowerH = 24;
 
+    // 逻辑模式:不画时间标尺
+    var isTimeMode = (mode !== 'logic');
+
+    if (isTimeMode) {
+    // === 时间标尺(精确对齐甘特图:上层28 + 下层24 = 52px)===
     // 背景
     parts.push('<rect x="0" y="0" width="' + cw + '" height="' + upperH + '" fill="url(#rulerGrad)"/>');
     parts.push('<defs><linearGradient id="rulerGrad" x1="0" y1="0" x2="0" y2="1">'
         + '<stop offset="0%" stop-color="#f5f5f5"/><stop offset="100%" stop-color="#fafafa"/></linearGradient></defs>');
     parts.push('<rect x="0" y="' + lowerY + '" width="' + cw + '" height="' + lowerH + '" fill="#f5f5f5"/>');
 
-    // 上层：年/月标签（font12 bold #333）
+    // 上层:年/月标签(font12 bold #333)
     if (dw > 20) {
-        // full模式：每月 yyyy/MM
         for (var d = 0; d < td; d++) {
             var dt = new Date(sd); dt.setDate(dt.getDate() + d);
             if (dt.getDate() === 1) {
@@ -652,7 +679,6 @@ function buildNetworkSvg(params) {
             }
         }
     } else {
-        // year模式：按年分组
         var lastYear = -1, yearStartX = 0;
         for (var d = 0; d <= td; d++) {
             var dt = new Date(sd); dt.setDate(dt.getDate() + d);
@@ -677,7 +703,7 @@ function buildNetworkSvg(params) {
     parts.push('<line x1="0" y1="' + lowerY + '" x2="' + cw + '" y2="' + lowerY + '" stroke="#d9d9d9"/>');
     parts.push('<line x1="0" y1="' + RULER_H + '" x2="' + cw + '" y2="' + RULER_H + '" stroke="#b0b0b0" stroke-width="2"/>');
 
-    // 下层：日/周/月（font-size 10, #666，周末高亮对齐甘特图）
+    // 下层:日/周/月
     if (dw > 20) {
         for (var d = 0; d <= td; d++) {
             var dt = new Date(sd); dt.setDate(dt.getDate() + d);
@@ -712,17 +738,20 @@ function buildNetworkSvg(params) {
             }
         }
     }
+    } // isTimeMode
 
     // 竖线网格
-    // 计算最底层事件的 Y 坐标（用于网格线延伸和底部标尺定位）
+    // 计算最底层事件的 Y 坐标(用于网格线延伸和底部标尺定位)
     var maxY = 0;
     Object.keys(p.layout.events).forEach(function(eid) {
         var ey = p.layout.events[eid].y;
         if (ey > maxY) maxY = ey;
     });
-    var bottomRulerY = maxY + 60;  // 最下层事件 + 1 层间距（LAYER_HEIGHT=60）
-    var svgFullH = bottomRulerY + RULER_H + 20; // SVG 总高（标尺高 + 规程标注余量）
-    var fullH = svgFullH; // 网格线延伸到 SVG 底部
+    var bottomRulerY = maxY + 60;
+    var svgFullH = isTimeMode ? (bottomRulerY + RULER_H + 20) : (maxY + 80);
+    var fullH = svgFullH;
+
+    if (isTimeMode) {
     // 年度粗线
     var lastY = -1;
     for (var d = 0; d <= td; d++) {
@@ -741,17 +770,26 @@ function buildNetworkSvg(params) {
             parts.push('<line x1="' + mx + '" y1="' + RULER_H + '" x2="' + mx + '" y2="' + fullH + '" stroke="#f0f0f0" stroke-width="0.5"/>');
         }
     }
-    // 水平行线（层间参考线）
+    }
+    // E5: 行标注(左侧MARGIN_LEFT区域内)
+    var rowLabels = p.rowLabels || [];
     var drawnY = {};
+    var rowIdx = 0;
     Object.keys(p.layout.events).forEach(function(eid) {
         var ey = p.layout.events[eid].y;
         if (!drawnY[ey]) {
             drawnY[ey] = true;
             parts.push('<line x1="0" y1="' + ey + '" x2="' + cw + '" y2="' + ey + '" stroke="#e8e8e8" stroke-width="0.5" stroke-dasharray="4,2"/>');
+            // E5: 行标注
+            var labelText = (rowLabels && rowLabels[rowIdx]) ? rowLabels[rowIdx] : '';
+            if (labelText) {
+                parts.push('<text x="4" y="' + (ey + 4) + '" font-size="10" fill="#999" text-anchor="start">' + labelText + '</text>');
+            }
+            rowIdx++;
         }
     });
 
-    // === 虚箭线（V6.1：从前驱EF节点 → 后继ES节点）===
+    // === 虚箭线(V6.1:从前驱EF节点 → 后继ES节点)===
     var showDummy = p.showDummyArrows !== false;
     if (showDummy) {
         // 预建 taskId→es/ef 映射
@@ -773,7 +811,7 @@ function buildNetworkSvg(params) {
         var d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y
               + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
         parts.push('<g class="dummy-rel" data-dummy-src="' + srcId + '" data-dummy-tgt="' + tgtId + '">');
-        parts.push('<path d="' + d + '" fill="none" stroke="#aaa" stroke-width="1" stroke-dasharray="5,3"/>');
+        parts.push('<path d="' + d + '" fill="none" stroke="' + dummyColor + '" stroke-width="1" stroke-dasharray="5,3"/>');
         parts.push('</g>');
     });
     } // showDummy
@@ -786,8 +824,8 @@ function buildNetworkSvg(params) {
         var sx = src.x + NODE_R, sy = src.y, ex = tgt.x - NODE_R, ey = tgt.y;
         var dur = act.duration || 0;
 
-        var arrow = svgArrowMarker(isCrit);
-        // 箭头已取消，不推入 markers
+        var arrow = svgArrowMarker(isCrit, criticalColor, normalColor);
+        // 箭头已取消,不推入 markers
 
         var pathD;
         if (Math.abs(ey - sy) < 5) {
@@ -797,15 +835,35 @@ function buildNetworkSvg(params) {
         }
         parts.push('<g data-activity-id="' + act.id + '" data-src="' + act.source + '" data-tgt="' + act.target + '">');
         parts.push('<path class="act-arrow" d="' + pathD + '" fill="none" stroke="' + arrow.color
-            + '" stroke-width="' + (isCrit ? 3 : 1.5) + '"/>');
+            + '" stroke-width="' + (isCrit ? criticalWidth : normalWidth) + '"/>');
 
         var lx = (sx + ex) / 2, ly = sy - NODE_R - 6;
         var label = (act.code || '') + (act.name ? ' ' + act.name : '');
         if (label.length > 25) label = label.substring(0, 23) + '...';
+        // 标签行
         parts.push('<text class="act-label" x="' + lx + '" y="' + ly + '" font-size="10" fill="' + arrow.color
             + '" text-anchor="middle" font-weight="' + (isCrit ? 'bold' : 'normal') + '">' + label + '</text>');
         parts.push('<text class="act-dur" x="' + lx + '" y="' + (sy + NODE_R + 10) + '" font-size="9" fill="#666" text-anchor="middle">'
             + dur + 'd</text>');
+        // A4: 额外字段
+        var labelFields = p.labelFields || [];
+        if (labelFields.length > 0) {
+            var extraLines = [];
+            var aes = act.es || parseInt(act.source.replace('T','') || '0');
+            var aef = act.ef || parseInt(act.target.replace('T','') || '0');
+            labelFields.forEach(function(field) {
+                if (field === 'duration') extraLines.push('工期=' + dur + 'd');
+                else if (field === 'es') extraLines.push('ES=' + aes);
+                else if (field === 'ef') extraLines.push('EF=' + aef);
+                else if (field === 'ls') extraLines.push('LS=' + (act.ls || aes));
+                else if (field === 'lf') extraLines.push('LF=' + (act.lf || aef));
+                else if (field === 'tf') extraLines.push('TF=' + act.tf);
+                else if (field === 'ff') extraLines.push('FF=' + act.ff);
+            });
+            for (var i = 0; i < extraLines.length; i++) {
+                parts.push('<text class="act-ext" x="' + lx + '" y="' + (ly + 14 + i * 12) + '" font-size="8" fill="#888" text-anchor="middle">' + extraLines[i] + '</text>');
+            }
+        }
 
         if (p.showFloat && act.ff > 0 && !isCrit) {
             var fex = Math.min(ex + act.ff * p.dayWidth, cw - 10);
@@ -823,19 +881,24 @@ function buildNetworkSvg(params) {
     Object.keys(p.layout.events).forEach(function(eid) {
         var evt = p.layout.events[eid];
         var isCrit = evt.isCritical && p.showCritical;
-        var fill = isCrit ? '#e63946' : '#fff', stroke = isCrit ? '#b30000' : '#e63946';
+        var fill = isCrit ? criticalColor : '#fff', stroke = isCrit ? '#b30000' : criticalColor;
         var tc = isCrit ? '#fff' : '#000';
         parts.push('<g class="net-event" data-task-id="' + evt.taskId + '" data-event-id="' + eid + '" style="cursor:grab;">');
-        parts.push('<circle cx="' + evt.x + '" cy="' + evt.y + '" r="' + NODE_R
-            + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"/>');
+        if (nodeShape === 'ellipse') {
+            parts.push('<ellipse cx="' + evt.x + '" cy="' + evt.y + '" rx="' + (NODE_R * 1.3) + '" ry="' + NODE_R
+                + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"/>');
+        } else {
+            parts.push('<circle cx="' + evt.x + '" cy="' + evt.y + '" r="' + NODE_R
+                + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"/>');
+        }
         parts.push('<text x="' + evt.x + '" y="' + (evt.y + 1)
             + '" dominant-baseline="middle" text-anchor="middle" font-size="12"'
             + ' font-weight="bold" fill="' + tc + '" style="pointer-events:none;">' + evt.num + '</text>');
         parts.push('</g>');
     });
 
-    // === 今日线（红色虚线，从标尺顶部到底部标尺上方）===
-    if (p.showTodayLine) {
+    // === 今日线(红色虚线,从标尺顶部到底部标尺上方)===
+    if (isTimeMode && p.showTodayLine) {
         var today = new Date();
         var todayOffset = Math.floor((today.getTime() - sd.getTime()) / 86400000);
         if (todayOffset >= 0 && todayOffset < td) {
@@ -845,8 +908,8 @@ function buildNetworkSvg(params) {
         }
     }
 
-    // === 可拖动前锋线（JGJ/T121-2015）蓝色#1890ff，与今日线解耦 ===
-    if (p.showProgressLine) {
+    // === 可拖动前锋线(JGJ/T121-2015)蓝色#1890ff,与今日线解耦 ===
+    if (isTimeMode && p.showProgressLine) {
         if (!_progressCheckDate) { _progressCheckDate = new Date(); _progressCheckDate.setHours(0,0,0,0); }
         var progressOffset = Math.floor((_progressCheckDate.getTime() - sd.getTime()) / 86400000);
         if (progressOffset < 0) progressOffset = 0;
@@ -868,9 +931,9 @@ function buildNetworkSvg(params) {
     parts.push('<rect x="' + lx + '" y="' + ly + '" width="200" height="65" fill="rgba(255,255,255,0.95)" stroke="#ccc"/>');
     parts.push('<text x="' + (lx + 10) + '" y="' + (ly + 15) + '" font-size="11" font-weight="bold" fill="#333">图例</text>');
     [
-        { label: '关键线路', color: '#e63946', w: 3, d: false },
-        { label: '非关键工作', color: '#333', w: 1.5, d: false },
-        { label: '虚工作', color: '#aaa', w: 1, d: true }
+        { label: '关键线路', color: criticalColor, w: parseInt(criticalWidth), d: false },
+        { label: '非关键工作', color: normalColor, w: parseFloat(normalWidth), d: false },
+        { label: '虚工作', color: dummyColor, w: 1, d: true }
     ].forEach(function(it, i) {
         var iy = ly + 30 + i * 13;
         parts.push('<line x1="' + (lx + 10) + '" y1="' + iy + '" x2="' + (lx + 50) + '" y2="' + iy
@@ -879,17 +942,48 @@ function buildNetworkSvg(params) {
         parts.push('<text x="' + (lx + 56) + '" y="' + (iy + 4) + '" font-size="9" fill="#333">' + it.label + '</text>');
     });
 
+    // E1: 进度曲线(基于CompletionPercentage的简易折线图)
+    if (p.showProgressCurve && isTimeMode) {
+        var acts = p.timeParams.activities || [];
+        if (acts.length > 0) {
+            var curvePoints = [];
+            var curveMaxY = 75;
+            var curveMinY = 56;
+            for (var d = 0; d < td; d++) {
+                var dayComp = 0;
+                var dayCount = 0;
+                acts.forEach(function(a) {
+                    var aes = a.es || parseInt(a.source.replace('T','') || '0');
+                    var aef = a.ef || parseInt(a.target.replace('T','') || '0');
+                    if (d >= aes && d < aef) {
+                        dayComp += (a.completion || 0);
+                        dayCount++;
+                    }
+                });
+                var avgPct = dayCount > 0 ? dayComp / dayCount : 0;
+                var px = MARGIN_LEFT + d * dw + dw / 2;
+                var py = curveMaxY - (curveMaxY - curveMinY) * (avgPct / 100);
+                curvePoints.push(px + ',' + py);
+            }
+            if (curvePoints.length > 1) {
+                parts.push('<polyline fill="none" stroke="#27ae60" stroke-width="2" points="' + curvePoints.join(' ') + '"/>');
+            }
+        }
+    }
+
     // === 标题 ===
     parts.push('<text x="10" y="80" font-size="13" font-weight="bold" fill="#333">' + (p.projectName || '') + '</text>');
-    parts.push('<text x="10" y="97" font-size="13" font-weight="bold" fill="#333">时标网络计划图</text>');
+    var subtitle = isTimeMode ? '时标网络计划图' : '逻辑双代号网络图';
+    parts.push('<text x="10" y="97" font-size="13" font-weight="bold" fill="#333">' + subtitle + '</text>');
 
-    // === 总工期（对齐甘特图：首末任务日期跨度）===
+    // === 总工期(对齐甘特图:首末任务日期跨度)===
     var totalDur = p.totalDuration || 0;
     parts.push('<text x="' + (cw - 12) + '" y="80" font-size="12" font-weight="bold" fill="#e63946" text-anchor="end">'
         + '总工期=' + totalDur + '天</text>');
 
-    
-    // === 底部镜像时间标尺（最下层任务下方 1 层间隔，bottomRulerY 已在顶部计算）===
+
+    // === 底部镜像时间标尺(最下层任务下方 1 层间隔,bottomRulerY 已在顶部计算)===
+    if (isTimeMode) {
     parts.push('<rect x="0" y="' + bottomRulerY + '" width="' + cw + '" height="' + upperH + '" fill="url(#rulerGrad)"/>');
     parts.push('<rect x="0" y="' + (bottomRulerY + 28) + '" width="' + cw + '" height="' + lowerH + '" fill="#f5f5f5"/>');
     // 上层: 年/月
@@ -948,6 +1042,7 @@ function buildNetworkSvg(params) {
             }
         }
     }
+    } // isTimeMode bottom ruler
 
     // === 规程标注 ===
     var svgStr = '<svg xmlns="http://www.w3.org/2000/svg" id="network-svg" width="' + cw + '" height="' + svgFullH + '" style="display:block;font-family:SimSun,sans-serif;">';
@@ -967,14 +1062,14 @@ function updateProgressColors() {
 
     var checkDays = Math.round((_progressDate.getTime() - _projStartDate.getTime()) / 86400000);
 
-    // 遍历所有事件节点，通过 _netLayout 获取该事件的 ES
+    // 遍历所有事件节点,通过 _netLayout 获取该事件的 ES
     var eventGroups = svg.querySelectorAll('.net-event');
     eventGroups.forEach(function(g) {
         var eid = g.getAttribute('data-event-id');
         var evt = _netLayout && _netLayout.events ? _netLayout.events[eid] : null;
         if (!evt) return;
 
-        // 合并节点可能有多个关联任务，取第一个的 duration
+        // 合并节点可能有多个关联任务,取第一个的 duration
         var es = evt.es || 0;
         var dur = 1;
         var act = null;
@@ -993,11 +1088,11 @@ function updateProgressColors() {
         var delta = actualPct - plannedPct;
 
         var statusColor;
-        if (delta >= 0) statusColor = '#27ae60';        // 绿色：正常/超前
-        else if (delta >= -20) statusColor = '#f39c12'; // 黄色：轻微落后
-        else statusColor = '#e74c3c';                    // 红色：严重落后
+        if (delta >= 0) statusColor = '#27ae60';        // 绿色:正常/超前
+        else if (delta >= -20) statusColor = '#f39c12'; // 黄色:轻微落后
+        else statusColor = '#e74c3c';                    // 红色:严重落后
 
-        // 关键路径节点保持红色（不覆盖）
+        // 关键路径节点保持红色(不覆盖)
         var isCrit = evt.isCritical && _networkOpts && _networkOpts.showCritical !== false;
         if (!isCrit) {
             var circle = g.querySelector('circle');
@@ -1011,20 +1106,25 @@ function updateProgressColors() {
     });
 }
 
-// 初始化前锋线颜色（首次渲染后调用）
+// 初始化前锋线颜色(首次渲染后调用)
 window.initProgressColors = function() {
     updateProgressColors();
 };
 window.renderNetwork = function(elementsJson, opts) {
     opts = opts || {};
+    // 读取模式: 优先从 opts.mode, 其次全局 _netMode, 默认 'time'
+    var mode = opts.mode || _netMode || 'time';
+    _netMode = mode;
     var showCritical = opts.showCritical !== false;
     var showFloat = opts.showFloat !== false;
-    var showTodayLine = opts.showTodayLine !== false;
-    var showProgressLine = opts.showProgressLine !== false;
+    var showTodayLine = opts.showTodayLine !== false && mode === 'time';
+    var showProgressLine = opts.showProgressLine !== false && mode === 'time';
     var psd = opts.projectStartDate || new Date().toISOString().slice(0, 10);
-    var totalDays = opts.totalDays || 90, dayWidth = opts.dayWidth || 8;
+    var totalDays = opts.totalDays || 90;
+    // 逻辑模式下固定 dayWidth
+    var dayWidth = (mode === 'logic') ? 80 : (opts.dayWidth || 8);
     var pn = opts.projectName || '网络计划';
-    console.log('[NET] SVG render. opts:', JSON.stringify({totalDays, dayWidth, showTodayLine, showProgressLine}));
+    console.log('[NET] SVG render. opts:', JSON.stringify({totalDays, dayWidth, showTodayLine, showProgressLine, mode}));
     _netRendered = false;
 
     var ce = document.getElementById('cy');
@@ -1047,30 +1147,68 @@ window.renderNetwork = function(elementsJson, opts) {
     var layout = calculateVerticalLayout(tp);
 
     var ML = 80, RH = 70;
-    Object.keys(layout.events).forEach(function(eid) {
-        layout.events[eid].x = ML + (layout.events[eid].es || 0) * dayWidth;
-    });
+    if (mode === 'logic') {
+        // 逻辑双代号图:节点按拓扑顺序从左到右均匀排列,不按时间偏移
+        var sortedEids = tp.sortedEvents;
+        var logicGap = dayWidth * 1.8; // 节点间距
+        sortedEids.forEach(function(eid, idx) {
+            layout.events[eid].x = ML + idx * logicGap + logicGap / 2;
+        });
+        // 活动长度固定
+        var cx = ML + sortedEids.length * logicGap + 200;
+    } else {
+        Object.keys(layout.events).forEach(function(eid) {
+            layout.events[eid].x = ML + (layout.events[eid].es || 0) * dayWidth;
+        });
+        var cx = ML + totalDays * dayWidth + 100;
+    }
 
-    var cx = ML + totalDays * dayWidth + 100;
-    // 自适应高度：基于最大层级 + 底部标尺 + 余量
+    // 自适应高度:基于最大层级 + 底部标尺 + 余量
     var layerKeys = Object.keys(layout.layerEvents || {}).map(Number);
     var maxLayerNum = layerKeys.length > 0 ? Math.max.apply(null, layerKeys) : 1;
-    // cySize = 节点区高度(含底部留白)，SVG总高 = cySize + RULER_H(底部标尺)
-    var cySize = Math.max(100 + maxLayerNum * 60 + 60, 400);
+    // cySize = 节点区高度(含底部留白),SVG总高 = cySize + 底部标尺
+    var cySize = Math.max(100 + maxLayerNum * netLayerHeight + 60, 400);
     console.log('[NET] SVG size:', cx, 'x', cySize);
+
+    // A3: 应用配置参数
+    var netLayerHeight = opts.layerHeight || 60;
+    var netNodeRadius = opts.nodeRadius || 11;
+    var netNodeShape = opts.nodeShape || 'circle';
+    // 层级高度缩放
+    var layerScale = netLayerHeight / 60;
+    if (Math.abs(layerScale - 1) > 0.01) {
+        Object.keys(layout.events).forEach(function(eid) {
+            layout.events[eid].y = 100 + (layout.events[eid].y - 100) * layerScale;
+        });
+    }
+
+    // 应用存储的额外空行偏移到布局
+    Object.keys(_netExtraSpacing).forEach(function(key) {
+        var extraCount = _netExtraSpacing[key];
+        if (!extraCount || extraCount <= 0) return;
+        var layerNum = parseInt(key);
+        Object.keys(layout.events).forEach(function(eid) {
+            var evt = layout.events[eid];
+            var layerIdx = Math.round((evt.y - 100) / 60);
+            if (layerIdx >= layerNum) {
+                evt.y += extraCount * 60;
+            }
+        });
+    });
 
     ce.innerHTML = buildNetworkSvg({
         projectStartDate: psd, totalDays: totalDays, totalDuration: opts.totalDuration || 0, dayWidth: dayWidth,
-        timeParams: tp, layout: layout,
+        timeParams: tp, layout: layout, mode: mode,
         showCritical: showCritical, showFloat: showFloat,
         showTodayLine: showTodayLine, showProgressLine: showProgressLine, showDummyArrows: opts.showDummyArrows,
         projectName: pn,
+        nodeRadius: netNodeRadius, nodeShape: netNodeShape, layerHeight: netLayerHeight,
         canvasW: cx, canvasH: cySize
     });
     console.log('[NET] SVG rendered.');
 
     var svg = ce.querySelector('svg');
-    // 双击事件：每次重渲染都重绑定（画布拖拽同理）
+    // 双击事件:每次重渲染都重绑定(画布拖拽同理)
     if (svg) {
         svg.ondblclick = function(e) {
             var dotNet = _netDotNet || window._netDotNet;
@@ -1093,12 +1231,12 @@ window.renderNetwork = function(elementsJson, opts) {
     }
 
     // ===== 节点拖拽微调 =====
-    // 更新全局引用（每次重渲染刷新）
+    // 更新全局引用(每次重渲染刷新)
     _netLayout = layout;
     _netActivities = tp.activities;
     _netSvg = svg;
     _netDayWidth = dayWidth;
-    // 恢复已保存的节点偏移（重渲染后保持位置）
+    // 恢复已保存的节点偏移(重渲染后保持位置)
     Object.keys(_netEventOffsets).forEach(function(eid) {
         var off = _netEventOffsets[eid];
         var g = svg && svg.querySelector('[data-event-id="' + eid + '"]');
@@ -1106,7 +1244,7 @@ window.renderNetwork = function(elementsJson, opts) {
             g.setAttribute('transform', 'translate(' + off.x + ',' + off.y + ')');
         }
     });
-    // 重渲染后恢复箭头路径（基于保存偏移）
+    // 重渲染后恢复箭头路径(基于保存偏移)
     Object.keys(_netEventOffsets).forEach(function(eid) {
         var off = _netEventOffsets[eid];
         if (off.x !== 0 || off.y !== 0) {
@@ -1125,7 +1263,7 @@ window.renderNetwork = function(elementsJson, opts) {
             _netNodeDrag = { eventId: eid, group: g, startX: e.clientX, startY: e.clientY, offX: off.x, offY: off.y, moved: false };
             g.style.cursor = 'grabbing';
             e.stopPropagation(); // stop canvas panning
-            // 不 preventDefault，让 dblclick 能触发
+            // 不 preventDefault,让 dblclick 能触发
         });
     }
 
@@ -1141,7 +1279,7 @@ window.renderNetwork = function(elementsJson, opts) {
         }
     }
 
-    // 全局拖动事件（只绑定一次）
+    // 全局拖动事件(只绑定一次)
     if (!window._netDragBound) {
         window._netDragBound = true;
         document.addEventListener('mousemove', function(e) {
@@ -1209,7 +1347,7 @@ window.renderNetwork = function(elementsJson, opts) {
     _networkData = { events: layout.events, activities: tp.activities, relations: tp.relations };
     _networkOpts = opts;
 
-    // ===== 画布拖拽平移（每次重渲染重绑定）=====
+    // ===== 画布拖拽平移(每次重渲染重绑定)=====
     var netBody = document.getElementById('network-body');
     if (netBody) {
         if (!window._panBound) {
@@ -1235,7 +1373,55 @@ window.renderNetwork = function(elementsJson, opts) {
     }
 };
 
-// ===== 节点拖拽全局工具（独立于 renderNetwork，避免闭包问题）=====
+// ===== 插入/删除空行 (A2) =====
+window._netInsertBlankRow = function(layerNum) {
+    // layerNum: 从0开始的层索引,在该层上方插入一个空行
+    var key = String(layerNum);
+    if (_netExtraSpacing[key] === undefined) _netExtraSpacing[key] = 0;
+    _netExtraSpacing[key] += 1;
+    if (_netLayout && _netLayout.events) {
+        Object.keys(_netLayout.events).forEach(function(eid) {
+            var evt = _netLayout.events[eid];
+            // 事件所属层通过 y 坐标推算
+            var layerIdx = Math.round((evt.y - 100) / 60);
+            if (layerIdx >= layerNum) {
+                evt.y += 60;
+            }
+        });
+    }
+    // 触发重新渲染
+    _triggerRerender();
+};
+
+window._netDeleteBlankRow = function(layerNum) {
+    var key = String(layerNum);
+    if (!_netExtraSpacing[key] || _netExtraSpacing[key] <= 0) return;
+    _netExtraSpacing[key] -= 1;
+    if (_netLayout && _netLayout.events) {
+        Object.keys(_netLayout.events).forEach(function(eid) {
+            var evt = _netLayout.events[eid];
+            var layerIdx = Math.round((evt.y - 100) / 60);
+            if (layerIdx >= layerNum) {
+                evt.y -= 60;
+            }
+        });
+    }
+    _triggerRerender();
+};
+
+function _triggerRerender() {
+    var tokenEl = document.getElementById('netplan-render-token');
+    var dataEl = document.getElementById('netplan-data');
+    var optsEl = document.getElementById('netplan-options');
+    if (tokenEl && dataEl && optsEl && typeof window.renderNetwork === 'function') {
+        _lastRenderedToken = null; // 强制重渲染
+        try {
+            window.renderNetwork(dataEl.value, JSON.parse(optsEl.value));
+        } catch(e) { console.error('[NET] rerender error', e); }
+    }
+}
+
+// ===== 节点拖拽全局工具(独立于 renderNetwork,避免闭包问题)=====
 function _netFindConnected(eventId) {
     var ids = [];
     if (_netActivities) _netActivities.forEach(function(a) { if (a.source === eventId || a.target === eventId) ids.push(a.id); });
@@ -1265,7 +1451,7 @@ function _netUpdateArrows(eventId, dx, dy) {
         var du = g.querySelector('.act-dur'); if (du) { du.setAttribute('x', lx); du.setAttribute('y', sy + nr + 10); }
     });
 }
-// 更新虚箭线（关系线，无活动箭头）
+// 更新虚箭线(关系线,无活动箭头)
 function _netUpdateDummys(eventId, dx, dy) {
     var svg = _netSvg;
     if (!svg || !_netLayout) return;
@@ -1288,7 +1474,7 @@ function _netUpdateDummys(eventId, dx, dy) {
         var p = g.querySelector('path'); if (p) p.setAttribute('d', pd);
     }
 }
-// 全局拖拽事件（绑定一次，通过全局 _netNodeDrag 通信）
+// 全局拖拽事件(绑定一次,通过全局 _netNodeDrag 通信)
 if (!window._netDragSetup) {
     window._netDragSetup = true;
     document.addEventListener('mousemove', function(e) {
@@ -1327,14 +1513,14 @@ if (!window._netDragSetup) {
             var isCreateNew = false;
             var endTypes = ['end','both'];
             if (evt && endTypes.indexOf(evt.type) !== -1 && deltaDays > 0 && deltaDays >= 1) {
-                // 检查目标位置是否无现有节点（空白区域）
+                // 检查目标位置是否无现有节点(空白区域)
                 var targetEs = (evt.es || 0) + deltaDays;
                 var hasNode = false;
                 if (_netLayout && _netLayout.events) {
                     var targetEid = 'T' + targetEs;
                     hasNode = !!_netLayout.events[targetEid];
                 }
-                // 目标天数是新的（空白）→ 创建新工作
+                // 目标天数是新的(空白)→ 创建新工作
                 if (!hasNode) isCreateNew = true;
             }
 
@@ -1344,7 +1530,7 @@ if (!window._netDragSetup) {
                 if (dotNet) {
                     _showDayPopup(deltaDays, (nodeDrag.cx || 0), (nodeDrag.cy || 0), function(days) {
                         if (days > 0) {
-                            // 弹回原位（新建任务的图会随重算刷新）
+                            // 弹回原位(新建任务的图会随重算刷新)
                             nodeDrag.group.setAttribute('transform', 'translate(0,0)');
                             delete _netEventOffsets[eid];
                             _netUpdateArrows(eid, 0, 0);
@@ -1353,7 +1539,7 @@ if (!window._netDragSetup) {
                             var dayOff = (evt.es || 0) + days;
                             dotNet.invokeMethodAsync('ShowAddTaskModal', tid, dayOff);
                         } else {
-                            // 取消 → 保留 Y 偏移，重置 X
+                            // 取消 → 保留 Y 偏移,重置 X
                             var yOff = _netEventOffsets[eid] ? _netEventOffsets[eid].y : 0;
                             nodeDrag.group.setAttribute('transform', 'translate(0,' + yOff + ')');
                             _netEventOffsets[eid] = { x: 0, y: yOff };
@@ -1363,21 +1549,21 @@ if (!window._netDragSetup) {
                     });
                 }
             } else if (tid > 0) {
-                // 标准拖拽：修改现有任务日期/工期
-                // Y 偏移保留（纵向微调），只对 X 偏移询问
+                // 标准拖拽:修改现有任务日期/工期
+                // Y 偏移保留(纵向微调),只对 X 偏移询问
                 _showDayPopup(deltaDays, (nodeDrag.cx || 0), (nodeDrag.cy || 0), function(days) {
                     if (days !== 0) {
                         var dotNet = _netDotNet || window._netDotNet;
                         var nodeRole = evt.type === 'start' ? 'start' : (evt.type === 'both' ? 'end' : 'end');
                         if (dotNet) {
-                            // 清除 X 偏移（SyncNodeDrag 会重渲染），保留 Y 偏移
+                            // 清除 X 偏移(SyncNodeDrag 会重渲染),保留 Y 偏移
                             var yOff = _netEventOffsets[eid] ? _netEventOffsets[eid].y : 0;
                             delete _netEventOffsets[eid];
                             if (yOff !== 0) _netEventOffsets[eid] = { x: 0, y: yOff };
                             dotNet.invokeMethodAsync('SyncNodeDrag', [tid], days, nodeRole);
                         }
                     } else {
-                        // 用户取消/输入0 X偏移 → 保留 Y 偏移，只重置 X
+                        // 用户取消/输入0 X偏移 → 保留 Y 偏移,只重置 X
                         var yOff = _netEventOffsets[eid] ? _netEventOffsets[eid].y : 0;
                         nodeDrag.group.setAttribute('transform', 'translate(0,' + yOff + ')');
                         _netEventOffsets[eid] = { x: 0, y: yOff };
@@ -1386,11 +1572,11 @@ if (!window._netDragSetup) {
                     }
                 });
             } else if (dx !== 0 || dy !== 0) {
-                // 合并节点（无 taskId 或 tid=0）：只做纵向微调，不弹出日期框
+                // 合并节点(无 taskId 或 tid=0):只做纵向微调,不弹出日期框
                 _netEventOffsets[eid] = { x: dx, y: dy };
             }
         } else {
-            // 单击（没移动）→ 弹回原位
+            // 单击(没移动)→ 弹回原位
             g.setAttribute('transform', 'translate(0,0)');
             delete _netEventOffsets[eid];
             _netUpdateArrows(eid, 0, 0);
@@ -1398,6 +1584,28 @@ if (!window._netDragSetup) {
         }
     });
 }
+
+// ===== 导出图形文件 (E4) =====
+window.exportNetworkSVG = function() {
+    var svg = document.getElementById('network-svg');
+    if (!svg) return '';
+    return svg.outerHTML;
+};
+
+window.downloadSVG = function(filename) {
+    var svg = document.getElementById('network-svg');
+    if (!svg) return;
+    var content = svg.outerHTML;
+    var blob = new Blob([content], {type: 'image/svg+xml;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'network.svg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
 
 // ===== 全局项目选中状态（localStorage）=====
 window.getActiveProject = function() {
@@ -1411,14 +1619,14 @@ window.navToProject = function(page, id) {
     window.location.href = '/project/' + id + '/' + page;
 };
 
-// ===== 首页项目勾选（跨标签联动）=====
+// ===== 首页项目勾选(跨标签联动)=====
 window.getCheckedProject = function() {
     return parseInt(localStorage.getItem('netplan_checked') || '0');
 };
 window.setCheckedProject = function(id) {
     localStorage.setItem('netplan_checked', id);
 };
-// 导航到勾选项目的指定页面，无勾选则回首页
+// 导航到勾选项目的指定页面,无勾选则回首页
 window.navToChecked = function(page) {
     var checked = window.getCheckedProject();
     if (checked > 0) {
@@ -1428,7 +1636,7 @@ window.navToChecked = function(page) {
     }
 };
 
-// 适应视图：缩放 SVG 使之适应可视区域
+// 适应视图:缩放 SVG 使之适应可视区域
 window.networkFit = function() {
     var body = document.getElementById('network-body');
     var svg = document.getElementById('network-svg');
@@ -1451,7 +1659,7 @@ window.networkFit = function() {
     if (hscroll) hscroll.scrollLeft = 0;
 };
 
-// 自动轮询检测token变化（兼容Blazor）
+// 自动轮询检测token变化(兼容Blazor)
 (function startNetworkPoller() {
     setInterval(function() {
         var tokenEl = document.getElementById('netplan-render-token');
@@ -1523,6 +1731,6 @@ window.networkFit = function() {
         targetCol = null;
     });
 
-    // 延迟初始化（等待 Blazor 渲染完成）
+    // 延迟初始化(等待 Blazor 渲染完成)
     setTimeout(initResize, 1000);
 })();

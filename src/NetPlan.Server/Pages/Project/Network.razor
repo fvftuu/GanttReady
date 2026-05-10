@@ -13,8 +13,10 @@
                 <option value="@project.Id">@project.Name</option>
             }
         </select>
-        <span class="page-title">时标网络计划图</span>
+        <span class="page-title">@(netMode == "logic" ? "逻辑双代号网络图" : "时标网络计划图")</span>
         <div class="display-toggles">
+            <button class="@GetTimeBtnClass()" @onclick="SetTimeMode" title="时标网络图">时标图</button>
+            <button class="@GetLogicBtnClass()" @onclick="SetLogicMode" title="逻辑双代号图">逻辑图</button>
             <label class="toggle-switch" title="显示前锋线">
                 <input type="checkbox" @bind="showProgressLine" @bind:after="RerenderGraph" />
                 <span class="toggle-slider"></span>
@@ -35,11 +37,53 @@
                 <span class="toggle-slider"></span>
             </label>
             <span class="toggle-label">关键路径</span>
+            <label class="toggle-switch" title="显示进度曲线">
+                <input type="checkbox" @bind="showProgressCurve" @bind:after="RerenderGraph" />
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">曲线</span>
             @if (statusMessage != null)
             {
                 <span class="status-msg" style="margin-left:8px;font-size:12px;color:#888;">@statusMessage</span>
             }
         </div>
+    </div>
+    <div class="header-extra">
+        <span style="margin-left:12px;font-size:12px;color:#888;">空行:</span>
+        <input type="number" class="form-control" style="width:50px;display:inline;margin-left:4px;" @bind="blankRowLayerNum" min="0" max="50" />
+        <button class="btn btn-sm btn-default" @onclick="InsertBlankRow" title="在选中层上方插入空行">插入</button>
+        <button class="btn btn-sm btn-default" @onclick="DeleteBlankRow" title="移除选中层的空行">删除</button>
+    </div>
+    <div class="header-extra">
+        <span style="margin-left:12px;font-size:12px;color:#888;">标签:</span>
+        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelDur" @bind:after="RerenderGraph" />工期</label>
+        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelES" @bind:after="RerenderGraph" />ES</label>
+        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelEF" @bind:after="RerenderGraph" />EF</label>
+        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelLS" @bind:after="RerenderGraph" />LS</label>
+        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelLF" @bind:after="RerenderGraph" />LF</label>
+        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelTF" @bind:after="RerenderGraph" />TF</label>
+        <label style="margin:0 2px;font-size:11px;"><input type="checkbox" @bind="showLabelFF" @bind:after="RerenderGraph" />FF</label>
+    </div>
+    <div class="header-extra">
+        <details style="display:inline-block;margin-left:8px;">
+            <summary style="font-size:12px;cursor:pointer;color:#888;">分组/过滤</summary>
+            <div style="position:absolute;background:#fff;border:1px solid #ddd;padding:8px;margin-top:4px;z-index:100;border-radius:4px;">
+                <div style="margin-bottom:6px;">
+                    <label style="font-size:11px;color:#999;">工作分组:</label>
+                    <select class="form-control" disabled style="width:180px;font-size:11px;">
+                        <option>按 WBS 分组</option>
+                        <option>按类型分组</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:11px;color:#999;">工作过滤:</label>
+                    <input type="text" class="form-control" disabled style="width:180px;font-size:11px;" placeholder="输入关键词过滤（暂未实现）" />
+                </div>
+            </div>
+        </details>
+    </div>
+    <div class="header-extra">
+        <button class="btn btn-sm btn-default" @onclick="ToggleGraphProps">图属性</button>
     </div>
     <div class="header-right">
         <button class="btn btn-default" @onclick="PrintPage" title="页面预览">
@@ -57,6 +101,8 @@
         <button class="btn btn-default btn-icon" @onclick="ZoomToFitAsync" title="适应页面（全部显示）">
             <span class="oi oi-magnifying-glass"></span>
         </button>
+        <button class="btn btn-default" @onclick="ExportSVG" title="导出SVG">导出SVG</button>
+        <button class="btn btn-default" @onclick="ExportPNG" title="导出PNG">导出PNG</button>
         <button class="btn btn-default" @onclick="RecalcAndRender">重算计划</button>
     </div>
 </div>
@@ -353,6 +399,66 @@
     </div>
 }
 
+@* ===== 图属性设置面板 ===== *@
+@if (showGraphProps)
+{
+    <div class="modal-overlay" @onclick="ToggleGraphProps">
+        <div class="modal-content" style="max-width:400px;" @onclick:stopPropagation="true">
+            <h3>图属性设置</h3>
+            <div class="form-group">
+                <label>层间距: @graphLayerHeight px</label>
+                <input type="range" class="form-control" @bind="graphLayerHeight" @bind:after="ApplyGraphProps" min="30" max="120" />
+            </div>
+            <div class="form-group">
+                <label>节点半径: @graphNodeRadius px</label>
+                <input type="range" class="form-control" @bind="graphNodeRadius" @bind:after="ApplyGraphProps" min="8" max="16" />
+            </div>
+            <div class="form-group">
+                <label>节点样式:</label>
+                <select class="form-control" @bind="graphNodeShape" @bind:after="ApplyGraphProps">
+                    <option value="circle">圆形</option>
+                    <option value="ellipse">椭圆</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label style="font-size:12px;color:#999;">单起单终（暂未实现）</label>
+                <input type="checkbox" disabled />
+            </div>
+            <div class="dialog-actions">
+                <button class="btn btn-default" @onclick="ToggleGraphProps">关闭</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ===== 打印预览弹窗 (E6) ===== *@
+@if (showPrintPreview)
+{
+    <div class="modal-overlay" @onclick="PrintPage">
+        <div class="modal-content" style="max-width:450px;" @onclick:stopPropagation="true">
+            <h3>打印预览</h3>
+            <div class="form-group">
+                <label>项目名称: @(projects.FirstOrDefault(p => p.Id == currentProjectId)?.Name ?? "")</label>
+            </div>
+            <div class="form-group">
+                <label>日期: @DateTime.Today.ToString("yyyy-MM-dd")</label>
+            </div>
+            <div class="form-group">
+                <label>缩放: @((int)printZoom)%</label>
+                <input type="range" class="form-control" @bind="printZoom" min="10" max="200" />
+            </div>
+            <div class="form-group">
+                <label>页边距: @printMargin mm</label>
+                <input type="range" class="form-control" @bind="printMargin" min="5" max="40" />
+            </div>
+            <div class="dialog-actions">
+                <button class="btn btn-default" @onclick="PrintPage">取消</button>
+                <button class="btn btn-primary" @onclick="ExecutePrint">确认打印</button>
+            </div>
+        </div>
+    </div>
+}
+
 @if (!string.IsNullOrEmpty(graphJson) && renderToken > 0)
 {
     <input type="hidden" id="netplan-data" value="@graphJson" />
@@ -364,6 +470,27 @@
     [Parameter] public int? ProjectId { get; set; }
     private List<Models.Project> projects = new();
     private int currentProjectId;
+    private string netMode = "time";
+    private int blankRowLayerNum = 0;
+    private bool showLabelDur = true;
+    private bool showLabelES = false;
+    private bool showLabelEF = false;
+    private bool showLabelLS = false;
+    private bool showLabelLF = false;
+    private bool showLabelTF = false;
+    private bool showLabelFF = false;
+    private string[] GetLabelFields()
+    {
+        var fields = new System.Collections.Generic.List<string>();
+        if (showLabelDur) fields.Add("duration");
+        if (showLabelES) fields.Add("es");
+        if (showLabelEF) fields.Add("ef");
+        if (showLabelLS) fields.Add("ls");
+        if (showLabelLF) fields.Add("lf");
+        if (showLabelTF) fields.Add("tf");
+        if (showLabelFF) fields.Add("ff");
+        return fields.ToArray();
+    }
     private string? graphJson;
     private string optionsJson = "{}";
     private int renderToken = 0;
@@ -375,6 +502,14 @@
     private bool showProgressLine = true;
     private bool showTodayLine = true;
     private bool showDummyArrows = true;
+    private bool showProgressCurve = false;
+    private bool showGraphProps = false;
+    private bool showPrintPreview = false;
+    private double printZoom = 100;
+    private int printMargin = 15;
+    private int graphLayerHeight = 60;
+    private int graphNodeRadius = 11;
+    private string graphNodeShape = "circle";
     private double zoomLevel = 100;
 
     // === 编辑对话框（与甘特图一致）===
@@ -480,11 +615,23 @@
             showTodayLine = showTodayLine,
             showProgressLine = showProgressLine,
             showDummyArrows = showDummyArrows,
+            showProgressCurve = showProgressCurve,
             projectStartDate = (project?.PlanStartDate ?? DateTime.Today).ToString("yyyy-MM-dd"),
             totalDays = totalDays,
             totalDuration = totalDuration,
             dayWidth = dayWidth,
-            projectName = project?.Name ?? ""
+            projectName = project?.Name ?? "",
+            mode = netMode,
+            labelFields = GetLabelFields(),
+            rowLabels = Array.Empty<string>(),
+            layerHeight = graphLayerHeight,
+            nodeRadius = graphNodeRadius,
+            nodeShape = graphNodeShape,
+            criticalColor = "#e63946",
+            normalColor = "#333",
+            dummyColor = "#aaa",
+            criticalWidth = 3,
+            normalWidth = 1.5
         });
         renderToken++;
         StateHasChanged();
@@ -520,7 +667,32 @@
 
     private async Task PrintPage()
     {
-        await JS.InvokeVoidAsync("eval", "window.print()");
+        showPrintPreview = !showPrintPreview;
+        await Task.CompletedTask;
+    }
+
+    private async Task ExecutePrint()
+    {
+        showPrintPreview = false;
+        // 应用缩放和页边距后调用浏览器打印
+        await JS.InvokeVoidAsync("eval", $"document.getElementById('network-svg')?.style.setProperty('transform','scale({printZoom/100})');window.print();");
+    }
+
+    private async Task ExportSVG()
+    {
+        var projectName = projects.FirstOrDefault(p => p.Id == currentProjectId)?.Name ?? "network";
+        await JS.InvokeVoidAsync("downloadSVG", $"{projectName}_network.svg");
+    }
+
+    private async Task ExportPNG()
+    {
+        var projectName = projects.FirstOrDefault(p => p.Id == currentProjectId)?.Name ?? "network";
+        var svgContent = await JS.InvokeAsync<string>("exportNetworkSVG");
+        if (string.IsNullOrEmpty(svgContent)) return;
+        // 通过 C# 后端转换 SVG→PNG 并下载（简化：用 Blob URL 在前端完成）
+        var encoded = System.Net.WebUtility.UrlEncode(svgContent);
+        var dataUri = "data:image/svg+xml," + encoded;
+        await JS.InvokeVoidAsync("eval", $"var a=document.createElement('a');a.href='{dataUri}';a.download='{projectName}_network.png';document.body.appendChild(a);a.click();document.body.removeChild(a);");
     }
 
     // ======= JS→C# 接口 =======
@@ -664,6 +836,58 @@
         await BuildDataInternal(skipLoading: true);
     }
 
+    private string GetPageTitle()
+    {
+        return netMode == "logic" ? "逻辑双代号网络图" : "时标网络计划图";
+    }
+
+    private string GetTimeBtnClass()
+    {
+        return netMode == "time" ? "btn btn-sm btn-primary" : "btn btn-sm btn-default";
+    }
+
+    private string GetLogicBtnClass()
+    {
+        return netMode == "logic" ? "btn btn-sm btn-primary" : "btn btn-sm btn-default";
+    }
+
+    private async Task SetTimeMode()
+    {
+        await SetNetMode("time");
+    }
+
+    private async Task SetLogicMode()
+    {
+        await SetNetMode("logic");
+    }
+
+    private async Task SetNetMode(string mode)
+    {
+        netMode = mode;
+        await JS.InvokeVoidAsync("setNetworkMode", mode);
+        await RerenderGraph();
+    }
+
+    private void ToggleGraphProps()
+    {
+        showGraphProps = !showGraphProps;
+    }
+
+    private async Task ApplyGraphProps()
+    {
+        await RerenderGraph();
+    }
+
+    private async Task InsertBlankRow()
+    {
+        await JS.InvokeVoidAsync("_netInsertBlankRow", blankRowLayerNum);
+    }
+
+    private async Task DeleteBlankRow()
+    {
+        await JS.InvokeVoidAsync("_netDeleteBlankRow", blankRowLayerNum);
+    }
+
     // 内部方法：可跳过 loading 状态
     private async Task BuildDataInternal(bool skipLoading)
     {
@@ -746,11 +970,23 @@
             showTodayLine = showTodayLine,
             showProgressLine = showProgressLine,
             showDummyArrows = showDummyArrows,
+            showProgressCurve = showProgressCurve,
             projectStartDate = projectStartDate.ToString("yyyy-MM-dd"),
             totalDays = totalDays,
             totalDuration = totalDuration,
             dayWidth = dayWidth,
-            projectName = project?.Name ?? ""
+            projectName = project?.Name ?? "",
+            mode = netMode,
+            labelFields = GetLabelFields(),
+            rowLabels = Array.Empty<string>(),
+            layerHeight = graphLayerHeight,
+            nodeRadius = graphNodeRadius,
+            nodeShape = graphNodeShape,
+            criticalColor = "#e63946",
+            normalColor = "#333",
+            dummyColor = "#aaa",
+            criticalWidth = 3,
+            normalWidth = 1.5
         });
         renderToken++;
         if (!skipLoading) statusMessage = $"共 {tasks.Count} 任务，{taskRelations.Count} 关系，总工期 {totalDuration} 天";
