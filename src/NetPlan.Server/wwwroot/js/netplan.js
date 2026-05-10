@@ -535,6 +535,7 @@ function applySingleStartEnd(data) {
     });
 
     // 如果只有一个起始和一个结束,无需处理
+    console.log('[NET] applySingleStartEnd: startEvents=' + startEvents.length + ' endEvents=' + endEvents.length);
     if (startEvents.length <= 1 && endEvents.length <= 1) return;
 
     var minEs = Infinity, maxEf = -Infinity;
@@ -696,9 +697,9 @@ function svgArrowMarker(crit, optCritColor, optNormalColor) {
     _svgArrowId++;
     var color = crit ? (optCritColor || '#e63946') : (optNormalColor || '#333');
     var id = 'arr-' + _svgArrowId;
-    // 开口箭头：M0,0→L8,4→L2,4（开口端）→L2,2→M0,0 的V形中空
-    var m = '<marker id="' + id + '" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto" markerUnits="strokeWidth">'
-          + '<path d="M0,0 L8,5 L2,5 L0,0 Z" fill="none" stroke="' + color + '" stroke-width="1.5"/></marker>';
+    // 开口箭头：尖头在 refX=0，V 形从左到右
+    var m = '<marker id="' + id + '" markerWidth="10" markerHeight="10" refX="0" refY="5" orient="auto" markerUnits="userSpaceOnUse">'
+          + '<path d="M10,2 L0,5 L10,8" fill="none" stroke="' + color + '" stroke-width="1.5"/></marker>';
     return { id: 'url(#' + id + ')', html: m, color: color };
 }
 
@@ -928,20 +929,9 @@ function buildNetworkSvg(params) {
             var tgt = p.layout.events[tgtId];
             if (!src || !tgt) return;
             var d;
-            if (isTimeMode && Math.abs(src.x - tgt.x) < 5) {
-                // 国标: 时标图中同X异Y的虚工作用垂直波折线
-                var stepH = Math.abs(tgt.y - src.y) / 5;
-                var dirY = tgt.y > src.y ? 1 : -1;
-                d = 'M' + src.x + ' ' + src.y;
-                for (var vi = 1; vi <= 4; vi++) {
-                    d += ' L' + (src.x + (vi % 2 === 0 ? 5 : -5)) + ' ' + (src.y + dirY * stepH * vi);
-                }
-                d += ' L' + tgt.x + ' ' + tgt.y;
-            } else {
-                var mx = src.x + (tgt.x - src.x) / 2;
-                d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y
-                      + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
-            }
+            var mx = src.x + (tgt.x - src.x) / 2;
+            d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y
+                  + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
             parts.push('<g class="dummy-rel" data-dummy-src="' + srcId + '" data-dummy-tgt="' + tgtId + '">');
             parts.push('<path d="' + d + '" fill="none" stroke="' + dummyColorUsed + '" stroke-width="1" stroke-dasharray="5,3"/>');
             parts.push('</g>');
@@ -956,20 +946,8 @@ function buildNetworkSvg(params) {
                 drawnDummies[key] = true;
                 var src = p.layout.events[srcId], tgt = p.layout.events[tgtId];
                 if (!src || !tgt || srcId === tgtId) return;
-                var d;
-                if (isTimeMode && Math.abs(src.x - tgt.x) < 5) {
-                    // 国标: 时标图中同X异Y用垂直波折线
-                    var stepH = Math.abs(tgt.y - src.y) / 5;
-                    var dirY = tgt.y > src.y ? 1 : -1;
-                    d = 'M' + src.x + ' ' + src.y;
-                    for (var vi = 1; vi <= 4; vi++) {
-                        d += ' L' + (src.x + (vi % 2 === 0 ? 5 : -5)) + ' ' + (src.y + dirY * stepH * vi);
-                    }
-                    d += ' L' + tgt.x + ' ' + tgt.y;
-                } else {
-                    var mx = src.x + (tgt.x - src.x) / 2;
-                    d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
-                }
+                var mx = src.x + (tgt.x - src.x) / 2;
+                d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
                 parts.push('<g class="dummy-rel" data-dummy-src="' + srcId + '" data-dummy-tgt="' + tgtId + '">');
                 parts.push('<path d="' + d + '" fill="none" stroke="' + dummyColorUsed + '" stroke-width="1" stroke-dasharray="5,3"/>');
                 parts.push('</g>');
@@ -982,7 +960,8 @@ function buildNetworkSvg(params) {
         var src = p.layout.events[act.source], tgt = p.layout.events[act.target];
         if (!src || !tgt) return;
         var isCrit = act.isCritical && p.showCritical;
-        var sx = src.x + NODE_R, sy = src.y, ex = tgt.x - NODE_R, ey = tgt.y;
+        var sx = src.x + NODE_R, sy = src.y; // 起始节点圆右边
+        var ex = tgt.x, ey = tgt.y;             // 结束节点圆心（marker refX=0 在圆边）
         var dur = act.duration || 0;
 
         var arrow = svgArrowMarker(isCrit, criticalColor, normalColor);
@@ -1005,6 +984,8 @@ function buildNetworkSvg(params) {
             } else {
                 pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + sy + ' L' + ex + ' ' + ey;
             }
+            // R3: arrows must go left-to-right
+            if (sx > ex) { console.warn('[NET] R3 backwards arrow: actId=' + act.id + ' src=' + act.source + ' tgt=' + act.target); }
         }
         parts.push('<g data-activity-id="' + act.id + '" data-src="' + act.source + '" data-tgt="' + act.target + '">');
         parts.push('<path class="act-arrow" d="' + pathD + '" fill="none" stroke="' + arrow.color
@@ -1076,6 +1057,60 @@ function buildNetworkSvg(params) {
             + '" dominant-baseline="middle" text-anchor="middle" font-size="' + nodeFontSize + '"'
             + ' font-weight="bold" fill="' + tc + '" style="pointer-events:none;">' + evtLabel + '</text>');
         parts.push('</g>');
+    });
+
+    // === 规则4: 母线法 - 多进/多出节点画汇聚标记 ===
+    var busThreshold = 3;
+    Object.keys(p.layout.events).forEach(function(eid) {
+        var evt = p.layout.events[eid];
+        if (evt.isVirtual) return;
+        var inCount = (p.layout.eventIn || {})[eid] || 0;
+        var outCount = (p.layout.eventOut || {})[eid] || 0;
+        if (inCount >= busThreshold) {
+            // 左侧汇聚短线
+            parts.push('<line x1="' + (evt.x - NODE_R - 6) + '" y1="' + (evt.y - 4) + '" x2="' + (evt.x - NODE_R + 2) + '" y2="' + (evt.y - 4) + '" stroke="#555" stroke-width="3" stroke-linecap="round"/>');
+        }
+        if (outCount >= busThreshold) {
+            // 右侧发散短线
+            parts.push('<line x1="' + (evt.x + NODE_R - 2) + '" y1="' + (evt.y - 4) + '" x2="' + (evt.x + NODE_R + 6) + '" y2="' + (evt.y - 4) + '" stroke="#555" stroke-width="3" stroke-linecap="round"/>');
+        }
+    });
+
+    // === 规则5: 过桥法 - 虚/实箭线交叉处画半圆桥接 ===
+    // 收集所有水平线段用于交叉检测
+    var hSegments = []; // {x1,y,x2,type}
+    p.timeParams.activities.forEach(function(act) {
+        var src = p.layout.events[act.source], tgt = p.layout.events[act.target];
+        if (!src || !tgt) return;
+        var lineY = src.y; // 水平线在起始节点高度
+        if (Math.abs(tgt.y - src.y) < 2) {
+            hSegments.push({x1: src.x + NODE_R, y: lineY, x2: tgt.x, type: 'work'});
+        } else {
+            hSegments.push({x1: src.x + NODE_R, y: lineY, x2: tgt.x, type: 'work'});
+        }
+    });
+    // 交叉检测: O(n^2) 简单
+    var crossPoints = [];
+    for (var i = 0; i < hSegments.length; i++) {
+        for (var j = i + 1; j < hSegments.length; j++) {
+            var a = hSegments[i], b = hSegments[j];
+            var ax1 = Math.min(a.x1, a.x2), ax2 = Math.max(a.x1, a.x2);
+            var bx1 = Math.min(b.x1, b.x2), bx2 = Math.max(b.x1, b.x2);
+            // 水平线段交叉: Y不同且X区间重叠
+            if (Math.abs(a.y - b.y) > 10 && ax1 < bx2 && bx1 < ax2) {
+                var crossX = (Math.max(ax1, bx1) + Math.min(ax2, bx2)) / 2;
+                crossPoints.push({x: crossX, y1: Math.min(a.y, b.y), y2: Math.max(a.y, b.y)});
+            }
+        }
+    }
+    // 过桥标记(取前5个交叉,画半圆弧)
+    crossPoints.slice(0, 20).forEach(function(cp) {
+        var midY = (cp.y1 + cp.y2) / 2;
+        var r = 5;
+        parts.push('<path d="M' + (cp.x - r) + ' ' + cp.y1 + ' A' + r + ' ' + r + ' 0 0 0 ' + (cp.x + r) + ' ' + cp.y1 
+            + '" fill="none" stroke="#ff6b6b" stroke-width="1"/>');
+        parts.push('<path d="M' + (cp.x + r) + ' ' + cp.y2 + ' A' + r + ' ' + r + ' 0 0 1 ' + (cp.x - r) + ' ' + cp.y2
+            + '" fill="none" stroke="#ff6b6b" stroke-width="1"/>');
     });
 
     // === 今日线(红色虚线,从标尺顶部到底部标尺上方)===
@@ -1375,6 +1410,13 @@ window.renderNetwork = function(elementsJson, opts) {
     var singleStartEnd = opts.singleStartEnd !== false;
     if (singleStartEnd) applySingleStartEnd(tp);
     var layout = calculateVerticalLayout(tp);
+
+    // R4: precompute in/out degree per event for bus lines
+    layout.eventIn = {}; layout.eventOut = {};
+    Object.keys(layout.events).forEach(function(eid) {
+        layout.eventIn[eid] = (tp.eventPred[eid] || []).length;
+        layout.eventOut[eid] = (tp.eventSucc[eid] || []).length;
+    });
 
     var ML = 80, RH = 70;
     if (mode === 'logic') {
