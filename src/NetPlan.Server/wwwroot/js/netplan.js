@@ -858,9 +858,21 @@ function buildNetworkSvg(params) {
             var src = p.layout.events[srcId];
             var tgt = p.layout.events[tgtId];
             if (!src || !tgt) return;
-            var mx = src.x + (tgt.x - src.x) / 2;
-            var d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y
-                  + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
+            var d;
+            if (isTimeMode && Math.abs(src.x - tgt.x) < 5) {
+                // 国标: 时标图中同X异Y的虚工作用垂直波折线
+                var stepH = Math.abs(tgt.y - src.y) / 5;
+                var dirY = tgt.y > src.y ? 1 : -1;
+                d = 'M' + src.x + ' ' + src.y;
+                for (var vi = 1; vi <= 4; vi++) {
+                    d += ' L' + (src.x + (vi % 2 === 0 ? 5 : -5)) + ' ' + (src.y + dirY * stepH * vi);
+                }
+                d += ' L' + tgt.x + ' ' + tgt.y;
+            } else {
+                var mx = src.x + (tgt.x - src.x) / 2;
+                d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y
+                      + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
+            }
             parts.push('<g class="dummy-rel" data-dummy-src="' + srcId + '" data-dummy-tgt="' + tgtId + '">');
             parts.push('<path d="' + d + '" fill="none" stroke="' + dummyColorUsed + '" stroke-width="1" stroke-dasharray="5,3"/>');
             parts.push('</g>');
@@ -875,9 +887,20 @@ function buildNetworkSvg(params) {
                 drawnDummies[key] = true;
                 var src = p.layout.events[srcId], tgt = p.layout.events[tgtId];
                 if (!src || !tgt || srcId === tgtId) return;
-                // Draw implicit dummy (orthogonal L-shape)
-                var mx = src.x + (tgt.x - src.x) / 2;
-                var d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
+                var d;
+                if (isTimeMode && Math.abs(src.x - tgt.x) < 5) {
+                    // 国标: 时标图中同X异Y用垂直波折线
+                    var stepH = Math.abs(tgt.y - src.y) / 5;
+                    var dirY = tgt.y > src.y ? 1 : -1;
+                    d = 'M' + src.x + ' ' + src.y;
+                    for (var vi = 1; vi <= 4; vi++) {
+                        d += ' L' + (src.x + (vi % 2 === 0 ? 5 : -5)) + ' ' + (src.y + dirY * stepH * vi);
+                    }
+                    d += ' L' + tgt.x + ' ' + tgt.y;
+                } else {
+                    var mx = src.x + (tgt.x - src.x) / 2;
+                    d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
+                }
                 parts.push('<g class="dummy-rel" data-dummy-src="' + srcId + '" data-dummy-tgt="' + tgtId + '">');
                 parts.push('<path d="' + d + '" fill="none" stroke="' + dummyColorUsed + '" stroke-width="1" stroke-dasharray="5,3"/>');
                 parts.push('</g>');
@@ -894,17 +917,23 @@ function buildNetworkSvg(params) {
         var dur = act.duration || 0;
 
         var arrow = svgArrowMarker(isCrit, criticalColor, normalColor);
-        // 箭头已取消,不推入 markers
+        // 箭头 marker (国标规范)
+        markers.push(arrow.html);
 
         var pathD;
-        if (Math.abs(ey - sy) < 5) {
-            pathD = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + ey;
+        if (isTimeMode) {
+            // 国标: 时标网络图中所有工作箭线必须是水平直线
+            pathD = 'M' + sx + ' ' + sy + ' L' + (ex - 3) + ' ' + sy;
         } else {
-            pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + sy + ' L' + ex + ' ' + ey;
+            if (Math.abs(ey - sy) < 5) {
+                pathD = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + ey;
+            } else {
+                pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + sy + ' L' + ex + ' ' + ey;
+            }
         }
         parts.push('<g data-activity-id="' + act.id + '" data-src="' + act.source + '" data-tgt="' + act.target + '">');
         parts.push('<path class="act-arrow" d="' + pathD + '" fill="none" stroke="' + arrow.color
-            + '" stroke-width="' + (isCrit ? criticalWidth : normalWidth) + '"/>');
+            + '" stroke-width="' + (isCrit ? criticalWidth : normalWidth) + '" marker-end="' + arrow.id + '"/>');
 
         var lx = (sx + ex) / 2, ly = sy - NODE_R - 6;
         var labelFields = p.labelFields || [];
@@ -980,7 +1009,7 @@ function buildNetworkSvg(params) {
         }
     }
 
-    // === 可拖动前锋线(JGJ/T121-2015)蓝色#1890ff,与今日线解耦 ===
+    // === 前锋线(JGJ/T121-2015): 逐工作进度点连折线 ===
     if (isTimeMode && p.showProgressLine) {
         if (!_progressCheckDate) { _progressCheckDate = new Date(); _progressCheckDate.setHours(0,0,0,0); }
         var progressOffset = Math.floor((_progressCheckDate.getTime() - sd.getTime()) / 86400000);
@@ -991,10 +1020,45 @@ function buildNetworkSvg(params) {
         _progressX = pxLine;
         _projStartDate = sd;
         var checkLabel = _progressCheckDate.getFullYear() + '-' + String(_progressCheckDate.getMonth()+1).padStart(2,'0') + '-' + String(_progressCheckDate.getDate()).padStart(2,'0');
-        parts.push('<g id="net-progress-line" style="cursor:ew-resize;">'
-            + '<line id="net-pl-line" x1="' + pxLine + '" y1="0" x2="' + pxLine + '" y2="' + bottomRulerY + '" stroke="#1890ff" stroke-width="2"/>'
-            + '<polygon id="net-pl-handle" points="' + (pxLine-7) + ',0 ' + (pxLine+7) + ',0 ' + pxLine + ',14" fill="#e74c3c"/>'
-            + '<text id="net-pl-label" x="' + (pxLine + 4) + '" y="12" font-size="10" fill="#e74c3c" font-weight="bold">' + checkLabel + '</text>'
+
+        // 收集所有工作箭线上的进度点(按行从上到下排列)
+        var progPts = [];
+        var acts = p.timeParams.activities || [];
+        acts.forEach(function(act) {
+            var src = p.layout.events[act.source], tgt = p.layout.events[act.target];
+            if (!src || !tgt) return;
+            var dur = act.duration || 1;
+            var comp = act.completion || 0;
+            // 计划进度点: 检查日 - ES 在箭线上的位置
+            var checkDay = Math.round(progressOffset);
+            var es = act.es || 0;
+            var ef = act.ef || 0;
+            // 实际进度点: 按实际完成百分比在工作箭线上定位
+            if (dur > 0 && ef > es) {
+                var totalPxWidth = (ef - es) * dw;
+                var actualPx = src.x + NODE_R + totalPxWidth * comp / 100;
+                progPts.push({ x: actualPx, y: src.y, act: act, type: 'actual' });
+            }
+        });
+        // 按Y从上到下排序
+        progPts.sort(function(a, b) { return a.y - b.y; });
+
+        if (progPts.length > 1) {
+            var polyPts = progPts.map(function(p) { return p.x + ',' + p.y; }).join(' ');
+            parts.push('<g id="net-progress-line" style="cursor:ew-resize;">'
+                + '<polyline id="net-pl-poly" points="' + polyPts + '" fill="none" stroke="#1890ff" stroke-width="2" stroke-dasharray="6,3"/>'
+                + '</g>');
+            // 进度圆点
+            progPts.forEach(function(p) {
+                parts.push('<circle cx="' + p.x + '" cy="' + p.y + '" r="4" fill="#1890ff" style="pointer-events:none"/>');
+            });
+        }
+
+        // 检查日期标线(竖虚线) + 顶部标签
+        parts.push('<g id="net-progress-check">'
+            + '<line x1="' + pxLine + '" y1="0" x2="' + pxLine + '" y2="' + bottomRulerY + '" stroke="#e74c3c" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>'
+            + '<polygon points="' + (pxLine-7) + ',0 ' + (pxLine+7) + ',0 ' + pxLine + ',14" fill="#e74c3c"/>'
+            + '<text x="' + (pxLine + 4) + '" y="12" font-size="10" fill="#e74c3c" font-weight="bold">' + checkLabel + '</text>'
             + '</g>');
     }
 
@@ -1035,7 +1099,8 @@ function buildNetworkSvg(params) {
                         dayCount++;
                     }
                 });
-                var avgPct = dayCount > 0 ? dayComp / dayCount : 0;
+                var avgPct = dayCount > 0 ? dayComp / dayCount : -1; // P2-6: -1表示无任务天，跳过
+                if (avgPct < 0) continue; // 不添加无任务天的点，曲线自然断开
                 var px = MARGIN_LEFT + d * dw + dw / 2;
                 var py = curveYMax + curveYRange * (1 - avgPct / 100);
                 curvePoints.push(px + ',' + py);
@@ -1053,12 +1118,7 @@ function buildNetworkSvg(params) {
         }
     }
 
-    // === 标题 ===
-    parts.push('<text x="10" y="80" font-size="13" font-weight="bold" fill="#333">' + (p.projectName || '') + '</text>');
-    var subtitle = isTimeMode ? '时标网络计划图' : '逻辑双代号网络图';
-    parts.push('<text x="10" y="97" font-size="13" font-weight="bold" fill="#333">' + subtitle + '</text>');
-
-    // === 总工期(对齐甘特图:首末任务日期跨度)===
+    // === 总工期 ===
     var totalDur = p.totalDuration || 0;
     parts.push('<text x="' + (cw - 12) + '" y="80" font-size="12" font-weight="bold" fill="#e63946" text-anchor="end">'
         + '总工期=' + totalDur + '天</text>');
@@ -1368,13 +1428,14 @@ window.renderNetwork = function(elementsJson, opts) {
 
     // ===== 前锋线拖动 =====
     if (showProgressLine) {
-        var plGroup = document.getElementById('net-progress-line');
+        var plGroup = document.getElementById('net-progress-check');
         if (plGroup && svg) {
             plGroup.onmousedown = function(e) {
                 e.preventDefault();
                 var bodyEl = document.getElementById('network-body');
                 _dragInfo = { startX: e.clientX, startLineX: _progressX, startScrollLeft: bodyEl ? bodyEl.scrollLeft : 0 };
             };
+            plGroup.style.cursor = 'ew-resize';
         }
     }
 
@@ -1392,13 +1453,14 @@ window.renderNetwork = function(elementsJson, opts) {
             var minX = 80, maxX = parseFloat(svg.getAttribute('width')) - 100;
             newX = Math.max(minX, Math.min(newX, maxX));
 
-            // 移动前锋线元素
-            var line = document.getElementById('net-pl-line');
-            var handle = document.getElementById('net-pl-handle');
-            var label = document.getElementById('net-pl-label');
+            // 移动检查线元素
+            var checkGroup = document.getElementById('net-progress-check');
+            var line = checkGroup ? checkGroup.querySelector('line') : null;
+            var handle = checkGroup ? checkGroup.querySelector('polygon') : null;
+            var label = checkGroup ? checkGroup.querySelector('text') : null;
             if (line) { line.setAttribute('x1', newX); line.setAttribute('x2', newX); }
             if (handle) handle.setAttribute('points', (newX-7)+',0 '+(newX+7)+',0 '+newX+',14');
-            if (label) label.setAttribute('x', newX + 4);
+            if (label) { label.setAttribute('x', newX + 4); }
 
             // 计算新检查日期
             if (_projStartDate) {
@@ -1454,7 +1516,7 @@ window.renderNetwork = function(elementsJson, opts) {
             var panState = null;
             netBody.addEventListener('mousedown', function(e) {
                 if (e.target.closest('.net-event') || e.target.closest('[data-activity-id]')) return;
-                if (e.target.closest('#net-progress-line')) return;
+                if (e.target.closest('#net-progress-line') || e.target.closest('#net-progress-check')) return;
                 panState = { x: e.clientX, y: e.clientY, sx: netBody.scrollLeft, sy: netBody.scrollTop };
                 netBody.style.cursor = 'grabbing';
             });
