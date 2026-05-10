@@ -936,8 +936,10 @@ function buildNetworkSvg(params) {
         if (p.showFloat && act.ff > 0 && !isCrit) {
             var fex = Math.min(ex + act.ff * p.dayWidth, cw - 10);
             var wp = 'M' + ex + ' ' + ey;
-            for (var s = 0; s < 10; s++) {
-                var t = s / 10;
+            // P1-3: 分段数按波形线实际宽度自适应（每~8px一个锯齿）
+            var waveSegments = Math.max(8, Math.ceil((fex - ex) / 8));
+            for (var s = 0; s < waveSegments; s++) {
+                var t = s / waveSegments;
                 wp += ' L' + (ex + (fex - ex) * t) + ' ' + (ey + (s % 2 ? -3 : 3));
             }
             parts.push('<path class="act-wave" d="' + wp + '" fill="none" stroke="#FFD700" stroke-width="1" stroke-dasharray="4,3"/>');
@@ -1017,9 +1019,9 @@ function buildNetworkSvg(params) {
         var acts = p.timeParams.activities || [];
         if (acts.length > 0) {
             var curvePoints = [];
-            // Bug 5: 将进度曲线移至标尺下方（56-88），不覆盖顶部时间标尺（0-52）
-            var curveYMin = 88; // bottom of curve area (below ruler, above events)
-            var curveYMax = 56; // top of curve area (just below ruler bottom)
+            // Bug 5: 将进度曲线移至标尺下方（90-120），不覆盖顶部时间标尺（0-52），避开标题
+            var curveYMin = 120; // bottom of curve area (below ruler, below title, above events)
+            var curveYMax = 90; // top of curve area (below title text)
             var curveYRange = curveYMin - curveYMax;
             for (var d = 0; d < td; d++) {
                 var dayComp = 0;
@@ -1271,7 +1273,7 @@ window.renderNetwork = function(elementsJson, opts) {
         var layerNum = parseInt(key);
         Object.keys(layout.events).forEach(function(eid) {
             var evt = layout.events[eid];
-            var layerIdx = Math.round((evt.y - 100) / 60);
+            var layerIdx = Math.round((evt.y - 100) / netLayerHeight);
             if (layerIdx >= layerNum) {
                 evt.y += extraCount * netLayerHeight;
             }
@@ -1478,7 +1480,7 @@ window._netInsertBlankRow = function(layerNum) {
     if (_netLayout && _netLayout.events) {
         Object.keys(_netLayout.events).forEach(function(eid) {
             var evt = _netLayout.events[eid];
-            var layerIdx = Math.round((evt.y - 100) / 60);
+            var layerIdx = Math.round((evt.y - 100) / lh);
             if (layerIdx >= layerNum) {
                 evt.y += lh;
             }
@@ -1495,7 +1497,7 @@ window._netDeleteBlankRow = function(layerNum) {
     if (_netLayout && _netLayout.events) {
         Object.keys(_netLayout.events).forEach(function(eid) {
             var evt = _netLayout.events[eid];
-            var layerIdx = Math.round((evt.y - 100) / 60);
+            var layerIdx = Math.round((evt.y - 100) / lh);
             if (layerIdx >= layerNum) {
                 evt.y -= lh;
             }
@@ -1576,7 +1578,7 @@ if (!window._netDragSetup) {
         if (!_netNodeDrag) return;
         var rawDx = e.clientX - _netNodeDrag.startX, rawDy = e.clientY - _netNodeDrag.startY;
         var dx = _netNodeDrag.offX + rawDx;
-        var LAYER_H = 60;
+        var LAYER_H = (_networkOpts && _networkOpts.layerHeight) ? _networkOpts.layerHeight : 60;
         var dy = _netNodeDrag.offY + Math.round(rawDy / LAYER_H) * LAYER_H;
         _netNodeDrag.group.setAttribute('transform', 'translate(' + dx + ',' + dy + ')');
         _netUpdateArrows(_netNodeDrag.eventId, dx, dy);
@@ -1843,7 +1845,7 @@ window.networkFit = function() {
             console.log('[NET] poller: calling renderNetwork...');
             window.renderNetwork(dataEl.value, JSON.parse(optsEl.value));
         } catch(e) { console.error('[NET] renderNetwork error', e); }
-    }, 300);
+    }, 500); // P3-6: 降低轮询频率，减少 CPU 开销
 })();
 
 // ========== 甘特图列宽拖拽调整 ==========
