@@ -155,7 +155,7 @@ public class ScheduleEngine : IScheduleEngine
                         ls = successor.SuccessorTask.LateFinish.Value - lag + task.PlanDuration;
                         break;
                     case RelationType.FF:
-                        // predecessor.LF = successor.LF - lag + predecessor.Duration
+                        // predecessor.LF = successor.LF - lag
                         ls = successor.SuccessorTask.LateFinish.Value - lag;
                         break;
                 }

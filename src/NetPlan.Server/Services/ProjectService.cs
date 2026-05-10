@@ -148,6 +148,7 @@ public class ProjectService : IProjectService
         existing.Name = task.Name;
         existing.SortOrder = task.SortOrder;
         existing.ParentTaskId = task.ParentTaskId;
+        existing.OutlineLevel = task.OutlineLevel;
         existing.ResponsiblePerson = task.ResponsiblePerson;
         existing.CompletionPercentage = task.CompletionPercentage;
         existing.IsMilestone = task.IsMilestone;
@@ -189,7 +190,7 @@ public class ProjectService : IProjectService
     public async Task<List<TaskRelation>> GetRelationsByProjectIdAsync(int projectId)
     {
         return await _db.TaskRelations
-            .Where(r => r.PredecessorTask.ProjectId == projectId)
+            .Where(r => r.ProjectId == projectId)
             .Include(r => r.PredecessorTask)
             .Include(r => r.SuccessorTask)
             .ToListAsync();
@@ -256,6 +257,11 @@ public class ProjectService : IProjectService
         await _db.SaveChangesAsync();
 
         return projectDuration;
+    }
+
+    public async Task SaveChangesAsync()
+    {
+        await _db.SaveChangesAsync();
     }
 
     #endregion

@@ -46,6 +46,11 @@ public class NetPlanDbContext : DbContext
         // TaskRelation 配置
         modelBuilder.Entity<TaskRelation>(entity =>
         {
+            entity.HasOne(r => r.Project)
+                .WithMany()
+                .HasForeignKey(r => r.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             entity.HasOne(r => r.PredecessorTask)
                 .WithMany(t => t.Successors)
                 .HasForeignKey(r => r.PredecessorTaskId)
@@ -55,6 +60,8 @@ public class NetPlanDbContext : DbContext
                 .WithMany(t => t.Predecessors)
                 .HasForeignKey(r => r.SuccessorTaskId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(r => r.ProjectId);
         });
 
         // Resource 配置

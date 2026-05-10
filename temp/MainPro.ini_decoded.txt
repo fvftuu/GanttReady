@@ -1,0 +1,16 @@
+[App_Info]
+APP_NAME=进度计划管理系统
+PROFILENAME=进度计划编制
+ICO=wd.ico
+SPLASHBIM=splash.bmp
+
+
+[About_Info]
+LOG=wd.ico
+MAINPROJECT_NAME=维迪进度计划编制 V6.1
+TELEPHONE=联系电话：0371-67716986,67972464
+ADDRESS=联系地址：郑州市嵩山路1号14楼
+URL=http://www.wdrj.com
+EMAIL=wdrj@wdrj.com
+VER=版权所有 (C) 2002-2006 WD Technology
+

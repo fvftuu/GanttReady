@@ -163,6 +163,7 @@ public class ProjectXmlImportService
 
                     var relation = new TaskRelation
                     {
+                        ProjectId = projectId,
                         PredecessorTaskId = uidToId[predUid],
                         SuccessorTaskId = uidToId[uid],
                         Type = relType,

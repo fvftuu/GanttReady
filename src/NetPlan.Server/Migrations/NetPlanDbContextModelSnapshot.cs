@@ -326,6 +326,9 @@ partial class NetPlanDbContextModelSnapshot : ModelSnapshot
             b.Property<int>("PredecessorTaskId")
                 .HasColumnType("INTEGER");
 
+            b.Property<int>("ProjectId")
+                .HasColumnType("INTEGER");
+
             b.Property<int>("SuccessorTaskId")
                 .HasColumnType("INTEGER");
 
@@ -337,6 +340,8 @@ partial class NetPlanDbContextModelSnapshot : ModelSnapshot
             b.HasKey("Id");
 
             b.HasIndex("PredecessorTaskId");
+
+            b.HasIndex("ProjectId");
 
             b.HasIndex("SuccessorTaskId");
 
@@ -401,6 +406,12 @@ partial class NetPlanDbContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("NetPlan.Server.Models.TaskRelation", b =>
         {
+            b.HasOne("NetPlan.Server.Models.Project", "Project")
+                .WithMany()
+                .HasForeignKey("ProjectId")
+                .OnDelete(DeleteBehavior.Cascade)
+                .IsRequired();
+
             b.HasOne("NetPlan.Server.Models.TaskItem", "PredecessorTask")
                 .WithMany("Successors")
                 .HasForeignKey("PredecessorTaskId")
@@ -414,6 +425,7 @@ partial class NetPlanDbContextModelSnapshot : ModelSnapshot
                 .IsRequired();
 
             b.Navigation("PredecessorTask");
+            b.Navigation("Project");
             b.Navigation("SuccessorTask");
         });
 

@@ -1,0 +1,16 @@
+bin/
+obj/
+packages/
+.vs/
+.vscode/
+*.db
+*.db-shm
+*.db-wal
+.buildworkbuddy/
+.playwright-cli/
+*.log
+*.txt
+*.png
+*.ps1
+*.bat
+tools/

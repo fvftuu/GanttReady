@@ -1,0 +1,12 @@
+version: "3.8"
+services:
+  netplan:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/netplan.db
+    restart: unless-stopped

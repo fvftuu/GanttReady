@@ -377,6 +377,7 @@ public class ExcelTemplateService
                                 {
                                     var relation = new TaskRelation
                                     {
+                                        ProjectId = projectId,
                                         PredecessorTaskId = taskCodeMap[predTrim].Id,
                                         SuccessorTaskId = task.Id,
                                         Type = relationType,
@@ -542,4 +543,99 @@ public class ExcelTemplateService
     }
 
     #endregion
+
+    /// <summary>
+    /// 生成空白导入模板 (xlsx 字节数组)
+    /// </summary>
+    public Task<byte[]> GenerateBlankTemplateAsync()
+    {
+        using var workbook = new XLWorkbook();
+
+        // ========== Sheet 1: 任务与资源数据 ==========
+        var ws1 = workbook.Worksheets.Add("任务与资源数据");
+
+        var headers1 = new[] { "序号", "任务代码", "任务名称", "负责人", "计划开始", "计划完成", "工期(天)", "实际开始", "实际完成", "前置任务", "时差", "关系类型", "完成率(%)", "资源名称", "资源数量", "单位", "备注" };
+        for (int i = 0; i < headers1.Length; i++)
+        {
+            var cell = ws1.Cell(1, i + 1);
+            cell.Value = headers1[i];
+            cell.Style.Font.Bold = true;
+            cell.Style.Fill.BackgroundColor = XLColor.LightGray;
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        }
+
+        ws1.Cell(2, 1).Value = 1;
+        ws1.Cell(2, 2).Value = "A1";
+        ws1.Cell(2, 3).Value = "项目立项与审批";
+        ws1.Cell(2, 4).Value = "张三";
+        ws1.Cell(2, 5).Value = "2026-01-01";
+        ws1.Cell(2, 6).Value = "2026-01-30";
+        ws1.Cell(2, 7).Value = 30;
+        ws1.Cell(2, 8).Value = "";
+        ws1.Cell(2, 9).Value = "";
+        ws1.Cell(2, 10).Value = "";
+        ws1.Cell(2, 11).Value = 0;
+        ws1.Cell(2, 12).Value = "FS";
+        ws1.Cell(2, 13).Value = 0;
+        ws1.Cell(2, 14).Value = "项目经理";
+        ws1.Cell(2, 15).Value = 1;
+        ws1.Cell(2, 16).Value = "人";
+        ws1.Cell(2, 17).Value = "项目管理";
+
+        ws1.Cell(3, 1).Value = 2;
+        ws1.Cell(3, 2).Value = "A2";
+        ws1.Cell(3, 3).Value = "施工图设计";
+        ws1.Cell(3, 4).Value = "李四";
+        ws1.Cell(3, 5).Value = "2026-01-16";
+        ws1.Cell(3, 6).Value = "2026-05-15";
+        ws1.Cell(3, 7).Value = 120;
+        ws1.Cell(3, 10).Value = "A1";
+        ws1.Cell(3, 11).Value = 0;
+        ws1.Cell(3, 12).Value = "FS";
+        ws1.Cell(3, 14).Value = "港航工程师";
+        ws1.Cell(3, 15).Value = 2;
+        ws1.Cell(3, 16).Value = "人";
+
+        int[] widths1 = { 6, 10, 20, 10, 14, 14, 10, 14, 14, 12, 6, 8, 10, 15, 10, 8, 15 };
+        for (int i = 0; i < widths1.Length; i++) ws1.Column(i + 1).Width = widths1[i];
+
+        // ========== Sheet 2: 资源数据 ==========
+        var ws2 = workbook.Worksheets.Add("资源数据");
+
+        var headers2 = new[] { "资源代码", "资源名称", "资源类型", "单位", "数量", "单价", "小时成本", "备注" };
+        for (int i = 0; i < headers2.Length; i++)
+        {
+            ws2.Cell(1, i + 1).Value = headers2[i];
+            ws2.Cell(1, i + 1).Style.Font.Bold = true;
+            ws2.Cell(1, i + 1).Style.Fill.BackgroundColor = XLColor.LightGray;
+            ws2.Cell(1, i + 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            ws2.Cell(1, i + 1).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        }
+
+        ws2.Cell(2, 1).Value = "R001";
+        ws2.Cell(2, 2).Value = "项目经理";
+        ws2.Cell(2, 3).Value = "Labor";
+        ws2.Cell(2, 4).Value = "人";
+        ws2.Cell(2, 5).Value = 1;
+        ws2.Cell(2, 6).Value = 0;
+        ws2.Cell(2, 7).Value = 150;
+        ws2.Cell(2, 8).Value = "一级建造师";
+
+        ws2.Cell(3, 1).Value = "R002";
+        ws2.Cell(3, 2).Value = "港航工程师";
+        ws2.Cell(3, 3).Value = "Labor";
+        ws2.Cell(3, 4).Value = "人";
+        ws2.Cell(3, 5).Value = 2;
+        ws2.Cell(3, 6).Value = 0;
+        ws2.Cell(3, 7).Value = 100;
+        ws2.Cell(3, 8).Value = "中级职称";
+
+        int[] widths2 = { 10, 15, 12, 8, 8, 10, 12, 15 };
+        for (int i = 0; i < widths2.Length; i++) ws2.Column(i + 1).Width = widths2[i];
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return Task.FromResult(stream.ToArray());
+    }
 }

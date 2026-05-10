@@ -206,4 +206,73 @@ public class AnalysisService : IAnalysisService
 
         return result;
     }
+
+    public async Task<ResourceLevelingResult> LevelResourcesAsync(int projectId)
+    {
+        var result = new ResourceLevelingResult();
+        var assignments = await _db.ResourceAssignments
+            .Include(a => a.Task)
+            .Include(a => a.Resource)
+            .Where(a => a.Task.ProjectId == projectId)
+            .OrderBy(a => a.Task.EarlyStart)
+            .ToListAsync();
+
+        if (!assignments.Any())
+        {
+            result.Summary = "没有资源分配数据";
+            return result;
+        }
+
+        var byResource = assignments.GroupBy(a => a.ResourceId);
+        foreach (var resourceGroup in byResource)
+        {
+            var resource = resourceGroup.First().Resource;
+            if (resource == null) continue;
+            decimal capacity = resource.Quantity > 0 ? resource.Quantity : 1;
+
+            var monthlyUsage = new Dictionary<string, (decimal Usage, List<ResourceAssignment> Tasks)>();
+            foreach (var a in resourceGroup)
+            {
+                var cursor = a.Task.PlanStartDate;
+                var end = cursor.AddDays(a.Task.PlanDuration);
+                while (cursor < end)
+                {
+                    var key = cursor.ToString("yyyy-MM");
+                    if (!monthlyUsage.ContainsKey(key))
+                        monthlyUsage[key] = (0, new());
+                    var (usage, tasks) = monthlyUsage[key];
+                    monthlyUsage[key] = (usage + a.Quantity, tasks.Append(a).ToList());
+                    cursor = cursor.AddMonths(1);
+                }
+            }
+
+            foreach (var (month, (usage, tasks)) in monthlyUsage)
+            {
+                if (usage <= capacity) continue;
+                result.ConflictsDetected++;
+
+                var sorted = tasks.OrderBy(a => a.Task.TotalFloat ?? int.MaxValue)
+                                  .ThenBy(a => a.Task.EarlyStart).ToList();
+                foreach (var a in sorted.Skip(1))
+                {
+                    result.Adjustments.Add(new LevelingAdjustment
+                    {
+                        TaskCode = a.Task.Code,
+                        TaskName = a.Task.Name,
+                        OriginalStart = a.Task.PlanStartDate,
+                        AdjustedStart = a.Task.PlanStartDate.AddMonths(1),
+                        DelayDays = 30,
+                        ResourceName = resource.Name,
+                        Reason = string.Format("{0} 超分配({1:F1}>{2:F1})", month, usage, capacity)
+                    });
+                    result.ConflictsResolved++;
+                }
+            }
+        }
+
+        result.Summary = result.ConflictsDetected > 0
+            ? string.Format("检测到 {0} 个冲突，建议推迟 {1} 个任务", result.ConflictsDetected, result.ConflictsResolved)
+            : "未检测到资源冲突";
+        return result;
+    }
 }

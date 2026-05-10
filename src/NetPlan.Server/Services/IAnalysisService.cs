@@ -28,6 +28,11 @@ public interface IAnalysisService
     /// 分析项目进度计划（关键路径、时差、里程碑）
     /// </summary>
     ProjectAnalysisResult AnalyzeProject(Project project, List<TaskItem> tasks);
+
+    /// <summary>
+    /// 资源平衡：逐月检测资源超分配，推迟低优先级任务
+    /// </summary>
+    Task<ResourceLevelingResult> LevelResourcesAsync(int projectId);
 }
 
 // 辅助 DTO 类
@@ -85,4 +90,23 @@ public class TaskProgressDetail
     public int? TotalFloat { get; set; }
     public bool IsCritical { get; set; }
     public string Status { get; set; } = string.Empty;
+}
+
+public class ResourceLevelingResult
+{
+    public List<LevelingAdjustment> Adjustments { get; set; } = new();
+    public int ConflictsDetected { get; set; }
+    public int ConflictsResolved { get; set; }
+    public string Summary { get; set; } = string.Empty;
+}
+
+public class LevelingAdjustment
+{
+    public string TaskCode { get; set; } = string.Empty;
+    public string TaskName { get; set; } = string.Empty;
+    public DateTime OriginalStart { get; set; }
+    public DateTime AdjustedStart { get; set; }
+    public int DelayDays { get; set; }
+    public string ResourceName { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
 }

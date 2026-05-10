@@ -1,0 +1,24 @@
+using Microsoft.Data.Sqlite;
+
+var connStr = "Data Source=I:\\NetPlan\\src\\NetPlan.Server\\bin\\Debug\\net8.0\\netplan.db";
+using var conn = new SqliteConnection(connStr);
+conn.Open();
+
+var sql = @"SELECT t.Id, t.Code, t.Name, t.PlanStartDate, t.PlanEndDate, t.PlanDuration, t.IsManualSchedule, t.EarlyStart, t.EarlyFinish, t.TotalFloat, t.IsCritical 
+FROM Tasks t ORDER BY t.SortOrder LIMIT 20";
+using var cmd = new SqliteCommand(sql, conn);
+using var r = cmd.ExecuteReader();
+Console.WriteLine("=== TASKS (first 20) ===");
+while (r.Read())
+    Console.WriteLine($"ID={r[0]} | {r[1]} {r[2]} | Start={r[3]} End={r[4]} | Dur={r[5]} | Manual={r[6]} | ES={r[7]} EF={r[8]} | TF={r[9]} | Crit={r[10]}");
+
+Console.WriteLine("\n=== ALL RELATIONS ===");
+var sql2 = @"SELECT r.Id, p.Code, r.Type, r.Lag, s.Code
+FROM TaskRelations r
+LEFT JOIN Tasks p ON r.PredecessorTaskId = p.Id
+LEFT JOIN Tasks s ON r.SuccessorTaskId = s.Id
+ORDER BY r.Id";
+using var cmd2 = new SqliteCommand(sql2, conn);
+using var r2 = cmd2.ExecuteReader();
+while (r2.Read())
+    Console.WriteLine($"RelID={r2[0]} | {r2[1]} --{r2[2]}+{r2[3]}--> {r2[4]}");

@@ -27,6 +27,9 @@ public interface IProjectService
     // 调度计算
     Task<int> CalculateScheduleAsync(int projectId);
 
+    // 保存所有变更
+    Task SaveChangesAsync();
+
     // 列定义
     Task<List<ColumnDefinition>> GetColumnDefinitionsAsync(int projectId, string viewName);
     Task UpdateColumnDefinitionAsync(ColumnDefinition column);
