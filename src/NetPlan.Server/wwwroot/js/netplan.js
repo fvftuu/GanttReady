@@ -1000,17 +1000,18 @@ function buildNetworkSvg(params) {
 
     // === 图例 ===
     var lx = cw - 220, ly = ch - 75;
-    parts.push('<rect x="' + lx + '" y="' + ly + '" width="200" height="65" fill="rgba(255,255,255,0.95)" stroke="#ccc"/>');
+    parts.push('<rect x="' + lx + '" y="' + ly + '" width="220" height="78" fill="rgba(255,255,255,0.95)" stroke="#ccc"/>');
     parts.push('<text x="' + (lx + 10) + '" y="' + (ly + 15) + '" font-size="11" font-weight="bold" fill="#333">图例</text>');
     [
         { label: '关键线路', color: criticalColor, w: parseInt(criticalWidth), d: false },
         { label: '非关键工作', color: normalColor, w: parseFloat(normalWidth), d: false },
-        { label: '虚工作', color: dummyColor, w: 1, d: true }
+        { label: '虚工作', color: dummyColor, w: 1, d: true },
+        { label: '自由时差(波形)', color: '#FFD700', w: 1, d: true, dw: '4,3' } // P2-2: 第4项
     ].forEach(function(it, i) {
         var iy = ly + 30 + i * 13;
         parts.push('<line x1="' + (lx + 10) + '" y1="' + iy + '" x2="' + (lx + 50) + '" y2="' + iy
             + '" stroke="' + it.color + '" stroke-width="' + it.w + '"'
-            + (it.d ? ' stroke-dasharray="4,3"' : '') + '/>');
+            + (it.d ? (' stroke-dasharray="' + (it.dw || '4,3') + '"') : '') + '/>');
         parts.push('<text x="' + (lx + 56) + '" y="' + (iy + 4) + '" font-size="9" fill="#333">' + it.label + '</text>');
     });
 
@@ -1040,10 +1041,12 @@ function buildNetworkSvg(params) {
                 curvePoints.push(px + ',' + py);
             }
             if (curvePoints.length > 1) {
-                // 构建填充区域路径: 从底部沿折线到最后一个点,再折回底部
-                var fillPath = 'M' + (MARGIN_LEFT + 0 * dw) + ',' + curveYMin + ' L';
+                // P2-4: 填充路径起点与曲线数据点对齐（用第一个数据点X）
+                var firstCurveX = curvePoints[0].split(',')[0];
+                var lastCurveX = curvePoints[curvePoints.length - 1].split(',')[0];
+                var fillPath = 'M' + firstCurveX + ',' + curveYMin + ' L';
                 fillPath += curvePoints.join(' L');
-                fillPath += ' L' + (MARGIN_LEFT + (td - 1) * dw + dw / 2) + ',' + curveYMin + ' Z';
+                fillPath += ' L' + lastCurveX + ',' + curveYMin + ' Z'; // P2-4: 用最后一个数据点X
                 parts.push('<path d="' + fillPath + '" fill="rgba(173,216,230,0.3)" stroke="none"/>');
                 parts.push('<polyline fill="none" stroke="#5dade2" stroke-width="2" points="' + curvePoints.join(' ') + '"/>');
             }
@@ -1683,12 +1686,6 @@ if (!window._netDragSetup) {
 }
 
 // ===== 导出图形文件 (E4) =====
-window.exportNetworkSVG = function() {
-    var svg = document.getElementById('network-svg');
-    if (!svg) return '';
-    return svg.outerHTML;
-};
-
 window.downloadSVG = function(filename) {
     var svg = document.getElementById('network-svg');
     if (!svg) return;
