@@ -82,7 +82,7 @@
                 <span class="oi oi-plus"></span>
             </button>
         </div>
-        <button class="btn btn-default btn-icon" @onclick="ZoomToFitAsync" title="适应页面（全部显示）">
+        <button class="btn btn-default btn-icon" @onclick="ZoomToFitAsync" title="适应页面(全部显示)">
             <span class="oi oi-magnifying-glass"></span>
         </button>
 
@@ -93,14 +93,14 @@
 </div>
 
 <div class="network-wrapper">
-    @* ===== 网络图主体（SVG，浏览器原生滚动）===== *@
+    @* ===== 网络图主体(SVG,浏览器原生滚动)===== *@
     <div id="network-body" style="min-height:calc(100vh - 200px);">
         <div id="cy"></div>
         @if (isLoading)
         {
             <div class="network-loading">
                 <div style="font-size:24px;">⏳</div>
-                <div>计算中…</div>
+                <div>计算中...</div>
             </div>
         }
         @if (!isLoading && string.IsNullOrEmpty(graphJson))
@@ -111,13 +111,13 @@
             </div>
         }
     </div>
-    @* 固定横向滚动条（始终在可视区域底部） *@
+    @* 固定横向滚动条(始终在可视区域底部) *@
     <div id="network-hscroll" class="network-hscroll">
         <div id="network-hscroll-inner"></div>
     </div>
 </div>
 
-@* 编辑对话框（与甘特图完全一致）*@
+@* 编辑对话框(与甘特图完全一致)*@
 @if (taskModalVisible && editingTask != null)
 {
     <div class="modal-overlay" @onclick="CloseEditDialog">
@@ -172,7 +172,7 @@
 
             <div class="form-row">
                 <div class="form-group">
-                    <label>计划工期（天）</label>
+                    <label>计划工期(天)</label>
                     <input type="number" class="form-control" @bind="editingTask.PlanDuration" min="1" @bind:after="OnPlanDurationChanged" />
                 </div>
             </div>
@@ -413,7 +413,7 @@
             </div>
             <div class="form-group">
                 <label style="font-size:12px;color:#999;">
-                    <input type="checkbox" @bind="showSingleStartEnd" @bind:after="ApplyGraphProps" disabled /> 单起单终（暂未实现）
+                    <input type="checkbox" @bind="showSingleStartEnd" @bind:after="ApplyGraphProps" /> 单一起终点
                 </label>
             </div>
             <div class="dialog-actions">
@@ -506,9 +506,9 @@
     private double zoomLevel = 100;
     // A3: 图属性设置
     private bool showRestDayPattern = true;
-    private bool showSingleStartEnd = false;
-
-    // === 编辑对话框（与甘特图一致）===
+    private bool showSingleStartEnd = true;
+    
+    // === 编辑对话框(与甘特图一致)===
     private bool taskModalVisible => editingTask != null;
     private Models.TaskItem? editingTask;
     private List<TaskItem> tasks = new();
@@ -548,7 +548,7 @@
     protected override async Task OnInitializedAsync()
     {
         projects = await ProjectService.GetAllProjectsAsync();
-        // 从URL参数读取，或让用户手动选择（不自动切到第一个项目）
+        // 从URL参数读取,或让用户手动选择(不自动切到第一个项目)
         if (ProjectId.HasValue && ProjectId.Value > 0)
             currentProjectId = ProjectId.Value;
         if (currentProjectId > 0) await BuildData();
@@ -556,7 +556,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // 每次渲染都确保 dotnet 引用已设置（预渲染时 JS 不存在会失败，后续渲染重试）
+        // 每次渲染都确保 dotnet 引用已设置(预渲染时 JS 不存在会失败,后续渲染重试)
         if (dotNetRef == null)
         {
             dotNetRef = DotNetObjectReference.Create(this);
@@ -567,7 +567,7 @@
         }
         catch
         {
-            // 预渲染时无 JS 引擎，忽略；浏览器渲染时有效
+            // 预渲染时无 JS 引擎,忽略;浏览器渲染时有效
         }
     }
 
@@ -586,7 +586,7 @@
         if (currentProjectId == 0) return;
         isLoading = true;
         StateHasChanged();
-        // 先清除前端偏移缓存，再重算CPM，最后重建渲染
+        // 先清除前端偏移缓存,再重算CPM,最后重建渲染
         await JS.InvokeVoidAsync("clearNetworkOffsets");
         await ProjectService.CalculateScheduleAsync(currentProjectId);
         statusMessage = "CPM 已重算";
@@ -639,7 +639,7 @@
 
     private void ZoomIn()
     {
-        zoomLevel = Math.Min(3000, zoomLevel + 5); // 同甘特图：±5%
+        zoomLevel = Math.Min(3000, zoomLevel + 5); // 同甘特图:±5%
         _ = RerenderGraph();
     }
 
@@ -724,7 +724,7 @@
         editingSuccessors = new List<TaskRelation>();
         availTasks = tasks.ToList();
 
-        // 如果双击了任务，自动建立 FS 前置关系
+        // 如果双击了任务,自动建立 FS 前置关系
         if (sourceTaskId > 0)
         {
             editingPredecessors.Add(new TaskRelation
@@ -794,12 +794,14 @@
         StateHasChanged();
     }
 
-    // ======= C1 新增工作（拖拽节点）=======
+    // ======= C1 新增工作(拖拽节点)=======
     [JSInvokable]
     public async Task SyncNodeDrag(int[] taskIds, double dxDays, string nodeRole = "end")
     {
         if (taskIds == null || taskIds.Length == 0) return;
-        if (Math.Abs(dxDays) < 0.5) return; // 没实质拖动，跳过
+        if (Math.Abs(dxDays) < 0.5) return; // 没实质拖动,跳过
+        // 防止残留编辑状态干扰
+        editingTask = null;
         dxDays = Math.Clamp(dxDays, -3650, 3650);
         var allTasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
 
@@ -825,7 +827,7 @@
             await ProjectService.UpdateTaskAsync(task);
         }
 
-        // 不重算 CPM，不显示 loading，只刷新 options + graphJson
+        // 不重算 CPM,不显示 loading,只刷新 options + graphJson
         await JS.InvokeVoidAsync("clearNetworkOffsets");
         statusMessage = null;
         await BuildDataInternal(skipLoading: true);
@@ -890,7 +892,7 @@
         await JS.InvokeVoidAsync("_netDeleteBlankRow", blankRowLayerNum);
     }
 
-    // 内部方法：可跳过 loading 状态
+    // 内部方法:可跳过 loading 状态
     private async Task BuildDataInternal(bool skipLoading)
     {
         if (currentProjectId == 0) { graphJson = null; return; }
@@ -994,7 +996,7 @@
             normalWidth = 1.5
         });
         renderToken++;
-        if (!skipLoading) statusMessage = $"共 {tasks.Count} 任务，{taskRelations.Count} 关系，总工期 {totalDuration} 天";
+        if (!skipLoading) statusMessage = $"共 {tasks.Count} 任务,{taskRelations.Count} 关系,总工期 {totalDuration} 天";
         isLoading = false;
         StateHasChanged();
     }

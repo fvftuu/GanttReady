@@ -115,8 +115,8 @@ function _showDayPopup(deltaDays, cx, cy, onConfirm) {
     var btn = document.createElement('button');
     btn.textContent = '确定';
     btn.style.cssText = 'margin-left:4px;background:#1890ff;color:#fff;border:none;border-radius:3px;padding:2px 10px;cursor:pointer;font-size:12px;';
-    btn.onclick = function() { var v = parseInt(inp.value||'0'); _hideDayPopup(); onConfirm(v); };
-    inp.onkeydown = function(e) { if (e.key==='Enter') { btn.click(); } else if (e.key==='Escape') { _hideDayPopup(); onConfirm(deltaDays); } };
+    btn.onclick = function() { var v = parseInt(inp.value||'0'); _hideDayPopup(); _netLastPopupTime = Date.now(); onConfirm(v); };
+    inp.onkeydown = function(e) { if (e.key==='Enter') { btn.click(); } else if (e.key==='Escape') { _hideDayPopup(); _netLastPopupTime = Date.now(); onConfirm(0); } };
     _dayPopup.appendChild(lbl);
     _dayPopup.appendChild(inp);
     _dayPopup.appendChild(btn);
@@ -511,6 +511,74 @@ function calculateTimeParams(tasks, relations) {
         eventSucc: eventSucc,
         sortedEvents: sortedEvents
     };
+}
+
+// ============================================================================
+// 唯一起点/终点: 插入虚拟开始节点(S)和虚拟结束节点(E)
+// 国标GB/T 13400: 双代号网络图仅设一个起始节点和一个终点节点
+// ============================================================================
+function applySingleStartEnd(data) {
+    var events = data.events;
+    var activities = data.activities;
+    var eventPred = data.eventPred;
+    var eventSucc = data.eventSucc;
+    var sortedEvents = data.sortedEvents;
+
+    // 查找入度=0(起始节点)和出度=0(结束节点)的事件
+    var startEvents = [];
+    var endEvents = [];
+    Object.keys(events).forEach(function(eid) {
+        var inD = eventPred[eid] ? eventPred[eid].length : 0;
+        var outD = eventSucc[eid] ? eventSucc[eid].length : 0;
+        if (inD === 0) startEvents.push(eid);
+        if (outD === 0) endEvents.push(eid);
+    });
+
+    // 如果只有一个起始和一个结束,无需处理
+    if (startEvents.length <= 1 && endEvents.length <= 1) return;
+
+    var minEs = Infinity, maxEf = -Infinity;
+    Object.keys(events).forEach(function(eid) {
+        if (events[eid].es < minEs) minEs = events[eid].es;
+        if (events[eid].ef > maxEf) maxEf = events[eid].ef;
+    });
+
+    // 虚拟开始节点 (S)
+    if (startEvents.length > 1) {
+        var sid = 'TS';
+        events[sid] = {
+            id: sid, taskId: 0, type: 'start',
+            num: 0, es: minEs - 1, ef: minEs - 1,
+            ls: 0, lf: 0, tf: 0, ff: 0,
+            isCritical: false, isVirtual: true
+        };
+        eventPred[sid] = [];
+        eventSucc[sid] = startEvents.slice();
+        startEvents.forEach(function(seid) {
+            eventPred[seid].push(sid);
+        });
+        sortedEvents.unshift(sid);
+    }
+
+    // 虚拟结束节点 (E)
+    if (endEvents.length > 1) {
+        var eid2 = 'TE';
+        events[eid2] = {
+            id: eid2, taskId: 0, type: 'end',
+            num: 0, es: maxEf + 1, ef: maxEf + 1,
+            ls: 0, lf: 0, tf: 0, ff: 0,
+            isCritical: false, isVirtual: true
+        };
+        eventPred[eid2] = endEvents.slice();
+        eventSucc[eid2] = [];
+        endEvents.forEach(function(eeid) {
+            eventSucc[eeid].push(eid2);
+        });
+        sortedEvents.push(eid2);
+    }
+
+    // 虚拟节点到活动的连接不创建 work arrow,
+    // 但需要在邻接关系中存在以支持层计算
 }
 
 // ============================================================================
@@ -979,22 +1047,27 @@ function buildNetworkSvg(params) {
     // === 事件节点 ===
     Object.keys(p.layout.events).forEach(function(eid) {
         var evt = p.layout.events[eid];
+        var isVirtual = evt.isVirtual === true;
         var isCrit = evt.isCritical && p.showCritical;
-        var fill = isCrit ? criticalColor : '#fff', stroke = isCrit ? '#b30000' : criticalColor;
-        var tc = isCrit ? '#fff' : '#000';
-        parts.push('<g class="net-event" data-task-id="' + evt.taskId + '" data-event-id="' + eid + '" style="cursor:grab;">');
+        var fill = isVirtual ? '#fff' : (isCrit ? criticalColor : '#fff');
+        var evtStroke = isVirtual ? '#888' : (isCrit ? '#b30000' : criticalColor);
+        var evtStrokeDash = isVirtual ? ' stroke-dasharray="4,3"' : '';
+        var tc = isVirtual ? '#888' : (isCrit ? '#fff' : '#000');
+        var cursorStyle = isVirtual ? 'cursor:default;pointer-events:none;' : 'cursor:grab;';
+        parts.push('<g class="net-event" data-task-id="' + evt.taskId + '" data-event-id="' + eid + '" style="' + cursorStyle + '">');
         if (nodeShape === 'ellipse' || p.nodeEllipse) {
             var rx = nodeShape === 'circle' ? (NODE_R + 4) : (NODE_R * 1.3);
             var ry = nodeShape === 'circle' ? (NODE_R - 2) : NODE_R;
             parts.push('<ellipse cx="' + evt.x + '" cy="' + evt.y + '" rx="' + rx + '" ry="' + ry
-                + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"/>');
+                + '" fill="' + fill + '" stroke="' + evtStroke + '" stroke-width="2"' + evtStrokeDash + '/>');
         } else {
             parts.push('<circle cx="' + evt.x + '" cy="' + evt.y + '" r="' + NODE_R
-                + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"/>');
+                + '" fill="' + fill + '" stroke="' + evtStroke + '" stroke-width="2"' + evtStrokeDash + '/>');
         }
+        var evtLabel = isVirtual ? (eid === 'TS' ? 'S' : 'E') : String(evt.num);
         parts.push('<text x="' + evt.x + '" y="' + (evt.y + 1)
             + '" dominant-baseline="middle" text-anchor="middle" font-size="' + nodeFontSize + '"'
-            + ' font-weight="bold" fill="' + tc + '" style="pointer-events:none;">' + evt.num + '</text>');
+            + ' font-weight="bold" fill="' + tc + '" style="pointer-events:none;">' + evtLabel + '</text>');
         parts.push('</g>');
     });
 
@@ -1291,6 +1364,9 @@ window.renderNetwork = function(elementsJson, opts) {
     console.log('[NET] tasks:', tasks.length, '| rels:', rels.length);
 
     var tp = calculateTimeParams(tasks, rels);
+    // P0-2: 唯一起点/终点 - 插入虚拟开始/结束节点
+    var singleStartEnd = opts.singleStartEnd !== false;
+    if (singleStartEnd) applySingleStartEnd(tp);
     var layout = calculateVerticalLayout(tp);
 
     var ML = 80, RH = 70;
@@ -1366,6 +1442,8 @@ window.renderNetwork = function(elementsJson, opts) {
     // 双击事件:每次重渲染都重绑定(画布拖拽同理)
     if (svg) {
         svg.ondblclick = function(e) {
+            // 防止节点拖拽松手后穿透触发空白创建
+            if (_netLastPopupTime && (Date.now() - _netLastPopupTime) < 500) return;
             var dotNet = _netDotNet || window._netDotNet;
             if (!dotNet) { console.warn('[NET] dblclick: _netDotNet not set'); return; }
             var el = e.target.closest('.net-event');
@@ -1420,6 +1498,7 @@ window.renderNetwork = function(elementsJson, opts) {
             var eid = g.getAttribute('data-event-id');
             var off = _netEventOffsets[eid] || { x: 0, y: 0 };
             _netNodeDrag = { eventId: eid, group: g, startX: e.clientX, startY: e.clientY, offX: off.x, offY: off.y, moved: false };
+            _netLastPopupTime = Date.now(); // 防止松手后 dblclick 穿透
             g.style.cursor = 'grabbing';
             e.stopPropagation(); // stop canvas panning
             // 不 preventDefault,让 dblclick 能触发
@@ -1670,20 +1749,31 @@ if (!window._netDragSetup) {
             var eid = nodeDrag.eventId;
             var evt = _netLayout && _netLayout.events ? _netLayout.events[eid] : null;
             var tid = evt ? parseInt(evt.taskId) || 0 : 0;
+            console.log('[NET] nodeDrag released: eid=' + eid + ' tid=' + tid + ' deltaDays=' + deltaDays + ' evtType=' + (evt ? evt.type : '?') + ' dayWidth=' + (_netDayWidth||'?') + ' moved=' + nodeDrag.moved);
 
-            // C1d: 从结束节点向右拖出 > 阈值 → "创建后续工作"
+            // C1d: 从结束节点向右拖出 > 200px且无关联活动 → "创建后续工作"
             var isCreateNew = false;
             var endTypes = ['end','both'];
-            if (evt && endTypes.indexOf(evt.type) !== -1 && deltaDays > 0 && deltaDays >= 1) {
-                // 检查目标位置是否无现有节点(空白区域)
+            var rawDxPx = Math.abs(nodeDrag.rawDx || 0);
+            if (evt && endTypes.indexOf(evt.type) !== -1 && nodeDrag.rawDx > 0 && rawDxPx >= 200) {
+                // 检查该节点是否已有后续活动
+                var hasSucc = false;
+                if (_netActivities) {
+                    _netActivities.forEach(function(a) {
+                        if (a.source === eid) hasSucc = true;
+                    });
+                }
+                // 检查目标位置是否无现有节点
                 var targetEs = (evt.es || 0) + deltaDays;
                 var hasNode = false;
                 if (_netLayout && _netLayout.events) {
                     var targetEid = 'T' + targetEs;
                     hasNode = !!_netLayout.events[targetEid];
                 }
-                // 目标天数是新的(空白)→ 创建新工作
-                if (!hasNode) isCreateNew = true;
+                // 无后续活动 + 空白目标 → 创建新工作
+                var shouldCreate = (!hasSucc && !hasNode);
+                console.log('[NET] isCreateNew check: rawDxPx=' + rawDxPx + ' deltaDays=' + deltaDays + ' endType=' + (evt ? evt.type : '?') + ' hasSucc=' + hasSucc + ' hasNode=' + hasNode + ' => ' + shouldCreate);
+                if (shouldCreate) isCreateNew = true;
             }
 
             if (isCreateNew) {
@@ -1712,6 +1802,7 @@ if (!window._netDragSetup) {
                 }
             } else if (tid > 0) {
                 // 标准拖拽:修改现有任务日期/工期
+                _netLastPopupTime = Date.now(); // 防松手后 dblclick
                 // Y 偏移保留(纵向微调),只对 X 偏移询问
                 _showDayPopup(deltaDays, (nodeDrag.cx || 0), (nodeDrag.cy || 0), function(days) {
                     if (days !== 0) {

@@ -31,7 +31,16 @@ public class ScheduleEngine : IScheduleEngine
         }
 
         // Step 2: 正向计算 - 计算最早时间（按拓扑排序顺序）
-        var sortedTasks = TopologicalSort(tasks, relations);
+        List<TaskItem> sortedTasks;
+        try
+        {
+            sortedTasks = TopologicalSort(tasks, relations);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // 循环检测 → 向外层抛出明确异常
+            throw new InvalidOperationException($"网络图存在逻辑回路，无法计算进度：{ex.Message}");
+        }
         foreach (var task in sortedTasks)
         {
             CalculateEarlyTimes(task, relations, projectStartDate);
@@ -223,12 +232,14 @@ public class ScheduleEngine : IScheduleEngine
     }
 
     /// <summary>
-    /// 拓扑排序 - 确保前置任务在后续任务之前处理
+    /// 拓扑排序 - 确保前置任务在后续任务之前处理，检测循环回路
     /// </summary>
+    /// <exception cref="InvalidOperationException">当检测到循环依赖时抛出，包含循环节点列表</exception>
     private List<TaskItem> TopologicalSort(List<TaskItem> tasks, List<TaskRelation> relations)
     {
         var result = new List<TaskItem>();
-        var visited = new HashSet<int>();
+        var visited = new HashSet<int>();     // 黑色：已完成
+        var inStack = new HashSet<int>();     // 灰色：当前递归栈中
         var taskDict = tasks.ToDictionary(t => t.Id);
 
         void Visit(TaskItem task)
@@ -236,7 +247,22 @@ public class ScheduleEngine : IScheduleEngine
             if (visited.Contains(task.Id))
                 return;
 
-            visited.Add(task.Id);
+            // 回边检测：当前任务在递归栈中 → 循环
+            if (inStack.Contains(task.Id))
+            {
+                // 收集循环路径中的任务名称
+                var cycleTasks = new List<string>();
+                foreach (var t in tasks)
+                {
+                    if (inStack.Contains(t.Id) || t.Id == task.Id)
+                        cycleTasks.Add($"{t.Code}({t.Name})");
+                }
+                throw new InvalidOperationException(
+                    $"检测到循环回路：{string.Join(" → ", cycleTasks)}"
+                );
+            }
+
+            inStack.Add(task.Id);
 
             // 先访问所有紧前任务
             var predecessors = relations.Where(r => r.SuccessorTaskId == task.Id);
@@ -248,6 +274,8 @@ public class ScheduleEngine : IScheduleEngine
                 }
             }
 
+            inStack.Remove(task.Id);
+            visited.Add(task.Id);
             result.Add(task);
         }
 
