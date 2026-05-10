@@ -17,6 +17,21 @@
         <div class="display-toggles" style="display:flex;flex-wrap:wrap;gap:4px;font-size:11px;">
             <button class="@GetTimeBtnClass()" @onclick="SetTimeMode" title="时标网络图" style="font-size:11px;padding:2px 6px;">时标图</button>
             <button class="@GetLogicBtnClass()" @onclick="SetLogicMode" title="逻辑双代号图" style="font-size:11px;padding:2px 6px;">逻辑图</button>
+            <span style="position:relative;display:inline-flex;align-items:center;">
+                <button class="btn btn-sm btn-default" @onclick="ToggleLabelPanel" @onclick:stopPropagation="true" style="font-size:11px;padding:2px 6px;">标签</button>
+                @if (showLabelPanel)
+                {
+                <div class="label-panel" @onclick:stopPropagation="true" style="position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1px solid #d9d9d9;border-radius:4px;padding:6px 10px;box-shadow:0 4px 12px rgba(0,0,0,0.12);min-width:90px;margin-top:2px;">
+                    <label class="column-check" style="display:flex;align-items:center;gap:6px;font-size:13px;padding:3px 0;cursor:pointer;white-space:nowrap;"><input type="checkbox" @bind="showLabelES" @bind:after="RerenderGraph" /><span>ES</span></label>
+                    <label class="column-check" style="display:flex;align-items:center;gap:6px;font-size:13px;padding:3px 0;cursor:pointer;white-space:nowrap;"><input type="checkbox" @bind="showLabelEF" @bind:after="RerenderGraph" /><span>EF</span></label>
+                    <label class="column-check" style="display:flex;align-items:center;gap:6px;font-size:13px;padding:3px 0;cursor:pointer;white-space:nowrap;"><input type="checkbox" @bind="showLabelLS" @bind:after="RerenderGraph" /><span>LS</span></label>
+                    <label class="column-check" style="display:flex;align-items:center;gap:6px;font-size:13px;padding:3px 0;cursor:pointer;white-space:nowrap;"><input type="checkbox" @bind="showLabelLF" @bind:after="RerenderGraph" /><span>LF</span></label>
+                    <label class="column-check" style="display:flex;align-items:center;gap:6px;font-size:13px;padding:3px 0;cursor:pointer;white-space:nowrap;"><input type="checkbox" @bind="showLabelTF" @bind:after="RerenderGraph" /><span>TF</span></label>
+                    <label class="column-check" style="display:flex;align-items:center;gap:6px;font-size:13px;padding:3px 0;cursor:pointer;white-space:nowrap;"><input type="checkbox" @bind="showLabelFF" @bind:after="RerenderGraph" /><span>FF</span></label>
+                </div>
+                }
+            </span>
+            <button class="btn btn-sm btn-default" @onclick="ToggleGraphProps" style="font-size:11px;padding:2px 6px;">图属性</button>
             <label class="toggle-switch" title="显示前锋线" style="margin:0;">
                 <input type="checkbox" @bind="showProgressLine" @bind:after="RerenderGraph" />
                 <span class="toggle-slider"></span>
@@ -53,24 +68,6 @@
         <input type="number" class="form-control" style="width:50px;display:inline;margin-left:4px;" @bind="blankRowLayerNum" min="0" max="50" />
         <button class="btn btn-sm btn-default" @onclick="InsertBlankRow" title="在选中层上方插入空行">插入</button>
         <button class="btn btn-sm btn-default" @onclick="DeleteBlankRow" title="移除选中层的空行">删除</button>
-    </div>
-    <div class="header-extra" style="position:relative;">
-        <button class="btn btn-sm btn-default" @onclick="ToggleLabelPanel" @onclick:stopPropagation="true">标签</button>
-        @if (showLabelPanel)
-        {
-        <div class="label-panel" @onclick:stopPropagation="true" style="position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1px solid #d9d9d9;border-radius:4px;padding:6px 10px;box-shadow:0 4px 12px rgba(0,0,0,0.12);min-width:100px;">
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelES" @bind:after="RerenderGraph" /><span>ES</span></label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelEF" @bind:after="RerenderGraph" /><span>EF</span></label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelLS" @bind:after="RerenderGraph" /><span>LS</span></label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelLF" @bind:after="RerenderGraph" /><span>LF</span></label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelTF" @bind:after="RerenderGraph" /><span>TF</span></label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelFF" @bind:after="RerenderGraph" /><span>FF</span></label>
-        </div>
-        }
-    </div>
-
-    <div class="header-extra">
-        <button class="btn btn-sm btn-default" @onclick="ToggleGraphProps">图属性</button>
     </div>
     <div class="header-right">
         <button class="btn btn-default" @onclick="PrintPage" title="页面预览">
@@ -402,11 +399,12 @@
                 <input type="range" class="form-control" @bind="graphNodeRadius" @bind:after="ApplyGraphProps" min="8" max="16" />
             </div>
             <div class="form-group">
-                <label>节点样式:</label>
-                <select class="form-control" @bind="graphNodeShape" @bind:after="ApplyGraphProps">
-                    <option value="circle">圆形</option>
-                    <option value="ellipse">椭圆</option>
-                </select>
+                <label>名称字号: @graphLabelFontSize px</label>
+                <input type="range" class="form-control" @bind="graphLabelFontSize" @bind:after="ApplyGraphProps" min="7" max="16" />
+            </div>
+            <div class="form-group">
+                <label>标签字号: @graphNodeFontSize px</label>
+                <input type="range" class="form-control" @bind="graphNodeFontSize" @bind:after="ApplyGraphProps" min="8" max="16" />
             </div>
             <div class="form-group">
                 <label style="font-size:12px;">
@@ -416,11 +414,6 @@
             <div class="form-group">
                 <label style="font-size:12px;color:#999;">
                     <input type="checkbox" @bind="showSingleStartEnd" @bind:after="ApplyGraphProps" disabled /> 单起单终（暂未实现）
-                </label>
-            </div>
-            <div class="form-group">
-                <label style="font-size:12px;">
-                    <input type="checkbox" @bind="showNodeEllipse" @bind:after="OnNodeEllipseChanged" /> 椭圆节点
                 </label>
             </div>
             <div class="dialog-actions">
@@ -508,12 +501,11 @@
     private int printMargin = 15;
     private int graphLayerHeight = 60;
     private int graphNodeRadius = 11;
-    private string graphNodeShape = "circle";
+    private int graphLabelFontSize = 10;  // name font size
+    private int graphNodeFontSize = 8;   // label field font size
     private double zoomLevel = 100;
     // A3: 图属性设置
     private bool showRestDayPattern = true;
-    private bool showNodeEllipse = false;
-    // A3: 单起单终(占位)
     private bool showSingleStartEnd = false;
 
     // === 编辑对话框（与甘特图一致）===
@@ -630,10 +622,10 @@
             rowLabels = new object[] { },
             layerHeight = graphLayerHeight,
             nodeRadius = graphNodeRadius,
-            nodeShape = graphNodeShape,
+            labelFontSize = graphLabelFontSize,
+            nodeFontSize = graphNodeFontSize,
             restDayPattern = showRestDayPattern,
             singleStartEnd = showSingleStartEnd,
-            nodeEllipse = showNodeEllipse,
             criticalColor = "#e63946",
             normalColor = "#333",
             dummyColor = "#aaa",
@@ -881,11 +873,7 @@
         await RerenderGraph();
     }
 
-    private async Task OnNodeEllipseChanged()
-    {
-        graphNodeShape = showNodeEllipse ? "ellipse" : "circle";
-        await RerenderGraph();
-    }
+
 
     private async Task AddNewTask()
     {
@@ -995,10 +983,10 @@
             rowLabels = new object[] { },
             layerHeight = graphLayerHeight,
             nodeRadius = graphNodeRadius,
-            nodeShape = graphNodeShape,
+            labelFontSize = graphLabelFontSize,
+            nodeFontSize = graphNodeFontSize,
             restDayPattern = showRestDayPattern,
             singleStartEnd = showSingleStartEnd,
-            nodeEllipse = showNodeEllipse,
             criticalColor = "#e63946",
             normalColor = "#333",
             dummyColor = "#aaa",

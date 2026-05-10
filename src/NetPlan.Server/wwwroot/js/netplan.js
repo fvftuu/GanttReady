@@ -648,6 +648,8 @@ function buildNetworkSvg(params) {
     var criticalWidth = p.criticalWidth || 3;
     var normalWidth = p.normalWidth || 1.5;
     var mode = p.mode || 'time';
+    var labelFontSize = p.labelFontSize || 10;
+    var nodeFontSize = p.nodeFontSize || 12;
     var restDayPattern = p.restDayPattern !== false; // A3: show rest day highlight
     var singleStartEnd = p.singleStartEnd === true; // A3: force single start/end (placeholder)
     // Bug 1: 1080p adaptation — smaller fonts when viewport < 1400px
@@ -915,19 +917,20 @@ function buildNetworkSvg(params) {
         var labelMain = (act.code || '') + (act.name ? ' ' + act.name : '');
         if (fieldSet['tf']) labelMain += ' TF=' + (act.tf || 0);
         if (labelMain.length > 30) labelMain = labelMain.substring(0, 28) + '...';
-        parts.push('<text class="act-label" x="' + lx + '" y="' + ly + '" font-size="10" fill="' + arrow.color
+        parts.push('<text class="act-label" x="' + lx + '" y="' + ly + '" font-size="' + labelFontSize + '" fill="' + arrow.color
             + '" text-anchor="middle" font-weight="' + (isCrit ? 'bold' : 'normal') + '">' + labelMain + '</text>');
 
         // 四角字段
-        if (fieldSet['es']) parts.push('<text class="act-es" x="' + sx + '" y="' + (sy - NODE_R - 6) + '" font-size="8" fill="#999" text-anchor="start">ES=' + aes + '</text>');
-        if (fieldSet['ef']) parts.push('<text class="act-ef" x="' + ex + '" y="' + (ey - NODE_R - 6) + '" font-size="8" fill="#999" text-anchor="end">EF=' + aef + '</text>');
-        if (fieldSet['ls']) parts.push('<text class="act-ls" x="' + sx + '" y="' + (sy + NODE_R + 10) + '" font-size="8" fill="#999" text-anchor="start">LS=' + (act.ls || aes) + '</text>');
-        if (fieldSet['lf']) parts.push('<text class="act-lf" x="' + ex + '" y="' + (ey + NODE_R + 10) + '" font-size="8" fill="#999" text-anchor="end">LF=' + (act.lf || aef) + '</text>');
+        var cornerFont = Math.max(7, (p.nodeFontSize || 8));
+        if (fieldSet['es']) parts.push('<text class="act-es" x="' + sx + '" y="' + (sy - NODE_R - 6) + '" font-size="' + cornerFont + '" fill="#999" text-anchor="start">ES=' + aes + '</text>');
+        if (fieldSet['ef']) parts.push('<text class="act-ef" x="' + ex + '" y="' + (ey - NODE_R - 6) + '" font-size="' + cornerFont + '" fill="#999" text-anchor="end">EF=' + aef + '</text>');
+        if (fieldSet['ls']) parts.push('<text class="act-ls" x="' + sx + '" y="' + (sy + NODE_R + 10) + '" font-size="' + cornerFont + '" fill="#999" text-anchor="start">LS=' + (act.ls || aes) + '</text>');
+        if (fieldSet['lf']) parts.push('<text class="act-lf" x="' + ex + '" y="' + (ey + NODE_R + 10) + '" font-size="' + cornerFont + '" fill="#999" text-anchor="end">LF=' + (act.lf || aef) + '</text>');
 
         // 工期始终显示在箭线下方
         var durText = dur + 'd';
         if (fieldSet['ff']) durText += ' FF=' + (act.ff || 0);
-        parts.push('<text class="act-dur" x="' + lx + '" y="' + (sy + NODE_R + 10) + '" font-size="9" fill="#666" text-anchor="middle">'
+        parts.push('<text class="act-dur" x="' + lx + '" y="' + (sy + NODE_R + 10) + '" font-size="' + cornerFont + '" fill="#666" text-anchor="middle">'
             + durText + '</text>');
 
         if (p.showFloat && act.ff > 0 && !isCrit) {
@@ -959,7 +962,7 @@ function buildNetworkSvg(params) {
                 + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"/>');
         }
         parts.push('<text x="' + evt.x + '" y="' + (evt.y + 1)
-            + '" dominant-baseline="middle" text-anchor="middle" font-size="12"'
+            + '" dominant-baseline="middle" text-anchor="middle" font-size="' + nodeFontSize + '"'
             + ' font-weight="bold" fill="' + tc + '" style="pointer-events:none;">' + evt.num + '</text>');
         parts.push('</g>');
     });
@@ -1282,8 +1285,10 @@ window.renderNetwork = function(elementsJson, opts) {
         showTodayLine: showTodayLine, showProgressLine: showProgressLine, showDummyArrows: opts.showDummyArrows,
         showProgressCurve: opts.showProgressCurve === true,
         projectName: pn,
-        nodeRadius: netNodeRadius, nodeShape: netNodeShape, nodeEllipse: opts.nodeShape === 'ellipse' ? true : (opts.nodeEllipse === true),
+        nodeRadius: netNodeRadius,
         layerHeight: netLayerHeight,
+        labelFontSize: opts.labelFontSize || 10,
+        nodeFontSize: opts.nodeFontSize || 12,
         labelFields: opts.labelFields || [],
         rowLabels: opts.rowLabels || [],
         restDayPattern: opts.restDayPattern !== false,
