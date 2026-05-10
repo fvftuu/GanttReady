@@ -745,6 +745,21 @@ function buildNetworkSvg(params) {
     }
     } // isTimeMode
 
+    // === 行背景：间隔色区分不同层级（必须在虚箭线和工作箭线之前）===
+    var rowH = p.layerHeight || 60;
+    var bgLayerYs = {};
+    Object.keys(p.layout.events).forEach(function(eid) {
+        var ey = p.layout.events[eid].y;
+        if (!bgLayerYs[ey]) bgLayerYs[ey] = true;
+    });
+    var sortedBgYs = Object.keys(bgLayerYs).map(Number).sort(function(a,b){return a-b;});
+    sortedBgYs.forEach(function(ey, idx) {
+        if (idx % 2 === 1) {
+            var bgY = ey - rowH / 2;
+            parts.push('<rect x="0" y="' + bgY + '" width="' + cw + '" height="' + rowH + '" fill="#f0f4f8" opacity="0.4"/>');
+        }
+    });
+
     // 竖线网格
     // 计算最底层事件的 Y 坐标(用于网格线延伸和底部标尺定位)
     var maxY = 0;
@@ -890,30 +905,30 @@ function buildNetworkSvg(params) {
             + '" stroke-width="' + (isCrit ? criticalWidth : normalWidth) + '"/>');
 
         var lx = (sx + ex) / 2, ly = sy - NODE_R - 6;
-        // A4: 标签字段多选 - 用 labelFields 构建标签文本（Bug 4: 始终先显示 code+name 再追加上层字段）
         var labelFields = p.labelFields || [];
-        var label = (act.code || '') + (act.name ? ' ' + act.name : '');
-        if (labelFields.length > 0) {
-            var aes = act.es || parseInt(act.source.replace('T','') || '0');
-            var aef = act.ef || parseInt(act.target.replace('T','') || '0');
-            var extraParts = [];
-            labelFields.forEach(function(field) {
-                if (field === 'es') extraParts.push('ES=' + aes);
-                else if (field === 'ef') extraParts.push('EF=' + aef);
-                else if (field === 'ls') extraParts.push('LS=' + (act.ls || aes));
-                else if (field === 'lf') extraParts.push('LF=' + (act.lf || aef));
-                else if (field === 'tf') extraParts.push('TF=' + act.tf);
-                else if (field === 'ff') extraParts.push('FF=' + act.ff);
-            });
-            if (extraParts.length > 0) label += ' ' + extraParts.join(' ');
-        }
-        if (label.length > 30) label = label.substring(0, 28) + '...';
-        // 标签行
+        var fieldSet = {};
+        labelFields.forEach(function(f) { fieldSet[f] = true; });
+        var aes = act.es || parseInt(act.source.replace('T','') || '0');
+        var aef = act.ef || parseInt(act.target.replace('T','') || '0');
+
+        // 中部: code + name + TF
+        var labelMain = (act.code || '') + (act.name ? ' ' + act.name : '');
+        if (fieldSet['tf']) labelMain += ' TF=' + (act.tf || 0);
+        if (labelMain.length > 30) labelMain = labelMain.substring(0, 28) + '...';
         parts.push('<text class="act-label" x="' + lx + '" y="' + ly + '" font-size="10" fill="' + arrow.color
-            + '" text-anchor="middle" font-weight="' + (isCrit ? 'bold' : 'normal') + '">' + label + '</text>');
-        // 工期始终显示在箭线下方（标签中不显示工期）
+            + '" text-anchor="middle" font-weight="' + (isCrit ? 'bold' : 'normal') + '">' + labelMain + '</text>');
+
+        // 四角字段
+        if (fieldSet['es']) parts.push('<text class="act-es" x="' + sx + '" y="' + (sy - NODE_R - 6) + '" font-size="8" fill="#999" text-anchor="start">ES=' + aes + '</text>');
+        if (fieldSet['ef']) parts.push('<text class="act-ef" x="' + ex + '" y="' + (ey - NODE_R - 6) + '" font-size="8" fill="#999" text-anchor="end">EF=' + aef + '</text>');
+        if (fieldSet['ls']) parts.push('<text class="act-ls" x="' + sx + '" y="' + (sy + NODE_R + 10) + '" font-size="8" fill="#999" text-anchor="start">LS=' + (act.ls || aes) + '</text>');
+        if (fieldSet['lf']) parts.push('<text class="act-lf" x="' + ex + '" y="' + (ey + NODE_R + 10) + '" font-size="8" fill="#999" text-anchor="end">LF=' + (act.lf || aef) + '</text>');
+
+        // 工期始终显示在箭线下方
+        var durText = dur + 'd';
+        if (fieldSet['ff']) durText += ' FF=' + (act.ff || 0);
         parts.push('<text class="act-dur" x="' + lx + '" y="' + (sy + NODE_R + 10) + '" font-size="9" fill="#666" text-anchor="middle">'
-            + dur + 'd</text>');
+            + durText + '</text>');
 
         if (p.showFloat && act.ff > 0 && !isCrit) {
             var fex = Math.min(ex + act.ff * p.dayWidth, cw - 10);
@@ -1029,20 +1044,6 @@ function buildNetworkSvg(params) {
             }
         }
     }
-
-    // === 行背景：间隔色区分不同层级 ===
-    var bgLayerYs = {};
-    Object.keys(p.layout.events).forEach(function(eid) {
-        var ey = p.layout.events[eid].y;
-        if (!bgLayerYs[ey]) bgLayerYs[ey] = true;
-    });
-    var sortedBgYs = Object.keys(bgLayerYs).map(Number).sort(function(a,b){return a-b;});
-    sortedBgYs.forEach(function(ey, idx) {
-        if (idx % 2 === 1) {
-            var bgY = ey - (netLayerHeight || 60) / 2;
-            parts.push('<rect x="0" y="' + bgY + '" width="' + cw + '" height="' + (netLayerHeight || 60) + '" fill="#f0f4f8" opacity="0.6"/>');
-        }
-    });
 
     // === 标题 ===
     parts.push('<text x="10" y="80" font-size="13" font-weight="bold" fill="#333">' + (p.projectName || '') + '</text>');

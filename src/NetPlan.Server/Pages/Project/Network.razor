@@ -59,12 +59,12 @@
         @if (showLabelPanel)
         {
         <div class="label-panel" @onclick:stopPropagation="true" style="position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1px solid #d9d9d9;border-radius:4px;padding:6px 10px;box-shadow:0 4px 12px rgba(0,0,0,0.12);min-width:100px;">
-            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelES" @bind:after="RerenderGraph" /> ES</label>
-            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelEF" @bind:after="RerenderGraph" /> EF</label>
-            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelLS" @bind:after="RerenderGraph" /> LS</label>
-            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelLF" @bind:after="RerenderGraph" /> LF</label>
-            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelTF" @bind:after="RerenderGraph" /> TF</label>
-            <label style="display:block;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelFF" @bind:after="RerenderGraph" /> FF</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelES" @bind:after="RerenderGraph" /><span>ES</span></label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelEF" @bind:after="RerenderGraph" /><span>EF</span></label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelLS" @bind:after="RerenderGraph" /><span>LS</span></label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelLF" @bind:after="RerenderGraph" /><span>LF</span></label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelTF" @bind:after="RerenderGraph" /><span>TF</span></label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;padding:2px 0;cursor:pointer;"><input type="checkbox" @bind="showLabelFF" @bind:after="RerenderGraph" /><span>FF</span></label>
         </div>
         }
     </div>
