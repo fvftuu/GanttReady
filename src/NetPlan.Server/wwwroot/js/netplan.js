@@ -1419,6 +1419,7 @@ window.renderNetwork = function(elementsJson, opts) {
         // SVG width 需要考虑虚拟节点 (TE 可能在 totalDays 之后)
         var rightMargin = Math.max(totalDays, maxEs) * dayWidth;
         var cx = ML + rightMargin + 100;
+    }
 
     // A3: 应用配置参数(必须在计算高度前初始化)
     var netLayerHeight = opts.layerHeight || 60;
@@ -1714,7 +1715,7 @@ function _netUpdateArrows(eventId, dx, dy) {
         var nr = 11;
         var sx = s.x + (sid === eventId ? dx : (_netEventOffsets[sid] ? _netEventOffsets[sid].x : 0)) + nr;
         var sy = s.y + (sid === eventId ? dy : (_netEventOffsets[sid] ? _netEventOffsets[sid].y : 0));
-        var ex = t.x + (tid === eventId ? dx : (_netEventOffsets[tid] ? _netEventOffsets[tid].x : 0)) - nr;
+        var ex = t.x + (tid === eventId ? dx : (_netEventOffsets[tid] ? _netEventOffsets[tid].x : 0));
         var ey = t.y + (tid === eventId ? dy : (_netEventOffsets[tid] ? _netEventOffsets[tid].y : 0));
         var pd = Math.abs(ey - sy) < 5
             ? 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + ey
@@ -1786,7 +1787,9 @@ if (!window._netDragSetup) {
 
             if (tid > 0) {
                 // 标准拖拽:修改现有任务日期/工期
-                // Y 偏移保留(纵向微调),只对 X 偏移询问
+                // 保存拖拽前的偏移量(用于 ESC 取消时弹回)
+                var preXOff = _netEventOffsets[eid] ? _netEventOffsets[eid].x : 0;
+                var preYOff = _netEventOffsets[eid] ? _netEventOffsets[eid].y : 0;
                 _showDayPopup(deltaDays, (nodeDrag.cx || 0), (nodeDrag.cy || 0), function(days) {
                     if (days !== 0) {
                         var dotNet = _netDotNet || window._netDotNet;
@@ -1799,12 +1802,11 @@ if (!window._netDragSetup) {
                             dotNet.invokeMethodAsync('SyncNodeDrag', [tid], days, nodeRole);
                         }
                     } else {
-                        // 用户取消/输入0 X偏移 → 保留 Y 偏移,只重置 X
-                        var yOff = _netEventOffsets[eid] ? _netEventOffsets[eid].y : 0;
-                        nodeDrag.group.setAttribute('transform', 'translate(0,' + yOff + ')');
-                        _netEventOffsets[eid] = { x: 0, y: yOff };
-                        _netUpdateArrows(eid, 0, yOff);
-                        _netUpdateDummys(eid, 0, yOff);
+                        // ESC/取消 → 弹回到拖拽前位置
+                        nodeDrag.group.setAttribute('transform', 'translate(' + preXOff + ',' + preYOff + ')');
+                        _netEventOffsets[eid] = { x: preXOff, y: preYOff };
+                        _netUpdateArrows(eid, preXOff, preYOff);
+                        _netUpdateDummys(eid, preXOff, preYOff);
                     }
                 });
             } else if (dx !== 0 || dy !== 0) {
@@ -2037,5 +2039,3 @@ window.networkFit = function() {
     // 延迟初始化(等待 Blazor 渲染完成)
     setTimeout(initResize, 1000);
 })();
-
-}
