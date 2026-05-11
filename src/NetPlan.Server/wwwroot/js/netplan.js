@@ -549,7 +549,7 @@ function applySingleStartEnd(data) {
         var sid = 'TS';
         events[sid] = {
             id: sid, taskId: 0, type: 'start',
-            num: 0, es: minEs - 1, ef: minEs - 1,
+            num: 0, es: minEs - 5, ef: minEs - 5,
             ls: 0, lf: 0, tf: 0, ff: 0,
             isCritical: false, isVirtual: true
         };
@@ -566,7 +566,7 @@ function applySingleStartEnd(data) {
         var eid2 = 'TE';
         events[eid2] = {
             id: eid2, taskId: 0, type: 'end',
-            num: 0, es: maxEf + 1, ef: maxEf + 1,
+            num: 0, es: maxEf + 5, ef: maxEf + 5,
             ls: 0, lf: 0, tf: 0, ff: 0,
             isCritical: false, isVirtual: true
         };
@@ -1431,11 +1431,14 @@ window.renderNetwork = function(elementsJson, opts) {
         // 活动长度固定
         var cx = ML + sortedEids.length * logicGap + 200;
     } else {
+        var maxEs = 0;
         Object.keys(layout.events).forEach(function(eid) {
             layout.events[eid].x = ML + (layout.events[eid].es || 0) * dayWidth;
+            if ((layout.events[eid].es || 0) > maxEs) maxEs = layout.events[eid].es;
         });
-        var cx = ML + totalDays * dayWidth + 100;
-    }
+        // SVG width 需要考虑虚拟节点 (TE 可能在 totalDays 之后)
+        var rightMargin = Math.max(totalDays, maxEs) * dayWidth;
+        var cx = ML + rightMargin + 100;
 
     // A3: 应用配置参数(必须在计算高度前初始化)
     var netLayerHeight = opts.layerHeight || 60;
@@ -2054,3 +2057,5 @@ window.networkFit = function() {
     // 延迟初始化(等待 Blazor 渲染完成)
     setTimeout(initResize, 1000);
 })();
+
+}
