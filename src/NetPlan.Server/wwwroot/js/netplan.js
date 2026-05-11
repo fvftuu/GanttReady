@@ -524,27 +524,30 @@ function applySingleStartEnd(data) {
     var eventSucc = data.eventSucc;
     var sortedEvents = data.sortedEvents;
 
-    // 查找入度=0(起始节点)和出度=0(结束节点)的事件
-    var startEvents = [];
-    var endEvents = [];
+    // 虚拟起终点：起点收集所有最早开始(es===minEs)的事件，终点收集所有最晚结束(ef===maxEf)的事件
+    var maxEf = -Infinity;
     Object.keys(events).forEach(function(eid) {
-        var inD = eventPred[eid] ? eventPred[eid].length : 0;
-        var outD = eventSucc[eid] ? eventSucc[eid].length : 0;
-        if (inD === 0) startEvents.push(eid);
-        if (outD === 0) endEvents.push(eid);
-    });
-
-    console.log('[NET] applySingleStartEnd: startEvents=' + startEvents.length + ' endEvents=' + endEvents.length);
-    if (startEvents.length <= 1 && endEvents.length <= 1) return;
-
-    var minEs = Infinity, maxEf = -Infinity;
-    Object.keys(events).forEach(function(eid) {
-        if (events[eid].es < minEs) minEs = events[eid].es;
         if (events[eid].ef > maxEf) maxEf = events[eid].ef;
     });
+    var minEs = Infinity;
+    Object.keys(events).forEach(function(eid) {
+        if (events[eid].es < minEs) minEs = events[eid].es;
+    });
+
+    var startCandidates = [];
+    var endCandidates = [];
+    Object.keys(events).forEach(function(eid) {
+        var evt = events[eid];
+        if (evt.isVirtual) return;
+        if (evt.es === minEs) startCandidates.push(eid);
+        if (evt.ef === maxEf) endCandidates.push(eid);
+    });
+
+    console.log('[NET] applySingleStartEnd: startCandidates=' + startCandidates.length + ' endCandidates=' + endCandidates.length);
+    if (startCandidates.length <= 1 && endCandidates.length <= 1) return;
 
     // 虚拟开始节点 (S)
-    if (startEvents.length > 1) {
+    if (startCandidates.length > 1) {
         var sid = 'TS';
         events[sid] = {
             id: sid, taskId: 0, type: 'start',
@@ -553,15 +556,15 @@ function applySingleStartEnd(data) {
             isCritical: false, isVirtual: true
         };
         eventPred[sid] = [];
-        eventSucc[sid] = startEvents.slice();
-        startEvents.forEach(function(seid) {
+        eventSucc[sid] = startCandidates.slice();
+        startCandidates.forEach(function(seid) {
             eventPred[seid].push(sid);
         });
         sortedEvents.unshift(sid);
     }
 
     // 虚拟结束节点 (E)
-    if (endEvents.length > 1) {
+    if (endCandidates.length > 1) {
         var eid2 = 'TE';
         events[eid2] = {
             id: eid2, taskId: 0, type: 'end',
@@ -569,9 +572,9 @@ function applySingleStartEnd(data) {
             ls: 0, lf: 0, tf: 0, ff: 0,
             isCritical: false, isVirtual: true
         };
-        eventPred[eid2] = endEvents.slice();
+        eventPred[eid2] = endCandidates.slice();
         eventSucc[eid2] = [];
-        endEvents.forEach(function(eeid) {
+        endCandidates.forEach(function(eeid) {
             eventSucc[eeid].push(eid2);
         });
         sortedEvents.push(eid2);
@@ -1079,43 +1082,11 @@ function buildNetworkSvg(params) {
         }
     });
 
-    // === 规则5: 过桥法 - 虚/实箭线交叉处画半圆桥接 ===
-    // 收集所有水平线段用于交叉检测
-    var hSegments = []; // {x1,y,x2,type}
-    p.timeParams.activities.forEach(function(act) {
-        var src = p.layout.events[act.source], tgt = p.layout.events[act.target];
-        if (!src || !tgt) return;
-        var lineY = src.y; // 水平线在起始节点高度
-        if (Math.abs(tgt.y - src.y) < 2) {
-            hSegments.push({x1: src.x + NODE_R, y: lineY, x2: tgt.x, type: 'work'});
-        } else {
-            hSegments.push({x1: src.x + NODE_R, y: lineY, x2: tgt.x, type: 'work'});
-        }
-    });
-    // 交叉检测: O(n^2) 简单
-    var crossPoints = [];
-    for (var i = 0; i < hSegments.length; i++) {
-        for (var j = i + 1; j < hSegments.length; j++) {
-            var a = hSegments[i], b = hSegments[j];
-            var ax1 = Math.min(a.x1, a.x2), ax2 = Math.max(a.x1, a.x2);
-            var bx1 = Math.min(b.x1, b.x2), bx2 = Math.max(b.x1, b.x2);
-            // 水平线段交叉: Y不同且X区间重叠
-            // 只检测不同层且Y间距>=NODE_R*2的水平段(避免同层轻微偏移误判)
-            if (Math.abs(a.y - b.y) >= NODE_R * 2 && ax1 < bx2 && bx1 < ax2) {
-                var crossX = (Math.max(ax1, bx1) + Math.min(ax2, bx2)) / 2;
-                crossPoints.push({x: crossX, y1: Math.min(a.y, b.y), y2: Math.max(a.y, b.y)});
-            }
-        }
-    }
-    // 过桥标记(取前5个交叉,画半圆弧)
-    crossPoints.slice(0, 20).forEach(function(cp) {
-        var midY = (cp.y1 + cp.y2) / 2;
-        var r = 5;
-        parts.push('<path d="M' + (cp.x - r) + ' ' + cp.y1 + ' A' + r + ' ' + r + ' 0 0 0 ' + (cp.x + r) + ' ' + cp.y1 
-            + '" fill="none" stroke="#ff6b6b" stroke-width="1"/>');
-        parts.push('<path d="M' + (cp.x + r) + ' ' + cp.y2 + ' A' + r + ' ' + r + ' 0 0 1 ' + (cp.x - r) + ' ' + cp.y2
-            + '" fill="none" stroke="#ff6b6b" stroke-width="1"/>');
-    });
+    // === 规则5: 过桥法 ===
+    // 时标网络图中同一层的箭线水平、跨层箭线走垂直段在目标节点左侧，
+    // 不会发生水平线交叉，故过桥标记暂不启用。
+    // 如需支持复杂的非时标交叉场景，可在此重新实现。
+    /* 过桥检测已禁用 —— 当前水平段交叉均为误报 */
 
     // === 今日线(红色虚线,从标尺顶部到底部标尺上方)===
     if (isTimeMode && p.showTodayLine) {
