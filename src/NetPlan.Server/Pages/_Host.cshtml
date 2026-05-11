@@ -17,6 +17,16 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
     </style>
+    <!-- Index page globals: must load before Blazor render to avoid race -->
+    <script>
+        window.setCheckedProject = function(id) { localStorage.setItem('netplan_checked', id); };
+        window.getCheckedProject = function() { return localStorage.getItem('netplan_checked') || 0; };
+        window.navToChecked = function(page) {
+            var checked = localStorage.getItem('netplan_checked');
+            if (checked > 0) { window.location.href = '/project/' + checked + '/' + page; }
+            else { window.location.href = '/'; }
+        };
+    </script>
 </head>
 <body>
     <app>
