@@ -237,8 +237,29 @@ All work follows three phases with validation gates. Do not skip phases.
 ### Phase 3: Implement (Incrementally)
 - Build in thin vertical slices: implement - test - verify - commit
 - Never write more than ~100 lines without testing
-- Stop-the-line rule: when anything breaks, STOP. Preserve evidence, diagnose root cause, fix, THEN resume
+- **Stop-the-line rule: when anything breaks, STOP. Preserve evidence, diagnose root cause, fix, THEN resume.**
+  - First priority: build a fast deterministic feedback loop (repro script, test, curl). A 2s deterministic loop beats 30min of staring at code.
+  - If you can't build a loop, say so explicitly — don't proceed to guessing.
 - Commit after each slice with descriptive message
+
+---
+
+## Operational Rules (always active)
+
+### 🐛 Debugging
+- **Never guess fixes.** Build a repro first. The loop is 90% of the fix.
+- When something "worked before and stopped": `git log --oneline -20`, find the change, revert-test-confirm.
+- Error output = evidence. Always capture full stack traces and error messages before acting.
+
+### 🧹 Code Hygiene
+- After each session or major change, ask: "Does the project's AGENTS.md / README / docs need updating?"
+- Dead code is debt. If you touch a file and see unused functions/variables/commented-out blocks, remove them.
+- Abstractions earn their keep at the 3rd use case. Before that, duplication is cheaper.
+
+### ⚡ Efficiency
+- Prefer deep modules over shallow ones: complex internals, simple interface.
+- When explaining a change, state the problem first, then the solution. Lead with the conclusion.
+- If a task description is vague, ask 1-3 specific clarifying questions before writing any code.
 
 ---
 
@@ -251,11 +272,11 @@ When a task matches a domain below, apply the corresponding pattern:
 | New feature / unclear requirements | Spec-Driven Development: spec before code | addyosmani |
 | Large task breakdown | Planning & Task Breakdown: ordered tasks | addyosmani |
 | Multi-file implementation | Incremental Implementation: vertical slices | addyosmani |
-| Bug / test failure / build break | Debugging & Error Recovery: triage | addyosmani |
+| Bug / test failure / build break | **Feedback Loop First (diagnose):** build deterministic repro → bisect → fix | mattpocock |
 | Before merging any change | Code Review & Quality: 5-axis review | addyosmani |
 | Building/modifying UI | Frontend UI Engineering | addyosmani |
 | Creating/improving a Skill | Skill Creator: SKILL.md + quality gate | anthropics |
-| NetPlan network diagram / Gantt | Read audit/ + project AGENTS.md | NetPlan |
+| NetPlan network diagram / Gantt | Read audit/ + project context | NetPlan |
 
 ---
 
