@@ -1027,13 +1027,16 @@ function buildNetworkSvg(params) {
         if (p.showFloat && act.ff > 0 && !isCrit) {
             var fex = Math.min(ex + act.ff * p.dayWidth, cw - 10);
             var wp = 'M' + ex + ' ' + ey;
-            // P1-3: 分段数按波形线实际宽度自适应（每~8px一个锯齿）
-            var waveSegments = Math.max(8, Math.ceil((fex - ex) / 8));
-            for (var s = 0; s < waveSegments; s++) {
-                var t = s / waveSegments;
-                wp += ' L' + (ex + (fex - ex) * t) + ' ' + (ey + (s % 2 ? -3 : 3));
+            // 标准波形线: 每6px一个锯齿, X均匀递增, Y上下4px
+            var waveWidth = fex - ex;
+            var stepX = 6;
+            var segs = Math.max(4, Math.round(waveWidth / stepX));
+            for (var s = 0; s <= segs; s++) {
+                var wx = ex + waveWidth * (s / segs);
+                var wy = ey + (s % 2 === 0 ? -4 : 4);
+                wp += ' L' + wx.toFixed(1) + ' ' + wy.toFixed(1);
             }
-            parts.push('<path class="act-wave" d="' + wp + '" fill="none" stroke="#FFD700" stroke-width="1" stroke-dasharray="4,3"/>');
+            parts.push('<path class="act-wave" d="' + wp + '" fill="none" stroke="#FFD700" stroke-width="1.2"/>');
         }
         parts.push('</g>');
     });
