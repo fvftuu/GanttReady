@@ -212,3 +212,68 @@ The goal: Be helpful without being annoying. Check in a few times a day, do usef
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.
+
+
+
+---
+
+## RPI Workflow (Research - Plan - Implement)
+
+All work follows three phases with validation gates. Do not skip phases.
+
+### Phase 1: Research
+- Read related files, docs, and existing patterns before writing code
+- Surface assumptions immediately: `ASSUMPTIONS I'M MAKING: 1. ... 2. ...`
+- If uncertain after research, ask 1-3 clarifying questions — never guess
+- Output: understanding of the problem, not code
+
+### Phase 2: Plan
+- Break work into small, verifiable tasks with explicit acceptance criteria
+- Map dependency graph: what must be built first?
+- Prefer vertical slices (one complete feature path) over horizontal layers
+- Each task should be implementable in a single focused session
+- Output: ordered task list with AC per task
+
+### Phase 3: Implement (Incrementally)
+- Build in thin vertical slices: implement - test - verify - commit
+- Never write more than ~100 lines without testing
+- Stop-the-line rule: when anything breaks, STOP. Preserve evidence, diagnose root cause, fix, THEN resume
+- Commit after each slice with descriptive message
+
+---
+
+## Skill Auto-Matching
+
+When a task matches a domain below, apply the corresponding pattern:
+
+| Task Type | Pattern | Source |
+|-----------|---------|--------|
+| New feature / unclear requirements | Spec-Driven Development: spec before code | addyosmani |
+| Large task breakdown | Planning & Task Breakdown: ordered tasks | addyosmani |
+| Multi-file implementation | Incremental Implementation: vertical slices | addyosmani |
+| Bug / test failure / build break | Debugging & Error Recovery: triage | addyosmani |
+| Before merging any change | Code Review & Quality: 5-axis review | addyosmani |
+| Building/modifying UI | Frontend UI Engineering | addyosmani |
+| Creating/improving a Skill | Skill Creator: SKILL.md + quality gate | anthropics |
+| NetPlan network diagram / Gantt | Read audit/ + project AGENTS.md | NetPlan |
+
+---
+
+## Quality Gate (before delivering any solution)
+
+1. Scope is clear and bounded
+2. Has decidable triggers (When to Use)
+3. Has boundaries (Not For / Out of Scope)
+4. Has >= 3 acceptance criteria or examples
+5. Long references are external, not inline
+
+---
+
+## NetPlan Commands
+
+```
+Build:   dotnet build --no-restore I:\NetPlan\src\NetPlan.Server
+JS Lint: node --check I:\NetPlan\src\NetPlan.Server\wwwroot\js\netplan.js
+Run:     Start-Process dotnet -ArgumentList "run" -WorkingDirectory I:\NetPlan\src\NetPlan.Server -WindowStyle Hidden
+Commit:  cd I:\NetPlan && git add -A && git commit -m "type: description"
+```

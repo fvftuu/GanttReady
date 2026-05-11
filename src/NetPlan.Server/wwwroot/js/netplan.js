@@ -970,13 +970,12 @@ function buildNetworkSvg(params) {
 
         var pathD;
         if (isTimeMode) {
-            // 国标: 时标图中箭线以水平为主，从起始节点右边缘→结束节点左边缘
+            // 国标: 时标图中箭线以水平为主，从起始节点右边缘→结束节点
             if (Math.abs(ey - sy) < 2) {
-                // 同层: 纯水平线
                 pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + ey;
             } else {
-                // 跨层: 水平线走到结束节点X处，再垂直到结束节点圆心高度，最后进入结束节点
-                pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + sy + ' L' + ex + ' ' + ey;
+                // 跨层: 水平到结束X,垂直下降,最后一小段水平进入圆心(确保箭头向右)
+                pathD = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + sy + ' L' + (ex - 2) + ' ' + ey + ' L' + ex + ' ' + ey;
             }
         } else {
             if (Math.abs(ey - sy) < 5) {
@@ -1408,7 +1407,10 @@ window.renderNetwork = function(elementsJson, opts) {
     var tp = calculateTimeParams(tasks, rels);
     // P0-2: 唯一起点/终点 - 插入虚拟开始/结束节点
     var singleStartEnd = opts.singleStartEnd !== false;
-    if (singleStartEnd) applySingleStartEnd(tp);
+    console.log('[NET] singleStartEnd:', singleStartEnd, 'opts.singleStartEnd:', opts.singleStartEnd);
+    if (singleStartEnd) {
+        try { applySingleStartEnd(tp); } catch(e) { console.error('[NET] applySingleStartEnd failed:', e); }
+    }
     var layout = calculateVerticalLayout(tp);
 
     // R4: precompute in/out degree per event for bus lines
@@ -1547,7 +1549,6 @@ window.renderNetwork = function(elementsJson, opts) {
             var eid = g.getAttribute('data-event-id');
             var off = _netEventOffsets[eid] || { x: 0, y: 0 };
             _netNodeDrag = { eventId: eid, group: g, startX: e.clientX, startY: e.clientY, offX: off.x, offY: off.y, moved: false };
-            _netLastPopupTime = Date.now(); // 防止松手后 dblclick 穿透
             g.style.cursor = 'grabbing';
             e.stopPropagation(); // stop canvas panning
             // 不 preventDefault,让 dblclick 能触发
@@ -1802,7 +1803,6 @@ if (!window._netDragSetup) {
 
             if (tid > 0) {
                 // 标准拖拽:修改现有任务日期/工期
-                _netLastPopupTime = Date.now(); // 防松手后 dblclick
                 // Y 偏移保留(纵向微调),只对 X 偏移询问
                 _showDayPopup(deltaDays, (nodeDrag.cx || 0), (nodeDrag.cy || 0), function(days) {
                     if (days !== 0) {
