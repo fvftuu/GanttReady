@@ -297,6 +297,7 @@ window.renderAnalysisBarChart = function(canvasId, chartData) {
 // ============================================================================
 
 var _netDotNet = null;
+var _netLastPopupTime = 0;
 var _lastRenderedToken = null;
 // 节点拖拽全局状态
 var _netNodeDrag = null;
