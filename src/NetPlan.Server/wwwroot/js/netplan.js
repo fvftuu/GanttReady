@@ -524,28 +524,31 @@ function applySingleStartEnd(data) {
     var eventSucc = data.eventSucc;
     var sortedEvents = data.sortedEvents;
 
-    // 查找入度=0(起始节点)和出度=0(结束节点)的事件
-    var startEvents = [];
-    var endEvents = [];
+    // 始终创建虚拟起终点以保证网络图唯一起点/终点
+    var maxEf = -Infinity;
     Object.keys(events).forEach(function(eid) {
-        var inD = eventPred[eid] ? eventPred[eid].length : 0;
-        var outD = eventSucc[eid] ? eventSucc[eid].length : 0;
-        if (inD === 0) startEvents.push(eid);
-        if (outD === 0) endEvents.push(eid);
-    });
-
-    // 如果只有一个起始和一个结束,无需处理
-    console.log('[NET] applySingleStartEnd: startEvents=' + startEvents.length + ' endEvents=' + endEvents.length);
-    if (startEvents.length <= 1 && endEvents.length <= 1) return;
-
-    var minEs = Infinity, maxEf = -Infinity;
-    Object.keys(events).forEach(function(eid) {
-        if (events[eid].es < minEs) minEs = events[eid].es;
         if (events[eid].ef > maxEf) maxEf = events[eid].ef;
     });
+    var minEs = Infinity;
+    Object.keys(events).forEach(function(eid) {
+        if (events[eid].es < minEs) minEs = events[eid].es;
+    });
 
-    // 虚拟开始节点 (S)
-    if (startEvents.length > 1) {
+    // 收集所有最早开始和最晚结束的实际事件
+    var startCandidates = [];
+    var endCandidates = [];
+    Object.keys(events).forEach(function(eid) {
+        var evt = events[eid];
+        if (evt.isVirtual) return; // 跳过已有的虚拟节点
+        if (evt.es === minEs) startCandidates.push(eid);
+        if (evt.ef === maxEf) endCandidates.push(eid);
+    });
+
+    console.log('[NET] applySingleStartEnd: startCandidates=' + startCandidates.length + ' endCandidates=' + endCandidates.length + ' minEs=' + minEs + ' maxEf=' + maxEf);
+    if (startCandidates.length <= 1 && endCandidates.length <= 1) return;
+
+    // 虚拟开始节点 (S) — 连接所有最早开始的事件
+    if (startCandidates.length > 1) {
         var sid = 'TS';
         events[sid] = {
             id: sid, taskId: 0, type: 'start',
@@ -554,15 +557,15 @@ function applySingleStartEnd(data) {
             isCritical: false, isVirtual: true
         };
         eventPred[sid] = [];
-        eventSucc[sid] = startEvents.slice();
-        startEvents.forEach(function(seid) {
+        eventSucc[sid] = startCandidates.slice();
+        startCandidates.forEach(function(seid) {
             eventPred[seid].push(sid);
         });
         sortedEvents.unshift(sid);
     }
 
-    // 虚拟结束节点 (E)
-    if (endEvents.length > 1) {
+    // 虚拟结束节点 (E) — 连接所有最晚结束的事件
+    if (endCandidates.length > 1) {
         var eid2 = 'TE';
         events[eid2] = {
             id: eid2, taskId: 0, type: 'end',
@@ -570,9 +573,9 @@ function applySingleStartEnd(data) {
             ls: 0, lf: 0, tf: 0, ff: 0,
             isCritical: false, isVirtual: true
         };
-        eventPred[eid2] = endEvents.slice();
+        eventPred[eid2] = endCandidates.slice();
         eventSucc[eid2] = [];
-        endEvents.forEach(function(eeid) {
+        endCandidates.forEach(function(eeid) {
             eventSucc[eeid].push(eid2);
         });
         sortedEvents.push(eid2);
