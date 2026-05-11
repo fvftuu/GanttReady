@@ -983,12 +983,17 @@ function buildNetworkSvg(params) {
             } else {
                 pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + sy + ' L' + ex + ' ' + ey;
             }
-            // R3: arrows must go left-to-right
-            if (sx > ex) { console.warn('[NET] R3 backwards arrow: actId=' + act.id + ' src=' + act.source + ' tgt=' + act.target); }
+            // R3: arrows must go left-to-right — mark backwards arrows in red
+            var isBackwards = (sx > ex);
+            if (isBackwards) { console.warn('[NET] R3 backwards arrow: actId=' + act.id + ' src=' + act.source + ' tgt=' + act.target); }
         }
         parts.push('<g data-activity-id="' + act.id + '" data-src="' + act.source + '" data-tgt="' + act.target + '">');
         parts.push('<path class="act-arrow" d="' + pathD + '" fill="none" stroke="' + arrow.color
             + '" stroke-width="' + (isCrit ? criticalWidth : normalWidth) + '" marker-end="' + arrow.id + '"/>');
+        // R3: backwards arrows get a semi-transparent red overlay
+        if (isBackwards) {
+            parts.push('<path class="act-arrow-r3" d="' + pathD + '" fill="none" stroke="#e74c3c" stroke-opacity="0.6" stroke-width="' + (parseFloat(isCrit ? criticalWidth : normalWidth) + 2) + '" stroke-dasharray="4,2" marker-end="' + arrow.id + '"/>');
+        }
 
         var lx = (sx + ex) / 2, ly = sy - NODE_R - 6;
         var labelFields = p.labelFields || [];
@@ -1096,7 +1101,8 @@ function buildNetworkSvg(params) {
             var ax1 = Math.min(a.x1, a.x2), ax2 = Math.max(a.x1, a.x2);
             var bx1 = Math.min(b.x1, b.x2), bx2 = Math.max(b.x1, b.x2);
             // 水平线段交叉: Y不同且X区间重叠
-            if (Math.abs(a.y - b.y) > 10 && ax1 < bx2 && bx1 < ax2) {
+            // 只检测不同层且Y间距>=NODE_R*2的水平段(避免同层轻微偏移误判)
+            if (Math.abs(a.y - b.y) >= NODE_R * 2 && ax1 < bx2 && bx1 < ax2) {
                 var crossX = (Math.max(ax1, bx1) + Math.min(ax2, bx2)) / 2;
                 crossPoints.push({x: crossX, y1: Math.min(a.y, b.y), y2: Math.max(a.y, b.y)});
             }
