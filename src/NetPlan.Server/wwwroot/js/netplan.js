@@ -996,12 +996,28 @@ function buildNetworkSvg(params) {
     } // showDummy
 
     // === 工作箭线 ===
+    // 防重叠: 统计同源-同目标的箭线数量,为重复的错开垂直位置
+    var arrowPairCounts = {};
+    p.timeParams.activities.forEach(function(act) {
+        var key = act.source + '->' + act.target;
+        arrowPairCounts[key] = (arrowPairCounts[key] || 0) + 1;
+    });
+    var arrowPairIdx = {};
+
     p.timeParams.activities.forEach(function(act) {
         var src = p.layout.events[act.source], tgt = p.layout.events[act.target];
         if (!src || !tgt) return;
         var isCrit = act.isCritical && p.showCritical;
-        var sx = src.x + NODE_R, sy = src.y; // 起始节点圆右边
-        var ex = tgt.x, ey = tgt.y;             // 结束节点圆心（marker refX=0 在圆边）
+        var pairKey = act.source + '->' + act.target;
+        var pairTotal = arrowPairCounts[pairKey] || 1;
+        var pairI = arrowPairIdx[pairKey] || 0;
+        arrowPairIdx[pairKey] = pairI + 1;
+        // 多箭线垂直偏移: 奇数根上下分散,偏移量 ±NODE_R*0.8
+        var offsetNum = pairTotal > 1 ? (pairI - (pairTotal - 1) / 2) * (NODE_R * 0.8) : 0;
+        var sy = src.y + offsetNum;
+        var ey = tgt.y + offsetNum;
+        var sx = src.x + NODE_R; // 起始节点圆右边
+        var ex = tgt.x;             // 结束节点圆心（marker refX=0 在圆边）
         var dur = act.duration || 0;
 
         var arrow = svgArrowMarker(isCrit, criticalColor, normalColor);
@@ -1193,8 +1209,8 @@ function buildNetworkSvg(params) {
             + '</g>');
     }
 
-    // === 图例 ===
-    var lx = cw - 220, ly = ch - 75;
+    // === 图例(左下角,底部标尺上方) ===
+    var lx = 10, ly = ch - 95;
     parts.push('<rect x="' + lx + '" y="' + ly + '" width="220" height="78" fill="rgba(255,255,255,0.95)" stroke="#ccc"/>');
     parts.push('<text x="' + (lx + 10) + '" y="' + (ly + 15) + '" font-size="11" font-weight="bold" fill="#333">图例</text>');
     [
