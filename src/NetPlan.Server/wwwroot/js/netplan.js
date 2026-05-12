@@ -1373,6 +1373,8 @@ window.initProgressColors = function() {
     updateProgressColors();
 };
 window.renderNetwork = function(elementsJson, opts) {
+    // 兼容 C# 传入 JSON 字符串(替换轮询后改为此调用方式)
+    if (typeof opts === 'string') { try { opts = JSON.parse(opts); } catch(e) { opts = {}; } }
     opts = opts || {};
     // 读取模式: 优先从 opts.mode, 其次全局 _netMode, 默认 'time'
     var mode = opts.mode || _netMode || 'time';
