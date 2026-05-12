@@ -119,10 +119,22 @@ public class ScheduleEngine : IScheduleEngine
             cpmEarlyStart = maxEarlyFinish == int.MinValue ? 0 : maxEarlyFinish;
         }
 
-        // 手动排程：取 CPM 值和手动值的较大者（紧前任务可推后，但不早于手动设置）
-        task.EarlyStart = task.IsManualSchedule
-            ? Math.Max(cpmEarlyStart, manualEarlyStart)
-            : cpmEarlyStart;
+        // Bug 1 修复：有紧前任务时以 CPM 计算为准，手动排程只对无紧前任务的首个任务生效
+        if (predecessors.Count > 0)
+        {
+            // 有紧前任务 → 忽略手动排程，以时差计算为准
+            task.EarlyStart = cpmEarlyStart;
+        }
+        else if (task.IsManualSchedule)
+        {
+            // 无紧前任务 + 手动指定了开始时间 → 以手动设置的开始时间为准
+            task.EarlyStart = manualEarlyStart;
+        }
+        else
+        {
+            // 无紧前任务 + 未手动指定 → 从第0天开始
+            task.EarlyStart = cpmEarlyStart;
+        }
         task.EarlyFinish = task.EarlyStart + task.PlanDuration;
     }
 

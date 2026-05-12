@@ -294,7 +294,7 @@
                 }
             </div>
             @* 前置关系线 SVG 层 *@
-            <svg class="gantt-relation-lines" style="height: @(tasks.Count * rowHeight)px;">
+            <svg class="gantt-relation-lines" style="height: @(tasks.Count * rowHeight)px; width: @(totalDays * dayWidth)px;">
                 <defs>
                     <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
                         <polygon points="0 0, 10 3.5, 0 7" fill="#666"/>
@@ -345,7 +345,7 @@
                         {
                             var predRow = tasks.IndexOf(predTask);
                             var succRow = tasks.IndexOf(succTask);
-                            var predEndOffset = (predTask.PlanEndDate - projectStartDate).Days * dayWidth + dayWidth;
+                            var predEndOffset = Math.Max(0, (predTask.PlanEndDate - projectStartDate).Days) * dayWidth + dayWidth;
                             var succStartOffset = Math.Max(0, (succTask.PlanStartDate - projectStartDate).Days) * dayWidth;
                             var predTop = predRow * rowHeight + 18;
                             var succTop = succRow * rowHeight + 18;
