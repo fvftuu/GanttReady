@@ -634,7 +634,8 @@
         });
         renderToken++;
         StateHasChanged();
-        await Task.Delay(50);
+        // 直接调用 JS 渲染,替换旧轮询机制
+        try { await JS.InvokeVoidAsync("renderNetwork", graphJson, optionsJson); } catch { }
     }
 
     private void ZoomIn()
@@ -999,6 +1000,8 @@
         if (!skipLoading) statusMessage = $"共 {tasks.Count} 任务,{taskRelations.Count} 关系,总工期 {totalDuration} 天";
         isLoading = false;
         StateHasChanged();
+        // 直接调用 JS 渲染(替换旧轮询机制)
+        try { await JS.InvokeVoidAsync("renderNetwork", graphJson, optionsJson); } catch { }
     }
 
     // ======= 对话框操作 =======

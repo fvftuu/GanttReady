@@ -1,4 +1,30 @@
 // NetPlan.js - 甘特图交互脚本
+//
+// ==== RENDER PIPELINE ====
+// 1. C# BuildDataInternal: 从DB读取TaskItem/TaskRelation → 序列化为 JSON
+// 2. 通过 JS.InvokeVoidAsync 或 hidden input 到达 JS
+// 3. calculateTimeParams(tasks, rels): 事件合并 + 拓扑排序 = events + activities
+// 4. applySingleStartEnd(tp): 虚拟开始(TS)/结束(TE)节点
+// 5. calculateVerticalLayout(tp): BFS拓扑分层 → eventLayer → Y坐标
+// 6. renderNetwork(): X坐标定位 + SVG sizing + buildNetworkSvg() + 事件绑定
+// 7. buildNetworkSvg(params): 拼接SVG字符串(标尺/实箭线/虚箭线/节点/前锋线/进度曲线/图例)
+// 8. 双击绑定 + 节点拖拽 + 画布平移 + 前锋线拖拽
+//
+// ==== GLOBAL STATE ====
+// - _netLayout, _netActivities, _netSvg: 当前渲染的快照(每次renderNetwork覆盖)
+// - _netEventOffsets: 节点拖拽后的偏移量(transform translate)
+// - _netExtraSpacing: 用户插入的空行,按层号索引
+// - _progressCheckDate, _progressX: 前锋线位置
+// - _netDotNet: Blazor DotNetObjectReference
+//
+// ==== IMPORTANT: SAFETY RULES ====
+// - IMPORTANT: 文档级事件(mousedown/mousemove/mouseup)只绑一次,通过 _netDragSetup/_panBound 标志位控制
+// - IMPORTANT: renderNetwork 必须每次重建 SVG 并更新 _netLayout 等全局引用
+// - IMPORTANT: 拖拽偏移(_netEventOffsets)在重渲染后恢复,但 SyncNodeDrag 前必须删除 X 偏移(避免叠加)
+// - IMPORTANT: DotNet.invokeMethodAsync 调用必须带 .catch()
+// - IMPORTANT: 任何 SVG 内的坐标都用 layout.events[eid].x/y,不要硬编码
+// - IMPORTANT: 前锋线相关的日期存在浏览器内存中,刷新会丢失
+// ===========================
 
 // 双向滚动同步锁(防止左右互相触发导致无限循环)
 var _syncLock = false;
@@ -298,7 +324,6 @@ window.renderAnalysisBarChart = function(canvasId, chartData) {
 
 var _netDotNet = null;
 var _netLastPopupTime = 0;
-var _lastRenderedToken = null;
 // 节点拖拽全局状态
 var _netNodeDrag = null;
 var _netLayout = null;
@@ -1621,6 +1646,9 @@ window.renderNetwork = function(elementsJson, opts) {
     _networkData = { events: layout.events, activities: tp.activities, relations: tp.relations };
     _networkOpts = opts;
 
+    // === 渲染后自检 ===
+    validateNetworkRender();
+
     // ===== 画布拖拽平移(每次重渲染重绑定)=====
     var netBody = document.getElementById('network-body');
     if (netBody) {
@@ -1684,12 +1712,43 @@ window._netDeleteBlankRow = function(layerNum) {
     _triggerRerender();
 };
 
+// === 健康自检函数(渲染后自动执行,在浏览器控制台可看到结果) ===
+function validateNetworkRender() {
+    var errors = [];
+    var svg = document.getElementById('network-svg');
+    if (!svg) { errors.push('SVG元素不存在'); return; }
+    if (!_netLayout || !_netActivities) { errors.push('_netLayout/_netActivities 为空'); }
+    if (!_netDotNet && !window._netDotNet) { errors.push('_netDotNet 未设置'); }
+    var dummies = svg.querySelectorAll('.dummy-rel path');
+    dummies.forEach(function(p) {
+        var d = p.getAttribute('d') || '';
+        var coords = d.match(/[\d.]+/g);
+        if (coords && coords.length >= 8) {
+            var x1 = parseFloat(coords[0]), x4 = parseFloat(coords[6]);
+            if (Math.abs(x4 - x1) > 2) errors.push('虚工作水平长度非零: ' + Math.round(Math.abs(x4-x1)) + 'px');
+        }
+    });
+    var activities = _netActivities || [];
+    activities.forEach(function(act) {
+        var src = _netLayout && _netLayout.events ? _netLayout.events[act.source] : null;
+        var tgt = _netLayout && _netLayout.events ? _netLayout.events[act.target] : null;
+        if (!src || !tgt) return;
+        var visualLen = Math.abs(tgt.x - src.x);
+        var expectedLen = (act.ef - act.es) * (_netDayWidth || 40);
+        if (Math.abs(visualLen - expectedLen) > 5) errors.push('actId=' + act.id + ' 箭线长度偏差: 视觉=' + Math.round(visualLen) + ' 期望=' + Math.round(expectedLen));
+    });
+    if (errors.length > 0) {
+        console.warn('[VALIDATE] ' + errors.length + ' issue(s):');
+        errors.forEach(function(e) { console.warn('  [VALIDATE] ' + e); });
+    } else {
+        console.log('[VALIDATE] All checks passed');
+    }
+}
+
 function _triggerRerender() {
-    var tokenEl = document.getElementById('netplan-render-token');
     var dataEl = document.getElementById('netplan-data');
     var optsEl = document.getElementById('netplan-options');
-    if (tokenEl && dataEl && optsEl && typeof window.renderNetwork === 'function') {
-        _lastRenderedToken = null; // 强制重渲染
+    if (dataEl && optsEl && typeof window.renderNetwork === 'function') {
         try {
             window.renderNetwork(dataEl.value, JSON.parse(optsEl.value));
         } catch(e) { console.error('[NET] rerender error', e); }
@@ -1963,25 +2022,6 @@ window.networkFit = function() {
     var hscroll = document.getElementById('network-hscroll');
     if (hscroll) hscroll.scrollLeft = 0;
 };
-
-// 自动轮询检测token变化(兼容Blazor)
-(function startNetworkPoller() {
-    setInterval(function() {
-        var tokenEl = document.getElementById('netplan-render-token');
-        if (!tokenEl) return;
-        var token = tokenEl.value;
-        if (token === _lastRenderedToken) return;
-        if (typeof window.renderNetwork !== 'function') return;
-        var dataEl = document.getElementById('netplan-data');
-        var optsEl = document.getElementById('netplan-options');
-        if (!dataEl || !optsEl) return;
-        _lastRenderedToken = token;
-        try {
-            console.log('[NET] poller: calling renderNetwork...');
-            window.renderNetwork(dataEl.value, JSON.parse(optsEl.value));
-        } catch(e) { console.error('[NET] renderNetwork error', e); }
-    }, 500); // P3-6: 降低轮询频率，减少 CPU 开销
-})();
 
 // ========== 甘特图列宽拖拽调整 ==========
 (function() {
