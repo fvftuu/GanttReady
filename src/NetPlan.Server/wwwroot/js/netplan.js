@@ -734,6 +734,30 @@ function svgArrowMarker(crit, optCritColor, optNormalColor) {
 function buildNetworkSvg(params) {
     var p = params, parts = [], markers = [];
     var MARGIN_LEFT = 80, RULER_H = 52;
+
+    function findSegIntersection(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2) {
+        // 检查两线段是否交叉,返回交叉点或null
+        function cross(Ax, Ay, Bx, By, Cx, Cy) {
+            return (Bx - Ax) * (Cy - Ay) - (By - Ay) * (Cx - Ax);
+        }
+        // 快速排斥: 检查包围盒是否重叠
+        if (Math.max(ax1, ax2) < Math.min(bx1, bx2) || Math.min(ax1, ax2) > Math.max(bx1, bx2) ||
+            Math.max(ay1, ay2) < Math.min(by1, by2) || Math.min(ay1, ay2) > Math.max(by1, by2)) return null;
+        // 跨立实验
+        var c1 = cross(ax1, ay1, ax2, ay2, bx1, by1);
+        var c2 = cross(ax1, ay1, ax2, ay2, bx2, by2);
+        var c3 = cross(bx1, by1, bx2, by2, ax1, ay1);
+        var c4 = cross(bx1, by1, bx2, by2, ax2, ay2);
+        if (c1 * c2 >= 0 || c3 * c4 >= 0) return null;
+        // 计算交叉点(参数化)
+        var dxA = ax2 - ax1, dyA = ay2 - ay1;
+        var dxB = bx2 - bx1, dyB = by2 - by1;
+        var det = dxA * dyB - dyA * dxB;
+        if (Math.abs(det) < 0.001) return null;
+        var t = ((bx1 - ax1) * dyB - (by1 - ay1) * dxB) / det;
+        return { x: ax1 + t * dxA, y: ay1 + t * dyA };
+    }
+
     // A3: 节点半径可配置
     var NODE_R = (p.nodeRadius && p.nodeRadius >= 8 && p.nodeRadius <= 16) ? p.nodeRadius : 11;
     // A3: 节点形状
@@ -1010,8 +1034,9 @@ function buildNetworkSvg(params) {
         var srcTotal = srcArrowCounts[act.source] || 1;
         var srcI = srcArrowIdx[act.source] || 0;
         srcArrowIdx[act.source] = srcI + 1;
-        // 同源多箭线垂直偏移: 奇数根上下分散,偏移量 ±NODE_R*0.8
-        var offsetNum = srcTotal > 1 ? (srcI - (srcTotal - 1) / 2) * (NODE_R * 0.8) : 0;
+        // 同源多箭线垂直偏移: 错开半层(30px/根)
+        var offsetNum = srcTotal > 1 ? (srcI - (srcTotal - 1) / 2) * 30 : 0;
+        act._yOffset = offsetNum; // 用于后续交叉检测
         var sy = src.y + offsetNum;
         var ey = tgt.y + offsetNum;
         var sx = src.x + NODE_R; // 起始节点圆右边
@@ -1207,8 +1232,67 @@ function buildNetworkSvg(params) {
             + '</g>');
     }
 
-    // === 图例(左上角,顶部标尺下方) ===
-    var legendX = 10, legendY = RULER_H + 8;
+    // === 箭线交叉检测+跨线符 ===
+    // 收集所有工作箭线的关键路径
+    var allCritFlags = {};
+    p.timeParams.activities.forEach(function(act) {
+        allCritFlags[act.id] = act.isCritical || false;
+    });
+    // 收集所有箭线的路径线段(水平段和垂直段)
+    var allSegments = [];
+    p.timeParams.activities.forEach(function(act) {
+        if (!act.source || !act.target) return;
+        var src = p.layout.events[act.source], tgt = p.layout.events[act.target];
+        if (!src || !tgt) return;
+        var sx = src.x + NODE_R, sy = src.y + (act._yOffset || 0);
+        var ex = tgt.x, ey = tgt.y + (act._yOffset || 0);
+        allSegments.push({
+            actId: act.id,
+            isCritical: allCritFlags[act.id],
+            segs: isTimeMode && Math.abs(ey - sy) >= 2
+                ? [{x1:sx+1, y1:sy, x2:ex-3, y2:sy}, {x1:ex-3, y1:sy, x2:ex-3, y2:ey}, {x1:ex-3, y1:ey, x2:ex, y2:ey}]
+                : [{x1:sx, y1:sy, x2:ex, y2:ey}]
+        });
+    });
+    // 两两检测交叉
+    for (var i = 0; i < allSegments.length; i++) {
+        for (var j = i + 1; j < allSegments.length; j++) {
+            var a = allSegments[i], b = allSegments[j];
+            if (a.actId === b.actId) continue;
+            for (var ai = 0; ai < a.segs.length; ai++) {
+                for (var bi = 0; bi < b.segs.length; bi++) {
+                    var s1 = a.segs[ai], s2 = b.segs[bi];
+                    var cross = findSegIntersection(s1.x1, s1.y1, s1.x2, s1.y2, s2.x1, s2.y1, s2.x2, s2.y2);
+                    if (cross) {
+                        // 交叉点在非关键线上画跨线符(小半圆弧)
+                        var skipArc = false;
+                        var arcOn;
+                        if (!a.isCritical && b.isCritical) { arcOn = a; }
+                        else if (a.isCritical && !b.isCritical) { arcOn = b; }
+                        else if (!a.isCritical && !b.isCritical) { arcOn = a; } // 两个都非关键,在第一个上画
+                        else { skipArc = true; } // 两个都关键,跳过
+                        if (!skipArc && arcOn) {
+                            // 在交叉点画一个小的半圆弧(半径4px)
+                            var radius = 4;
+                            var startAngle = Math.atan2(s1.y2 - s1.y1, s1.x2 - s1.x1);
+                            var endAngle = Math.atan2(s2.y2 - s2.y1, s2.x2 - s2.x1);
+                            var arcStart = startAngle + Math.PI/4;
+                            var arcEnd = startAngle - Math.PI/4;
+                            parts.push('<path d="M' + (cross.x - radius) + ' ' + cross.y
+                                + ' A' + radius + ' ' + radius + ' 0 0 0 ' + (cross.x + radius) + ' ' + cross.y
+                                + '" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>');
+                            parts.push('<path d="M' + (cross.x - radius) + ' ' + cross.y
+                                + ' A' + radius + ' ' + radius + ' 0 0 0 ' + (cross.x + radius) + ' ' + cross.y
+                                + '" fill="none" stroke="#999" stroke-width="1" stroke-linecap="round"/>');
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // === 图例(左下角,底部事件节点下方,时间标尺上方) ===
+    var legendX = 10, legendY = bottomRulerY - 85;
     parts.push('<rect x="' + legendX + '" y="' + legendY + '" width="220" height="78" fill="rgba(255,255,255,0.95)" stroke="#ccc"/>');
     parts.push('<text x="' + (legendX + 10) + '" y="' + (legendY + 15) + '" font-size="11" font-weight="bold" fill="#333">图例</text>');
     [
