@@ -630,7 +630,7 @@
                             {
                                 var pt = tasks.FirstOrDefault(t => t.Id == rel.PredecessorTaskId);
                                 <tr>
-                                    <td>@(pt == null ? "?" : rel.Lag == 0 ? pt.Code : $"{pt.Code}({rel.Type}{rel.Lag:+0;-#})") - @(pt?.Name ?? "未知")</td>
+                                    <td>@(pt == null ? "?" : rel.Lag == 0 ? pt.Code : $"{pt.Code}{(rel.Lag>0?"+":"")}{rel.Lag}") - @(pt?.Name ?? "未知")</td>
                                     <td>@rel.Type</td>
                                     <td>@rel.Lag</td>
                                     <td>
@@ -681,7 +681,7 @@
                             {
                                 var st = tasks.FirstOrDefault(t => t.Id == rel.SuccessorTaskId);
                                 <tr>
-                                    <td>@(st == null ? "?" : rel.Lag == 0 ? st.Code : $"{st.Code}({rel.Type}{rel.Lag:+0;-#})") - @(st?.Name ?? "未知")</td>
+                                    <td>@(st == null ? "?" : rel.Lag == 0 ? st.Code : $"{st.Code}{(rel.Lag>0?"+":"")}{rel.Lag}") - @(st?.Name ?? "未知")</td>
                                     <td>@rel.Type</td>
                                     <td>@rel.Lag</td>
                                     <td>
@@ -1059,8 +1059,30 @@
             var project = projects.FirstOrDefault(p => p.Id == currentProjectId);
             if (project != null)
             {
-                projectStartDate = project.PlanStartDate;
-                totalDays = Math.Max(90, (project.PlanEndDate - project.PlanStartDate).Days + 30);
+                // 时间标尺起点：项目计划开始 vs 最早的任务计划/实际开始
+                var chartStart = project.PlanStartDate;
+                if (tasks.Any())
+                {
+                    var minTaskDate = tasks.Min(t => t.PlanStartDate);
+                    var minActualDate = tasks.Where(t => t.ActualStartDate.HasValue).Min(t => t.ActualStartDate.Value);
+                    var minDates = new List<DateTime> { chartStart, minTaskDate };
+                    if (tasks.Any(t => t.ActualStartDate.HasValue))
+                        minDates.Add(minActualDate);
+                    chartStart = minDates.Min();
+                }
+                projectStartDate = chartStart;
+                // 终点：项目计划完成 vs 最晚任务计划/实际完成
+                var chartEnd = project.PlanEndDate;
+                if (tasks.Any())
+                {
+                    var maxTaskDate = tasks.Max(t => t.PlanEndDate);
+                    var maxActualDate = tasks.Where(t => t.ActualEndDate.HasValue).Max(t => t.ActualEndDate.Value);
+                    var maxDates = new List<DateTime> { chartEnd, maxTaskDate };
+                    if (tasks.Any(t => t.ActualEndDate.HasValue))
+                        maxDates.Add(maxActualDate);
+                    chartEnd = maxDates.Max();
+                }
+                totalDays = Math.Max(90, (chartEnd - chartStart).Days + 30);
             }
         }
         RefreshFloatWarnings();
@@ -1444,7 +1466,7 @@
             .Where(r => r.PredecessorTask != null)
             .Select(r => r.Lag == 0
                 ? r.PredecessorTask.Code
-                : $"{r.PredecessorTask.Code}({r.Type}{r.Lag:+0;-#})");
+                : $"{r.PredecessorTask.Code}{(r.Lag>0?"+":"")}{r.Lag}");
         return string.Join(", ", parts);
     }
 
@@ -1456,7 +1478,7 @@
             .Where(r => r.SuccessorTask != null)
             .Select(r => r.Lag == 0
                 ? r.SuccessorTask.Code
-                : $"{r.SuccessorTask.Code}({r.Type}{r.Lag:+0;-#})");
+                : $"{r.SuccessorTask.Code}{(r.Lag>0?"+":"")}{r.Lag}");
         return string.Join(", ", parts);
     }
 

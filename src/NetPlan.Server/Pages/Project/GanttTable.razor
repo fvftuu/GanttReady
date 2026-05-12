@@ -96,14 +96,14 @@
             .Where(r => r.SuccessorTaskId == t.Id && r.PredecessorTask != null)
             .Select(r => r.Lag == 0
                 ? r.PredecessorTask.Code
-                : $"{r.PredecessorTask.Code}({r.Type}{r.Lag:+0;-#})"));
+                : $"{r.PredecessorTask.Code}{(r.Lag > 0 ? "+" : "")}{r.Lag}"));
 
     private string SuccessorSummary(TaskItem t) =>
         string.Join(",", TaskRelations
             .Where(r => r.PredecessorTaskId == t.Id && r.SuccessorTask != null)
             .Select(r => r.Lag == 0
                 ? r.SuccessorTask.Code
-                : $"{r.SuccessorTask.Code}({r.Type}{r.Lag:+0;-#})"));
+                : $"{r.SuccessorTask.Code}{(r.Lag > 0 ? "+" : "")}{r.Lag}"));
 
     private string ResourceSummary(TaskItem t)
     {

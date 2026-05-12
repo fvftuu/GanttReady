@@ -955,10 +955,17 @@ function buildNetworkSvg(params) {
             var src = p.layout.events[srcId];
             var tgt = p.layout.events[tgtId];
             if (!src || !tgt) return;
+            // 虚箭线从源节点右边缘出发,到目标节点(覆盖在圆下,圆最后渲染)
+            var sx = src.x + NODE_R, sy = src.y;
+            var ex = tgt.x, ey = tgt.y;
             var d;
-            var mx = src.x + (tgt.x - src.x) / 2;
-            d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y
-                  + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
+            if (Math.abs(ey - sy) < 2) {
+                d = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + ey;
+            } else {
+                var mx = (sx + ex) / 2;
+                d = 'M' + sx + ' ' + sy + ' L' + mx + ' ' + sy
+                      + ' L' + mx + ' ' + ey + ' L' + ex + ' ' + ey;
+            }
             parts.push('<g class="dummy-rel" data-dummy-src="' + srcId + '" data-dummy-tgt="' + tgtId + '">');
             parts.push('<path d="' + d + '" fill="none" stroke="' + dummyColorUsed + '" stroke-width="1" stroke-dasharray="5,3"/>');
             parts.push('</g>');
@@ -973,8 +980,14 @@ function buildNetworkSvg(params) {
                 drawnDummies[key] = true;
                 var src = p.layout.events[srcId], tgt = p.layout.events[tgtId];
                 if (!src || !tgt || srcId === tgtId) return;
-                var mx = src.x + (tgt.x - src.x) / 2;
-                d = 'M' + src.x + ' ' + src.y + ' L' + mx + ' ' + src.y + ' L' + mx + ' ' + tgt.y + ' L' + tgt.x + ' ' + tgt.y;
+                var sx = src.x + NODE_R, sy = src.y;
+                var ex = tgt.x, ey = tgt.y;
+                if (Math.abs(ey - sy) < 2) {
+                    d = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + ey;
+                } else {
+                    var mx = (sx + ex) / 2;
+                    d = 'M' + sx + ' ' + sy + ' L' + mx + ' ' + sy + ' L' + mx + ' ' + ey + ' L' + ex + ' ' + ey;
+                }
                 parts.push('<g class="dummy-rel" data-dummy-src="' + srcId + '" data-dummy-tgt="' + tgtId + '">');
                 parts.push('<path d="' + d + '" fill="none" stroke="' + dummyColorUsed + '" stroke-width="1" stroke-dasharray="5,3"/>');
                 parts.push('</g>');
@@ -1806,12 +1819,17 @@ function _netUpdateDummys(eventId, dx, dy) {
         if (!srcId && !tgtId) continue;
         var s = _netLayout.events[sid], t = _netLayout.events[tid];
         if (!s || !t) continue;
-        var sx = s.x + (srcId ? dx : (_netEventOffsets[sid] ? _netEventOffsets[sid].x : 0));
-        var sy = s.y + (srcId ? dy : (_netEventOffsets[sid] ? _netEventOffsets[sid].y : 0));
-        var ex = t.x + (tgtId ? dx : (_netEventOffsets[tid] ? _netEventOffsets[tid].x : 0));
-        var ey = t.y + (tgtId ? dy : (_netEventOffsets[tid] ? _netEventOffsets[tid].y : 0));
-        var mx = sx + (ex - sx) / 2;
-        var pd = 'M' + sx + ' ' + sy + ' L' + mx + ' ' + sy + ' L' + mx + ' ' + ey + ' L' + ex + ' ' + ey;
+        var sx = srcId ? (s.x + dx + NODE_R) : (s.x + (_netEventOffsets[sid] ? _netEventOffsets[sid].x : 0) + NODE_R);
+        var sy = srcId ? (s.y + dy) : (s.y + (_netEventOffsets[sid] ? _netEventOffsets[sid].y : 0));
+        var ex = tgtId ? (t.x + dx) : (t.x + (_netEventOffsets[tid] ? _netEventOffsets[tid].x : 0));
+        var ey = tgtId ? (t.y + dy) : (t.y + (_netEventOffsets[tid] ? _netEventOffsets[tid].y : 0));
+        var pd;
+        if (Math.abs(ey - sy) < 2) {
+            pd = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + ey;
+        } else {
+            var mx = (sx + ex) / 2;
+            pd = 'M' + sx + ' ' + sy + ' L' + mx + ' ' + sy + ' L' + mx + ' ' + ey + ' L' + ex + ' ' + ey;
+        }
         var p = g.querySelector('path'); if (p) p.setAttribute('d', pd);
     }
 }
