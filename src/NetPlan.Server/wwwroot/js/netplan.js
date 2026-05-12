@@ -996,24 +996,22 @@ function buildNetworkSvg(params) {
     } // showDummy
 
     // === 工作箭线 ===
-    // 防重叠: 统计同源-同目标的箭线数量,为重复的错开垂直位置
-    var arrowPairCounts = {};
+    // 防重叠: 统计同源节点的箭线数量,为同层重复的错开垂直位置
+    var srcArrowCounts = {};
     p.timeParams.activities.forEach(function(act) {
-        var key = act.source + '->' + act.target;
-        arrowPairCounts[key] = (arrowPairCounts[key] || 0) + 1;
+        srcArrowCounts[act.source] = (srcArrowCounts[act.source] || 0) + 1;
     });
-    var arrowPairIdx = {};
+    var srcArrowIdx = {};
 
     p.timeParams.activities.forEach(function(act) {
         var src = p.layout.events[act.source], tgt = p.layout.events[act.target];
         if (!src || !tgt) return;
         var isCrit = act.isCritical && p.showCritical;
-        var pairKey = act.source + '->' + act.target;
-        var pairTotal = arrowPairCounts[pairKey] || 1;
-        var pairI = arrowPairIdx[pairKey] || 0;
-        arrowPairIdx[pairKey] = pairI + 1;
-        // 多箭线垂直偏移: 奇数根上下分散,偏移量 ±NODE_R*0.8
-        var offsetNum = pairTotal > 1 ? (pairI - (pairTotal - 1) / 2) * (NODE_R * 0.8) : 0;
+        var srcTotal = srcArrowCounts[act.source] || 1;
+        var srcI = srcArrowIdx[act.source] || 0;
+        srcArrowIdx[act.source] = srcI + 1;
+        // 同源多箭线垂直偏移: 奇数根上下分散,偏移量 ±NODE_R*0.8
+        var offsetNum = srcTotal > 1 ? (srcI - (srcTotal - 1) / 2) * (NODE_R * 0.8) : 0;
         var sy = src.y + offsetNum;
         var ey = tgt.y + offsetNum;
         var sx = src.x + NODE_R; // 起始节点圆右边
@@ -1209,21 +1207,21 @@ function buildNetworkSvg(params) {
             + '</g>');
     }
 
-    // === 图例(左下角,底部标尺上方) ===
-    var lx = 10, ly = ch - 95;
-    parts.push('<rect x="' + lx + '" y="' + ly + '" width="220" height="78" fill="rgba(255,255,255,0.95)" stroke="#ccc"/>');
-    parts.push('<text x="' + (lx + 10) + '" y="' + (ly + 15) + '" font-size="11" font-weight="bold" fill="#333">图例</text>');
+    // === 图例(左上角,顶部标尺下方) ===
+    var legendX = 10, legendY = RULER_H + 8;
+    parts.push('<rect x="' + legendX + '" y="' + legendY + '" width="220" height="78" fill="rgba(255,255,255,0.95)" stroke="#ccc"/>');
+    parts.push('<text x="' + (legendX + 10) + '" y="' + (legendY + 15) + '" font-size="11" font-weight="bold" fill="#333">图例</text>');
     [
         { label: '关键线路', color: criticalColor, w: parseInt(criticalWidth), d: false },
         { label: '非关键工作', color: normalColor, w: parseFloat(normalWidth), d: false },
         { label: '虚工作', color: dummyColor, w: 1, d: true },
         { label: '自由时差(波形)', color: '#FFD700', w: 1, d: true, dw: '4,3' } // P2-2: 第4项
     ].forEach(function(it, i) {
-        var iy = ly + 30 + i * 13;
-        parts.push('<line x1="' + (lx + 10) + '" y1="' + iy + '" x2="' + (lx + 50) + '" y2="' + iy
+        var iy = legendY + 30 + i * 13;
+        parts.push('<line x1="' + (legendX + 10) + '" y1="' + iy + '" x2="' + (legendX + 50) + '" y2="' + iy
             + '" stroke="' + it.color + '" stroke-width="' + it.w + '"'
             + (it.d ? (' stroke-dasharray="' + (it.dw || '4,3') + '"') : '') + '/>');
-        parts.push('<text x="' + (lx + 56) + '" y="' + (iy + 4) + '" font-size="9" fill="#333">' + it.label + '</text>');
+        parts.push('<text x="' + (legendX + 56) + '" y="' + (iy + 4) + '" font-size="9" fill="#333">' + it.label + '</text>');
     });
 
     // E1: 进度曲线(基于CompletionPercentage的折线图+Y轴0-40px)
@@ -1424,7 +1422,12 @@ window.renderNetwork = function(elementsJson, opts) {
     _netRendered = false;
 
     var ce = document.getElementById('cy');
-    if (!ce) { console.error('[NET] cy not found'); return; }
+    if (!ce) {
+        // DOM 尚未就绪(Blazor 预渲染或首次渲染前),延迟重试一次
+        console.warn('[NET] cy not found, retry in 100ms');
+        setTimeout(function() { window.renderNetwork(elementsJson, opts); }, 100);
+        return;
+    }
 
     var elements;
     try { elements = JSON.parse(elementsJson); } catch(e) { console.error('JSON parse', e); return; }
