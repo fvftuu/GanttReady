@@ -557,8 +557,8 @@ body {
 
 .gantt-left-row {
     display: flex;
-    align-items: center;
-    height: 36px;
+    align-items: flex-start;
+    min-height: 36px;
     border-bottom: 1px solid #f0f0f0;
     font-size: 13px;
     cursor: pointer;
@@ -566,10 +566,11 @@ body {
     padding: 0;
 }
 .gantt-left-row > div {
-    flex: none; height: 100%;
+    flex: none; min-height: 36px;
     border-right: 1px solid #d0d0d0;
     box-sizing: border-box;
-    line-height: 36px;
+    padding-top: 4px;
+    padding-bottom: 4px;
 }
 .gantt-left-row > div:last-child { border-right: none; }
 
@@ -586,7 +587,7 @@ body {
 .col-idx  { width: 42px; padding: 0 2px; text-align: center; font-size: 11px; color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
 .col-status { width: 28px; padding: 0 2px; text-align: center; }
 .col-code { width: 75px; padding: 0 4px; font-weight: 500; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.col-name { width: 200px; min-width: 70px; max-width: 250px; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.col-name { width: 200px; min-width: 70px; max-width: 250px; padding: 0 6px; overflow-wrap: break-word; word-break: break-all; font-size: 13px; }
 .col-person { width: 60px; padding: 0 4px; font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-date { width: 75px; padding: 0 4px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
 .col-num  { width: 50px; padding: 0 4px; text-align: center; font-size: 12px; white-space: nowrap; }
@@ -1443,7 +1444,7 @@ body {
 .float-orange { background: #fd7e14; }
 .float-yellow { background: #f0ad4e; color: #333; }
 
-/* C1£ºÍøÂçÍ¼Ôö¼Ó¹¤×÷Ãæ°å */
+/* C1ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½ï¿½ï¿½Ó¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 .task-add-panel {
     position: fixed; z-index: 9999; width: 240px;
     background: #fff; border: 2px solid #1890ff; border-radius: 8px;

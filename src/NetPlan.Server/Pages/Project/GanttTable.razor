@@ -38,7 +38,7 @@
                     <div class="col-idx">@taskIdx</div>
                     @if (IsColumnVisible("status")) { <div class="col-status">@GetTaskStatusBadge(task)</div> }
                     @if (IsColumnVisible("code")) { <div class="col-code" style="padding-left:@(Math.Max(0,(task.OutlineLevel-1)*16))px;">@task.Code</div> }
-                    @if (IsColumnVisible("name")) { <div class="col-name" title="@task.Name">@task.Name</div> }
+                    @if (IsColumnVisible("name")) { <div class="col-name" style="padding-left:@(Math.Max(0,(task.OutlineLevel-1)*16))px;" title="@task.Name">@task.Name</div> }
                     @if (IsColumnVisible("person")) { <div class="col-person" title="@task.ResponsiblePerson">@task.ResponsiblePerson</div> }
                     @if (IsColumnVisible("planStart")) { <div class="col-date">@task.PlanStartDate.ToString("yyyy-MM-dd")</div> }
                     @if (IsColumnVisible("planEnd")) { <div class="col-date">@task.PlanEndDate.ToString("yyyy-MM-dd")</div> }
