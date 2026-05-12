@@ -1,4 +1,4 @@
-@page "/project/{ProjectId:int}/network"
+﻿@page "/project/{ProjectId:int}/network"
 @inject IProjectService ProjectService
 @inject IResourceService ResourceService
 @inject IJSRuntime JS
@@ -403,17 +403,11 @@
                 <input type="range" class="form-control" @bind="graphLabelFontSize" @bind:after="ApplyGraphProps" min="7" max="16" />
             </div>
             <div class="form-group">
-                <label>标签字号: @graphNodeFontSize px</label>
-                <input type="range" class="form-control" @bind="graphNodeFontSize" @bind:after="ApplyGraphProps" min="8" max="16" />
+                <label style="font-size:11px;color:#999;">(节点编号字号随半径自动调整)</label>
             </div>
             <div class="form-group">
                 <label style="font-size:12px;">
                     <input type="checkbox" @bind="showRestDayPattern" @bind:after="ApplyGraphProps" /> 显示休息日
-                </label>
-            </div>
-            <div class="form-group">
-                <label style="font-size:12px;color:#999;">
-                    <input type="checkbox" @bind="showSingleStartEnd" @bind:after="ApplyGraphProps" /> 单一起终点
                 </label>
             </div>
             <div class="dialog-actions">
@@ -502,12 +496,10 @@
     private int graphLayerHeight = 60;
     private int graphNodeRadius = 11;
     private int graphLabelFontSize = 10;  // name font size
-    private int graphNodeFontSize = 8;   // label field font size
+    // nodeFontSize auto-calculated from nodeRadius in JS
     private double zoomLevel = 100;
     // A3: 图属性设置
     private bool showRestDayPattern = true;
-    private bool showSingleStartEnd = true;
-    
     // === 编辑对话框(与甘特图一致)===
     private bool taskModalVisible => editingTask != null;
     private Models.TaskItem? editingTask;
@@ -623,9 +615,7 @@
             layerHeight = graphLayerHeight,
             nodeRadius = graphNodeRadius,
             labelFontSize = graphLabelFontSize,
-            nodeFontSize = graphNodeFontSize,
             restDayPattern = showRestDayPattern,
-            singleStartEnd = showSingleStartEnd,
             criticalColor = "#e63946",
             normalColor = "#333",
             dummyColor = "#aaa",
@@ -987,9 +977,7 @@
             layerHeight = graphLayerHeight,
             nodeRadius = graphNodeRadius,
             labelFontSize = graphLabelFontSize,
-            nodeFontSize = graphNodeFontSize,
             restDayPattern = showRestDayPattern,
-            singleStartEnd = showSingleStartEnd,
             criticalColor = "#e63946",
             normalColor = "#333",
             dummyColor = "#aaa",

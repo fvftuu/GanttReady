@@ -747,14 +747,13 @@ function buildNetworkSvg(params) {
     var normalWidth = p.normalWidth || 1.5;
     var mode = p.mode || 'time';
     var labelFontSize = p.labelFontSize || 10;
-    var nodeFontSize = p.nodeFontSize || 12;
+    var nodeFontSize = Math.max(7, Math.round(NODE_R * 0.9)); // 节点编号字号随半径自动调整
     var restDayPattern = p.restDayPattern !== false; // A3: show rest day highlight
-    var singleStartEnd = p.singleStartEnd === true; // A3: force single start/end (placeholder)
     // Bug 1: 1080p adaptation — smaller fonts when viewport < 1400px
     var isNarrowViewport = (window.innerWidth || document.documentElement.clientWidth || 1920) < 1400;
     console.log('[SVG] opts:', 'todayLine=', p.showTodayLine, 'progressLine=', p.showProgressLine,
         'dayWidth=', p.dayWidth, 'critical=', p.showCritical, 'float=', p.showFloat, 'mode=', mode,
-        'restDayPattern=', restDayPattern, 'singleStartEnd=', singleStartEnd);
+        'restDayPattern=', restDayPattern, 'nodeFontSize=', nodeFontSize);
 
     var sd = new Date(p.projectStartDate);
     var dw = p.dayWidth, td = p.totalDays;
@@ -854,10 +853,10 @@ function buildNetworkSvg(params) {
     });
     var sortedBgYs = Object.keys(bgLayerYs).map(Number).sort(function(a,b){return a-b;});
     sortedBgYs.forEach(function(ey, idx) {
-        if (idx % 2 === 1) {
-            var bgY = ey - rowH / 2;
-            parts.push('<rect x="0" y="' + bgY + '" width="' + cw + '" height="' + rowH + '" fill="#f0f4f8" opacity="0.4"/>');
-        }
+        var bgY = ey - rowH / 2;
+        var bgOpacity = (idx % 2 === 1) ? '0.4' : '0';
+        var bgFill = (idx % 2 === 1) ? '#f0f4f8' : 'transparent';
+        parts.push('<rect class="net-row-bg" data-row-idx="' + idx + '" data-row-y="' + ey + '" x="0" y="' + bgY + '" width="' + cw + '" height="' + rowH + '" fill="' + bgFill + '" opacity="' + bgOpacity + '" style="cursor:pointer;"/>');
     });
 
     // 竖线网格
@@ -1038,7 +1037,7 @@ function buildNetworkSvg(params) {
             + '" text-anchor="middle" font-weight="' + (isCrit ? 'bold' : 'normal') + '">' + labelMain + '</text>');
 
         // 四角字段
-        var cornerFont = Math.max(7, (p.nodeFontSize || 8));
+        var cornerFont = Math.max(7, nodeFontSize);
         if (fieldSet['es']) parts.push('<text class="act-es" x="' + sx + '" y="' + (sy - NODE_R - 6) + '" font-size="' + cornerFont + '" fill="#999" text-anchor="start">ES=' + aes + '</text>');
         if (fieldSet['ef']) parts.push('<text class="act-ef" x="' + ex + '" y="' + (ey - NODE_R - 6) + '" font-size="' + cornerFont + '" fill="#999" text-anchor="end">EF=' + aef + '</text>');
         if (fieldSet['ls']) parts.push('<text class="act-ls" x="' + sx + '" y="' + (sy + NODE_R + 10) + '" font-size="' + cornerFont + '" fill="#999" text-anchor="start">LS=' + (act.ls || aes) + '</text>');
@@ -1308,7 +1307,7 @@ function buildNetworkSvg(params) {
 
     // === 规程标注 ===
     var svgStr = '<svg xmlns="http://www.w3.org/2000/svg" id="network-svg" width="' + cw + '" height="' + svgFullH + '" style="display:block;font-family:SimSun,sans-serif;">';
-    svgStr += '<defs>' + markers.join('') + '</defs>';
+    svgStr += '<defs>' + markers.join('') + '<style>.net-row-sel{opacity:0.7 !important;fill:#c4d9f0 !important;}</style></defs>';
     svgStr += parts.join('');
     svgStr += '</svg>';
     return svgStr;
@@ -1412,12 +1411,8 @@ window.renderNetwork = function(elementsJson, opts) {
     console.log('[NET] tasks:', tasks.length, '| rels:', rels.length);
 
     var tp = calculateTimeParams(tasks, rels);
-    // P0-2: 唯一起点/终点 - 插入虚拟开始/结束节点
-    var singleStartEnd = opts.singleStartEnd !== false;
-    console.log('[NET] singleStartEnd:', singleStartEnd, 'opts.singleStartEnd:', opts.singleStartEnd);
-    if (singleStartEnd) {
-        try { applySingleStartEnd(tp); } catch(e) { console.error('[NET] applySingleStartEnd failed:', e); }
-    }
+    // P0-2: 唯一起点/终点 - 插入虚拟开始/结束节点(始终启用)
+    try { applySingleStartEnd(tp); } catch(e) { console.error('[NET] applySingleStartEnd failed:', e); }
     var layout = calculateVerticalLayout(tp);
 
     // R4: precompute in/out degree per event for bus lines
@@ -1491,11 +1486,10 @@ window.renderNetwork = function(elementsJson, opts) {
         nodeRadius: netNodeRadius,
         layerHeight: netLayerHeight,
         labelFontSize: opts.labelFontSize || 10,
-        nodeFontSize: opts.nodeFontSize || 12,
+        // nodeFontSize auto-calculated from nodeRadius inside buildNetworkSvg
         labelFields: opts.labelFields || [],
         rowLabels: opts.rowLabels || [],
         restDayPattern: opts.restDayPattern !== false,
-        singleStartEnd: opts.singleStartEnd === true,
         canvasW: cx, canvasH: cySize
     });
     console.log('[NET] SVG rendered.');
@@ -1528,6 +1522,17 @@ window.renderNetwork = function(elementsJson, opts) {
             dotNet.invokeMethodAsync('ShowAddTaskModal', 0, dayOffset);
         };
     }
+
+    // ===== 行高亮(单击行背景选中/取消) =====
+    var rowRects = svg.querySelectorAll('.net-row-bg');
+    rowRects.forEach(function(rect) {
+        rect.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var hadSel = rect.classList.contains('net-row-sel');
+            rowRects.forEach(function(r) { r.classList.remove('net-row-sel'); });
+            if (!hadSel) rect.classList.add('net-row-sel');
+        });
+    });
 
     // ===== 节点拖拽微调 =====
     // 更新全局引用(每次重渲染刷新)
