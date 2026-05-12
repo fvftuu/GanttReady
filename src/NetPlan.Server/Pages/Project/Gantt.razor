@@ -630,7 +630,7 @@
                             {
                                 var pt = tasks.FirstOrDefault(t => t.Id == rel.PredecessorTaskId);
                                 <tr>
-                                    <td>@(pt?.Code ?? "?") - @(pt?.Name ?? "未知")</td>
+                                    <td>@(pt == null ? "?" : rel.Lag == 0 ? pt.Code : $"{pt.Code}({rel.Type}{rel.Lag:+0;-#})") - @(pt?.Name ?? "未知")</td>
                                     <td>@rel.Type</td>
                                     <td>@rel.Lag</td>
                                     <td>
@@ -681,7 +681,7 @@
                             {
                                 var st = tasks.FirstOrDefault(t => t.Id == rel.SuccessorTaskId);
                                 <tr>
-                                    <td>@(st?.Code ?? "?") - @(st?.Name ?? "未知")</td>
+                                    <td>@(st == null ? "?" : rel.Lag == 0 ? st.Code : $"{st.Code}({rel.Type}{rel.Lag:+0;-#})") - @(st?.Name ?? "未知")</td>
                                     <td>@rel.Type</td>
                                     <td>@rel.Lag</td>
                                     <td>
@@ -1442,7 +1442,9 @@
             return "";
         var parts = task.Predecessors
             .Where(r => r.PredecessorTask != null)
-            .Select(r => r.PredecessorTask.Code);
+            .Select(r => r.Lag == 0
+                ? r.PredecessorTask.Code
+                : $"{r.PredecessorTask.Code}({r.Type}{r.Lag:+0;-#})");
         return string.Join(", ", parts);
     }
 
@@ -1452,7 +1454,9 @@
             return "";
         var parts = task.Successors
             .Where(r => r.SuccessorTask != null)
-            .Select(r => r.SuccessorTask.Code);
+            .Select(r => r.Lag == 0
+                ? r.SuccessorTask.Code
+                : $"{r.SuccessorTask.Code}({r.Type}{r.Lag:+0;-#})");
         return string.Join(", ", parts);
     }
 
