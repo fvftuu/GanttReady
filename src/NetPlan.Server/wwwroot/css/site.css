@@ -726,7 +726,7 @@ body {
 /* 甘特条形帧（蓝上绿下 共享线框，高度=行高90%） */
 .gantt-bar-frame {
     position: absolute;
-    border: 1px solid rgba(0,0,0,0.2);
+    outline: 1px solid rgba(0,0,0,0.2);
     border-radius: 3px;
     overflow: hidden;
     box-shadow: 0 1px 3px rgba(0,0,0,0.12);
@@ -746,6 +746,7 @@ body {
 .gantt-bar-frame.selected {
     box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--primary);
     z-index: 3;
+    outline: 2px solid var(--primary);
 }
 
 /* 计划进度条（蓝色，上半部分） */
@@ -776,11 +777,11 @@ body {
 }
 
 /* ===== 条形颜色规则（按状态/里程碑，调整边框和阴影色调） ===== */
-.gantt-bar-frame.bar-not-started  { border-color: #1890ff; }
-.gantt-bar-frame.bar-in-progress { border-color: #fa8c16; }
-.gantt-bar-frame.bar-completed   { border-color: #52c41a; }
-.gantt-bar-frame.bar-milestone   { border-color: #722ed1; }
-.gantt-bar-frame.bar-critical    { border-color: #ff4d4f; box-shadow: 0 0 6px rgba(255,77,79,0.4); }
+.gantt-bar-frame.bar-not-started  { outline-color: #1890ff; }
+.gantt-bar-frame.bar-in-progress { outline-color: #fa8c16; }
+.gantt-bar-frame.bar-completed   { outline-color: #52c41a; }
+.gantt-bar-frame.bar-milestone   { outline-color: #722ed1; }
+.gantt-bar-frame.bar-critical    { outline-color: #ff4d4f; box-shadow: 0 0 6px rgba(255,77,79,0.4); }
 
 /* 关键任务在条形右侧显示红色小三角标记 */
 .gantt-bar.bar-critical::after {
