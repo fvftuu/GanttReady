@@ -1064,10 +1064,12 @@
                 if (tasks.Any())
                 {
                     var minTaskDate = tasks.Min(t => t.PlanStartDate);
-                    var minActualDate = tasks.Where(t => t.ActualStartDate.HasValue).Min(t => t.ActualStartDate.Value);
                     var minDates = new List<DateTime> { chartStart, minTaskDate };
                     if (tasks.Any(t => t.ActualStartDate.HasValue))
+                    {
+                        var minActualDate = tasks.Where(t => t.ActualStartDate.HasValue).Min(t => t.ActualStartDate.Value);
                         minDates.Add(minActualDate);
+                    }
                     chartStart = minDates.Min();
                 }
                 projectStartDate = chartStart;
@@ -1076,10 +1078,12 @@
                 if (tasks.Any())
                 {
                     var maxTaskDate = tasks.Max(t => t.PlanEndDate);
-                    var maxActualDate = tasks.Where(t => t.ActualEndDate.HasValue).Max(t => t.ActualEndDate.Value);
                     var maxDates = new List<DateTime> { chartEnd, maxTaskDate };
                     if (tasks.Any(t => t.ActualEndDate.HasValue))
+                    {
+                        var maxActualDate = tasks.Where(t => t.ActualEndDate.HasValue).Max(t => t.ActualEndDate.Value);
                         maxDates.Add(maxActualDate);
+                    }
                     chartEnd = maxDates.Max();
                 }
                 totalDays = Math.Max(90, (chartEnd - chartStart).Days + 30);
