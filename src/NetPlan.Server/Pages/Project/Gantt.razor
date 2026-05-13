@@ -383,8 +383,8 @@
                     }
                     var barLeft = hasActual ? Math.Min(planStart, actStart) : planStart;
                     var barTotalW = hasActual ? Math.Max(planStart + planW, actStart + actW) - barLeft : planW;
-                    var barHeight = 36; // 进度条总高度
-                    var barTop = (rowHeight - barHeight) / 2;
+                    var barHeight = rowHeight; // 与左侧行同高
+                    var barTop = 0; // 最上一行 top:0
                     var planLeft = planStart - barLeft;
                     var actLeft = hasActual ? (actStart - barLeft) : 0;
                     <div class="gantt-bar-frame @GetBarClass(task) @(selectedTaskId == task.Id ? "selected" : "")"

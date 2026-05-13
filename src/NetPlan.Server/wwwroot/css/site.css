@@ -759,7 +759,7 @@ body {
 /* 实际进度条（绿色，下半部分） */
 .bar-act {
     position: absolute;
-    top: 20px; height: 16px;
+    bottom: 0; height: 16px;
     background: linear-gradient(180deg, #52c41a 0%, #389e0d 100%);
     border-radius: 0 0 1px 1px;
 }
