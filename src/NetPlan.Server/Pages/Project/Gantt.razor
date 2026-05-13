@@ -404,8 +404,8 @@
                         {
                             <div class="bar-act" style="left: @(actLeft)px; width: @(actW)px;"></div>
                         }
+                        <span class="bar-label">@task.Name @(task.CompletionPercentage > 0 ? $"({task.CompletionPercentage}%)" : "")</span>
                     </div>
-                    <span class="bar-label" style="left: 0; top: @(rowIndex * rowHeight)px; width: @(Math.Max(0, planStart - 4))px;">@task.Name @(task.CompletionPercentage > 0 ? $"({task.CompletionPercentage}%)" : "")</span>
                 }
                 }
             </div>
