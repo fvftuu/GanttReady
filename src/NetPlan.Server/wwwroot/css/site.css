@@ -751,7 +751,7 @@ body {
 /* 计划进度条（蓝色，上半部分） */
 .bar-plan {
     position: absolute;
-    top: 0; height: 50%;
+    top: 0; height: 20px;
     background: linear-gradient(180deg, #1890ff 0%, #096dd9 100%);
     border-radius: 1px 1px 0 0;
 }
@@ -759,7 +759,7 @@ body {
 /* 实际进度条（绿色，下半部分） */
 .bar-act {
     position: absolute;
-    bottom: 0; height: 50%;
+    top: 20px; height: 16px;
     background: linear-gradient(180deg, #52c41a 0%, #389e0d 100%);
     border-radius: 0 0 1px 1px;
 }

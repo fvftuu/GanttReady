@@ -383,7 +383,7 @@
                     }
                     var barLeft = hasActual ? Math.Min(planStart, actStart) : planStart;
                     var barTotalW = hasActual ? Math.Max(planStart + planW, actStart + actW) - barLeft : planW;
-                    var barHeight = rowHeight; // 100% 行高
+                    var barHeight = 36; // 进度条总高度
                     var barTop = (rowHeight - barHeight) / 2;
                     var planLeft = planStart - barLeft;
                     var actLeft = hasActual ? (actStart - barLeft) : 0;
