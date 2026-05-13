@@ -1034,37 +1034,55 @@ function buildNetworkSvg(params) {
         var srcTotal = srcArrowCounts[act.source] || 1;
         var srcI = srcArrowIdx[act.source] || 0;
         srcArrowIdx[act.source] = srcI + 1;
-        // 同源多箭线垂直偏移: 错开半层(30px/根)
-        var offsetNum = srcTotal > 1 ? (srcI - (srcTotal - 1) / 2) * 30 : 0;
-        act._yOffset = offsetNum; // 用于后续交叉检测
-        var sy = src.y + offsetNum;
-        var ey = tgt.y + offsetNum;
-        var sx = src.x + NODE_R; // 起始节点圆右边
-        var ex = tgt.x;             // 结束节点圆心（marker refX=0 在圆边）
+        // 原则3: 同源多箭线,关键线路保持水平不偏移,非关键错开
+        // 偏移量: 半层(30px/根),保证从节点12/3/6/9点连接
+        var offsetNum = (srcTotal > 1 && !isCrit) ? (srcI - (srcTotal - 1) / 2) * 30 : 0;
+        act._yOffset = offsetNum;
         var dur = act.duration || 0;
 
         var arrow = svgArrowMarker(isCrit, criticalColor, normalColor);
-        // 箭头 marker (国标规范)
         markers.push(arrow.html);
 
+        // 原则2: 所有箭线从节点3点钟(src右侧)出发
+        var sx = src.x + NODE_R, sy0 = src.y;
+        var ex = tgt.x;
+        // 非关键偏移: 箭头末端从tgt.y通过垂直段回到tgt.y0,满足3点钟连接
         var pathD;
+        var isSameLayer = Math.abs(src.y - tgt.y) < 5;
+        var arcRadius = Math.abs(offsetNum) > 0 ? Math.min(8, Math.abs(offsetNum)) : 0;
         if (isTimeMode) {
-            // 国标: 时标图中箭线以水平为主，从起始节点右边缘→结束节点
-            if (Math.abs(ey - sy) < 2) {
-                pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + ey;
+            if (isSameLayer && Math.abs(offsetNum) < 2) {
+                // 同层无偏移: 直线
+                pathD = 'M' + sx + ' ' + sy0 + ' L' + ex + ' ' + tgt.y;
+            } else if (isSameLayer && Math.abs(offsetNum) >= 2) {
+                // 同层+偏移: 从节点3点钟出发,短水平→垂直降到偏移Y→水平到目标X→垂直升到目标Y→进入目标
+                var bendX = sx + 10;
+                pathD = 'M' + sx + ' ' + sy0
+                    + ' L' + bendX + ' ' + sy0
+                    + ' L' + bendX + ' ' + (sy0 + offsetNum)
+                    + ' L' + (ex - arcRadius - 6) + ' ' + (sy0 + offsetNum)
+                    + ' L' + (ex - arcRadius - 6) + ' ' + tgt.y
+                    + ' L' + ex + ' ' + tgt.y;
+            } else if (offsetNum === 0) {
+                // 跨层无偏移: L型(水平→垂直→水平)
+                pathD = 'M' + sx + ' ' + sy0 + ' L' + (ex - 2) + ' ' + sy0 + ' L' + (ex - 2) + ' ' + tgt.y + ' L' + ex + ' ' + tgt.y;
             } else {
-                // 跨层: 水平到结束X,垂直下降,最后一小段水平进入圆心(确保箭头向右)
-                pathD = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + sy + ' L' + (ex - 2) + ' ' + ey + ' L' + ex + ' ' + ey;
+                // 跨层+偏移: 3点钟→短水平→垂直→水平到目标X前→垂直到目标Y→水平进入目标
+                var bendX = sx + 10;
+                pathD = 'M' + sx + ' ' + sy0
+                    + ' L' + bendX + ' ' + sy0
+                    + ' L' + bendX + ' ' + (sy0 + offsetNum)
+                    + ' L' + (ex - 2) + ' ' + (sy0 + offsetNum)
+                    + ' L' + (ex - 2) + ' ' + tgt.y
+                    + ' L' + ex + ' ' + tgt.y;
             }
         } else {
-            if (Math.abs(ey - sy) < 5) {
-                pathD = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + ey;
+            // 逻辑图
+            if (Math.abs(tgt.y - src.y) < 5) {
+                pathD = 'M' + sx + ' ' + sy0 + ' L' + (ex - 2) + ' ' + tgt.y;
             } else {
-                pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + sy + ' L' + ex + ' ' + ey;
+                pathD = 'M' + sx + ' ' + sy0 + ' L' + ex + ' ' + sy0 + ' L' + ex + ' ' + tgt.y;
             }
-            // R3: arrows must go left-to-right — mark backwards arrows in red
-            var isBackwards = (sx > ex);
-            if (isBackwards) { console.warn('[NET] R3 backwards arrow: actId=' + act.id + ' src=' + act.source + ' tgt=' + act.target); }
         }
         parts.push('<g data-activity-id="' + act.id + '" data-src="' + act.source + '" data-tgt="' + act.target + '">');
         parts.push('<path class="act-arrow" d="' + pathD + '" fill="none" stroke="' + arrow.color
@@ -1233,28 +1251,58 @@ function buildNetworkSvg(params) {
     }
 
     // === 箭线交叉检测+跨线符 ===
-    // 收集所有工作箭线的关键路径
+    // 原则4: 跨线符圆弧两端必须连接跨过的箭线
     var allCritFlags = {};
     p.timeParams.activities.forEach(function(act) {
         allCritFlags[act.id] = act.isCritical || false;
     });
-    // 收集所有箭线的路径线段(水平段和垂直段)
+    // 收集所有箭线的路径线段
     var allSegments = [];
     p.timeParams.activities.forEach(function(act) {
         if (!act.source || !act.target) return;
         var src = p.layout.events[act.source], tgt = p.layout.events[act.target];
         if (!src || !tgt) return;
-        var sx = src.x + NODE_R, sy = src.y + (act._yOffset || 0);
-        var ex = tgt.x, ey = tgt.y + (act._yOffset || 0);
+        var off = act._yOffset || 0;
+        var bendX = src.x + NODE_R + 10;
+        var ex = tgt.x, isSameLayer = Math.abs(src.y - tgt.y) < 5;
+        var segs = [];
+        if (isTimeMode) {
+            if (isSameLayer && Math.abs(off) < 2) {
+                segs = [{x1:src.x+NODE_R, y1:src.y, x2:ex, y2:tgt.y}];
+            } else if (isSameLayer && Math.abs(off) >= 2) {
+                var nearTargetX = ex - Math.min(8, Math.abs(off)) - 6;
+                segs = [
+                    {x1:src.x+NODE_R, y1:src.y, x2:bendX, y2:src.y},
+                    {x1:bendX, y1:src.y, x2:bendX, y2:src.y+off},
+                    {x1:bendX, y1:src.y+off, x2:nearTargetX, y2:src.y+off},
+                    {x1:nearTargetX, y1:src.y+off, x2:nearTargetX, y2:tgt.y},
+                    {x1:nearTargetX, y1:tgt.y, x2:ex, y2:tgt.y}
+                ];
+            } else if (off === 0) {
+                segs = [
+                    {x1:src.x+NODE_R, y1:src.y, x2:ex-2, y2:src.y},
+                    {x1:ex-2, y1:src.y, x2:ex-2, y2:tgt.y},
+                    {x1:ex-2, y1:tgt.y, x2:ex, y2:tgt.y}
+                ];
+            } else {
+                segs = [
+                    {x1:src.x+NODE_R, y1:src.y, x2:bendX, y2:src.y},
+                    {x1:bendX, y1:src.y, x2:bendX, y2:src.y+off},
+                    {x1:bendX, y1:src.y+off, x2:ex-2, y2:src.y+off},
+                    {x1:ex-2, y1:src.y+off, x2:ex-2, y2:tgt.y},
+                    {x1:ex-2, y1:tgt.y, x2:ex, y2:tgt.y}
+                ];
+            }
+        } else {
+            segs = [{x1:src.x+NODE_R, y1:src.y, x2:ex, y2:tgt.y}];
+        }
         allSegments.push({
             actId: act.id,
             isCritical: allCritFlags[act.id],
-            segs: isTimeMode && Math.abs(ey - sy) >= 2
-                ? [{x1:sx+1, y1:sy, x2:ex-3, y2:sy}, {x1:ex-3, y1:sy, x2:ex-3, y2:ey}, {x1:ex-3, y1:ey, x2:ex, y2:ey}]
-                : [{x1:sx, y1:sy, x2:ex, y2:ey}]
+            segs: segs
         });
     });
-    // 两两检测交叉
+    // 两两检测交叉,在非关键线上画跨线符
     for (var i = 0; i < allSegments.length; i++) {
         for (var j = i + 1; j < allSegments.length; j++) {
             var a = allSegments[i], b = allSegments[j];
@@ -1264,26 +1312,46 @@ function buildNetworkSvg(params) {
                     var s1 = a.segs[ai], s2 = b.segs[bi];
                     var cross = findSegIntersection(s1.x1, s1.y1, s1.x2, s1.y2, s2.x1, s2.y1, s2.x2, s2.y2);
                     if (cross) {
-                        // 交叉点在非关键线上画跨线符(小半圆弧)
+                        // 原则4: 跨线符画在非关键线上,圆弧两端接触被跨箭线
                         var skipArc = false;
                         var arcOn;
                         if (!a.isCritical && b.isCritical) { arcOn = a; }
                         else if (a.isCritical && !b.isCritical) { arcOn = b; }
-                        else if (!a.isCritical && !b.isCritical) { arcOn = a; } // 两个都非关键,在第一个上画
-                        else { skipArc = true; } // 两个都关键,跳过
+                        else if (!a.isCritical && !b.isCritical) { arcOn = a; }
+                        else { skipArc = true; }
                         if (!skipArc && arcOn) {
-                            // 在交叉点画一个小的半圆弧(半径4px)
-                            var radius = 4;
-                            var startAngle = Math.atan2(s1.y2 - s1.y1, s1.x2 - s1.x1);
-                            var endAngle = Math.atan2(s2.y2 - s2.y1, s2.x2 - s2.x1);
-                            var arcStart = startAngle + Math.PI/4;
-                            var arcEnd = startAngle - Math.PI/4;
-                            parts.push('<path d="M' + (cross.x - radius) + ' ' + cross.y
-                                + ' A' + radius + ' ' + radius + ' 0 0 0 ' + (cross.x + radius) + ' ' + cross.y
-                                + '" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>');
-                            parts.push('<path d="M' + (cross.x - radius) + ' ' + cross.y
-                                + ' A' + radius + ' ' + radius + ' 0 0 0 ' + (cross.x + radius) + ' ' + cross.y
-                                + '" fill="none" stroke="#999" stroke-width="1" stroke-linecap="round"/>');
+                            // 圆弧沿被跨箭线方向,半径 = 线宽一半 + 1
+                            var lineW = arcOn.isCritical ? 3 : 1.5;
+                            // 确定跨线方向: 沿被跨线垂直方向画弧
+                            var ax1, ay1, ax2, ay2;
+                            if (cross) {
+                                // 被跨越的线是s2,跨线符画在arcOn的线上
+                                // 从交叉点沿被跨箭线垂直方向偏移
+                                var aSeg;
+                                var bSeg;
+                                if (arcOn === a) { aSeg = s1; bSeg = s2; }
+                                else { aSeg = s2; bSeg = s1; }
+                                // 被跨箭线方向向量
+                                var bdx = bSeg.x2 - bSeg.x1, bdy = bSeg.y2 - bSeg.y1;
+                                var blen = Math.sqrt(bdx*bdx + bdy*bdy) || 1;
+                                // 垂直方向单位向量
+                                var nx = -bdy / blen, ny = bdx / blen;
+                                var arcR = 5;
+                                var cx = cross.x + nx * arcR;
+                                var cy = cross.y + ny * arcR;
+                                // 从一个端点到另一个端点的弧
+                                var arcStartX = cross.x - nx * arcR;
+                                var arcStartY = cross.y - ny * arcR;
+                                var arcEndX = cross.x + nx * arcR;
+                                var arcEndY = cross.y + ny * arcR;
+                                // 原则4: 确保弧的两端接触被跨箭线(即弧的端点在交叉点开始接触)
+                                parts.push('<path d="M' + (cross.x - nx * 2) + ' ' + (cross.y - ny * 2)
+                                    + ' A' + (arcR + 1) + ' ' + (arcR + 1) + ' 0 0 0 ' + (cross.x + nx * 2) + ' ' + (cross.y + ny * 2)
+                                    + '" fill="none" stroke="#fff" stroke-width="' + (lineW + 2) + '" stroke-linecap="round"/>');
+                                parts.push('<path d="M' + (cross.x - nx * 2) + ' ' + (cross.y - ny * 2)
+                                    + ' A' + (arcR + 1) + ' ' + (arcR + 1) + ' 0 0 0 ' + (cross.x + nx * 2) + ' ' + (cross.y + ny * 2)
+                                    + '" fill="none" stroke="#999" stroke-width="1" stroke-linecap="round"/>');
+                            }
                         }
                     }
                 }
@@ -1895,17 +1963,30 @@ function _netUpdateArrows(eventId, dx, dy) {
         var s = _netLayout ? _netLayout.events[sid] : null, t = _netLayout ? _netLayout.events[tid] : null;
         if (!s || !t) return;
         var nr = 11;
+        // 查找活动获取偏移信息
+        var actRef = _netActivities ? _netActivities.find(function(a) { return a.id == actId; }) : null;
+        var off = actRef ? (actRef._yOffset || 0) : 0;
         var sx = s.x + (sid === eventId ? dx : (_netEventOffsets[sid] ? _netEventOffsets[sid].x : 0)) + nr;
-        var sy = s.y + (sid === eventId ? dy : (_netEventOffsets[sid] ? _netEventOffsets[sid].y : 0));
+        var sy0 = s.y + (sid === eventId ? dy : (_netEventOffsets[sid] ? _netEventOffsets[sid].y : 0));
         var ex = t.x + (tid === eventId ? dx : (_netEventOffsets[tid] ? _netEventOffsets[tid].x : 0));
-        var ey = t.y + (tid === eventId ? dy : (_netEventOffsets[tid] ? _netEventOffsets[tid].y : 0));
-        var pd = Math.abs(ey - sy) < 5
-            ? 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + ey
-            : 'M' + sx + ' ' + sy + ' L' + ex + ' ' + sy + ' L' + ex + ' ' + ey;
+        var ey0 = t.y + (tid === eventId ? dy : (_netEventOffsets[tid] ? _netEventOffsets[tid].y : 0));
+        var pd;
+        if (Math.abs(ey0 - sy0) < 5 && Math.abs(off) < 2) {
+            pd = 'M' + sx + ' ' + sy0 + ' L' + (ex - 2) + ' ' + ey0;
+        } else if (Math.abs(ey0 - sy0) < 5 && Math.abs(off) >= 2) {
+            var bnd = sx + 10;
+            var nrTgt = ex - Math.min(8, Math.abs(off)) - 6;
+            pd = 'M' + sx + ' ' + sy0 + ' L' + bnd + ' ' + sy0 + ' L' + bnd + ' ' + (sy0+off) + ' L' + nrTgt + ' ' + (sy0+off) + ' L' + nrTgt + ' ' + ey0 + ' L' + ex + ' ' + ey0;
+        } else if (off === 0) {
+            pd = 'M' + sx + ' ' + sy0 + ' L' + (ex - 2) + ' ' + sy0 + ' L' + (ex - 2) + ' ' + ey0 + ' L' + ex + ' ' + ey0;
+        } else {
+            var bnd = sx + 10;
+            pd = 'M' + sx + ' ' + sy0 + ' L' + bnd + ' ' + sy0 + ' L' + bnd + ' ' + (sy0+off) + ' L' + (ex - 2) + ' ' + (sy0+off) + ' L' + (ex - 2) + ' ' + ey0 + ' L' + ex + ' ' + ey0;
+        }
         var p = g.querySelector('.act-arrow'); if (p) p.setAttribute('d', pd);
         var lx = (sx + ex) / 2;
-        var lb = g.querySelector('.act-label'); if (lb) { lb.setAttribute('x', lx); lb.setAttribute('y', sy - nr - 6); }
-        var du = g.querySelector('.act-dur'); if (du) { du.setAttribute('x', lx); du.setAttribute('y', sy + nr + 10); }
+        var lb = g.querySelector('.act-label'); if (lb) { lb.setAttribute('x', lx); lb.setAttribute('y', sy0 - nr - 6); }
+        var du = g.querySelector('.act-dur'); if (du) { du.setAttribute('x', lx); du.setAttribute('y', sy0 + nr + 10); }
     });
 }
 // 更新虚箭线(关系线,无活动箭头)
