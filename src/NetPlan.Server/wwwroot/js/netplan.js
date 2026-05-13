@@ -1674,6 +1674,19 @@ window.renderNetwork = function(elementsJson, opts) {
     _netActivities = tp.activities;
     _netSvg = svg;
     _netDayWidth = dayWidth;
+    // 重渲染后偏移量调整: SyncNodeDrag 后布局坐标已变,需补偿偏移让节点视觉位置不变
+    if (window._netPendingOffsets) {
+        Object.keys(_netPendingOffsets).forEach(function(eid) {
+            var oldX = _netPendingOffsets[eid];
+            var evt = layout.events[eid];
+            if (evt && _netEventOffsets[eid]) {
+                // 布局坐标变化量
+                var deltaLayoutX = evt.x - oldX;
+                _netEventOffsets[eid].x -= deltaLayoutX;
+            }
+        });
+        delete window._netPendingOffsets;
+    }
     // 恢复已保存的节点偏移(重渲染后保持位置)
     Object.keys(_netEventOffsets).forEach(function(eid) {
         var off = _netEventOffsets[eid];
@@ -2094,10 +2107,15 @@ if (!window._netDragSetup) {
                         var dotNet = _netDotNet || window._netDotNet;
                         var nodeRole = evt.type === 'start' ? 'start' : (evt.type === 'both' ? 'end' : 'end');
                         if (dotNet) {
-                            // 清除 X 偏移(SyncNodeDrag 会重渲染),保留 Y 偏移
-                            var yOff = _netEventOffsets[eid] ? _netEventOffsets[eid].y : 0;
-                            delete _netEventOffsets[eid];
-                            if (yOff !== 0) _netEventOffsets[eid] = { x: 0, y: yOff };
+                            // 保存拖拽前布局坐标,重渲染时补偿偏移量使节点视觉位置不变
+                            var pendingOffs = {};
+                            Object.keys(_netEventOffsets).forEach(function(peid) {
+                                if (_netLayout && _netLayout.events[peid]) {
+                                    pendingOffs[peid] = _netLayout.events[peid].x;
+                                }
+                            });
+                            window._netPendingOffsets = pendingOffs;
+                            var curOff = _netEventOffsets[eid] || { x: 0, y: 0 };
                             dotNet.invokeMethodAsync('SyncNodeDrag', [tid], days, nodeRole);
                         }
                     } else {
