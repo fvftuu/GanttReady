@@ -383,7 +383,7 @@
                     }
                     var barLeft = hasActual ? Math.Min(planStart, actStart) : planStart;
                     var barTotalW = hasActual ? Math.Max(planStart + planW, actStart + actW) - barLeft : planW;
-                    var barHeight = rowHeight; // 与左侧行同高
+                    var barHeight = 36; // 与左侧任务行同高
                     var barTop = 0; // 最上一行 top:0
                     var planLeft = planStart - barLeft;
                     var actLeft = hasActual ? (actStart - barLeft) : 0;
@@ -754,7 +754,7 @@
     // 甘特图参数
     private double zoomLevel = 100;
     private double dayWidth => 40 * (zoomLevel / 100);
-    private double rowHeight = 48;  // 行高(支持自动换行)
+    private double rowHeight = 36;  // 行高(支持自动换行)
     private int totalDays = 90;
     private DateTime projectStartDate = DateTime.Today;
     private string chartWidth => $"{totalDays * dayWidth}px";
