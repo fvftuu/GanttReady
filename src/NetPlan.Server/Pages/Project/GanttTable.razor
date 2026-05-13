@@ -36,7 +36,7 @@
                      @onclick="() => OnTaskSelected.InvokeAsync(task.Id)">
                     @if (IsColumnVisible("sel")) { <div class="col-sel"><input type="checkbox" checked="@SelectedTaskIds.Contains(task.Id)" @onchange="(ChangeEventArgs e) => OnTaskCheckChanged.InvokeAsync((task.Id, (bool)(e.Value ?? false)))" @onclick:stopPropagation="true" /></div> }
                     <div class="col-idx">@taskIdx</div>
-                    @if (IsColumnVisible("status")) { <div class="col-status">@GetTaskStatusBadge(task)</div> }
+                    @if (IsColumnVisible("status")) { <div class="col-status" title="@GetTaskStatusText(task)">@GetTaskStatusBadge(task)</div> }
                     @if (IsColumnVisible("code")) { <div class="col-code" style="padding-left:@(Math.Max(0,(task.OutlineLevel-1)*16))px;">@task.Code</div> }
                     @if (IsColumnVisible("name")) { <div class="col-name" style="padding-left:@(Math.Max(0,(task.OutlineLevel-1)*16))px;" title="@task.Name">@task.Name</div> }
                     @if (IsColumnVisible("person")) { <div class="col-person" title="@task.ResponsiblePerson">@task.ResponsiblePerson</div> }
@@ -90,6 +90,15 @@
 
     private string GetFloatColorStyle(int? v) =>
         v switch { null => "", <= 0 => "color:#dc3545;font-weight:bold;", <= 5 => "color:#fd7e14;font-weight:bold;", <= 10 => "color:#f0ad4e;", _ => "" };
+
+    private string GetTaskStatusText(TaskItem task)
+    {
+        if (task.IsMilestone) return "里程碑";
+        if (task.IsCritical) return "关键任务";
+        if (task.CompletionPercentage >= 100) return "已完成";
+        if (task.CompletionPercentage > 0) return "进行中";
+        return "未开始";
+    }
 
     private string PredecessorSummary(TaskItem t) =>
         string.Join(",", TaskRelations
