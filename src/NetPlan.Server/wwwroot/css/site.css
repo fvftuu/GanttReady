@@ -643,6 +643,9 @@ body {
 
 .gantt-bars {
     position: relative;
+    /* 水平网格线，每行底边 */
+    background-image: linear-gradient(to bottom, transparent 35px, #f0f0f0 35px, #f0f0f0 36px);
+    background-size: 100% 36px;
 }
 
 /* 双层时间轴头部 */
@@ -719,11 +722,7 @@ body {
     background: #fafafa;
 }
 
-.gantt-bars {
-    position: relative;
-}
 
-/* 甘特条形帧（蓝上绿下 共享线框，高度=行高90%） */
 .gantt-bar-frame {
     position: absolute;
     outline: 1px solid rgba(0,0,0,0.2);
