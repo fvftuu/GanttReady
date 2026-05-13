@@ -292,7 +292,18 @@
                         <div class="grid-line month-line" style="left: @(monthStartOffset * dayWidth)px;"></div>
                     }
                     @* 周/日级竖线（按缩放级别） *@
-                    if (gridMode == "day" || gridMode == "week")
+                    if (gridMode == "day")
+                    {
+                        var daysInMonth = DateTime.DaysInMonth(months[i].date.Year, months[i].date.Month);
+                        for (int d = 1; d < daysInMonth; d++)
+                        {
+                            var dayDate = months[i].date.AddDays(d);
+                            if (dayDate > projectStartDate.AddDays(totalDays)) break;
+                            var dayOffset = (dayDate - projectStartDate).Days;
+                            <div class="grid-line day-line" style="left: @(dayOffset * dayWidth)px;"></div>
+                        }
+                    }
+                    else if (gridMode == "week")
                     {
                         @* 用 weeks 列表画每周起始线,确保与时间标尺周列对齐 *@
                         for (int wi = 1; wi < weeks.Count; wi++)
@@ -302,21 +313,6 @@
                             var dayOffset = (wStart - projectStartDate).Days;
                             if (dayOffset <= 0) continue;
                             <div class="grid-line week-line" style="left: @(dayOffset * dayWidth)px;"></div>
-                        }
-                    }
-                    if (gridMode == "day")
-                    {
-                        var daysInMonth = DateTime.DaysInMonth(months[i].date.Year, months[i].date.Month);
-                        for (int d = 1; d < daysInMonth; d++)
-                        {
-                            var dayDate = months[i].date.AddDays(d);
-                            if (dayDate > projectStartDate.AddDays(totalDays)) break;
-                            var dayOffset = (dayDate - projectStartDate).Days;
-                            var isSunday = dayDate.DayOfWeek == DayOfWeek.Sunday;
-                            if (!isSunday)
-                            {
-                                <div class="grid-line day-line" style="left: @(dayOffset * dayWidth)px;"></div>
-                            }
                         }
                     }
                 }
