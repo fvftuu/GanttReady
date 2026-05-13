@@ -1020,79 +1020,48 @@ function buildNetworkSvg(params) {
     } // showDummy
 
     // === 工作箭线 ===
-    // 防重叠: 统计同源节点的箭线数量,为同层重复的错开垂直位置
-    var srcArrowCounts = {};
-    p.timeParams.activities.forEach(function(act) {
-        srcArrowCounts[act.source] = (srcArrowCounts[act.source] || 0) + 1;
-    });
-    var srcArrowIdx = {};
-
+    // 原则: 同源多箭线不偏移,统一从节点3点钟出发,自然水平/跨层
     p.timeParams.activities.forEach(function(act) {
         var src = p.layout.events[act.source], tgt = p.layout.events[act.target];
         if (!src || !tgt) return;
         var isCrit = act.isCritical && p.showCritical;
-        var srcTotal = srcArrowCounts[act.source] || 1;
-        var srcI = srcArrowIdx[act.source] || 0;
-        srcArrowIdx[act.source] = srcI + 1;
-        // 原则3: 同源多箭线,关键线路保持水平不偏移,非关键错开
-        // 偏移量: 半层(30px/根),保证从节点12/3/6/9点连接
-        var offsetNum = (srcTotal > 1 && !isCrit) ? (srcI - (srcTotal - 1) / 2) * 30 : 0;
-        act._yOffset = offsetNum;
+        act._yOffset = 0; // 无偏移
         var dur = act.duration || 0;
 
         var arrow = svgArrowMarker(isCrit, criticalColor, normalColor);
         markers.push(arrow.html);
 
-        // 原则2: 所有箭线从节点3点钟(src右侧)出发
-        var sx = src.x + NODE_R, sy0 = src.y;
-        var ex = tgt.x;
-        // 非关键偏移: 箭头末端从tgt.y通过垂直段回到tgt.y0,满足3点钟连接
+        // 所有箭线从节点3点钟(src右侧边缘)出发
+        var sx = src.x + NODE_R, sy = src.y;
+        var ex = tgt.x, ey = tgt.y;
+
         var pathD;
-        var isSameLayer = Math.abs(src.y - tgt.y) < 5;
-        var arcRadius = Math.abs(offsetNum) > 0 ? Math.min(8, Math.abs(offsetNum)) : 0;
         if (isTimeMode) {
-            if (isSameLayer && Math.abs(offsetNum) < 2) {
-                // 同层无偏移: 直线
-                pathD = 'M' + sx + ' ' + sy0 + ' L' + ex + ' ' + tgt.y;
-            } else if (isSameLayer && Math.abs(offsetNum) >= 2) {
-                // 同层+偏移: 从节点3点钟出发,短水平→垂直降到偏移Y→水平到目标X→垂直升到目标Y→进入目标
-                var bendX = sx + 10;
-                pathD = 'M' + sx + ' ' + sy0
-                    + ' L' + bendX + ' ' + sy0
-                    + ' L' + bendX + ' ' + (sy0 + offsetNum)
-                    + ' L' + (ex - arcRadius - 6) + ' ' + (sy0 + offsetNum)
-                    + ' L' + (ex - arcRadius - 6) + ' ' + tgt.y
-                    + ' L' + ex + ' ' + tgt.y;
-            } else if (offsetNum === 0) {
-                // 跨层无偏移: L型(水平→垂直→水平)
-                pathD = 'M' + sx + ' ' + sy0 + ' L' + (ex - 2) + ' ' + sy0 + ' L' + (ex - 2) + ' ' + tgt.y + ' L' + ex + ' ' + tgt.y;
+            if (Math.abs(ey - sy) < 2) {
+                // 同层: 直线
+                pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + ey;
             } else {
-                // 跨层+偏移: 3点钟→短水平→垂直→水平到目标X前→垂直到目标Y→水平进入目标
-                var bendX = sx + 10;
-                pathD = 'M' + sx + ' ' + sy0
-                    + ' L' + bendX + ' ' + sy0
-                    + ' L' + bendX + ' ' + (sy0 + offsetNum)
-                    + ' L' + (ex - 2) + ' ' + (sy0 + offsetNum)
-                    + ' L' + (ex - 2) + ' ' + tgt.y
-                    + ' L' + ex + ' ' + tgt.y;
+                // 跨层: L型
+                pathD = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + sy + ' L' + (ex - 2) + ' ' + ey + ' L' + ex + ' ' + ey;
             }
         } else {
-            // 逻辑图
-            if (Math.abs(tgt.y - src.y) < 5) {
-                pathD = 'M' + sx + ' ' + sy0 + ' L' + (ex - 2) + ' ' + tgt.y;
+            if (Math.abs(ey - sy) < 5) {
+                pathD = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + ey;
             } else {
-                pathD = 'M' + sx + ' ' + sy0 + ' L' + ex + ' ' + sy0 + ' L' + ex + ' ' + tgt.y;
+                pathD = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + sy + ' L' + ex + ' ' + ey;
             }
+            var isBackwards = (sx > ex);
+            if (isBackwards) { console.warn('[NET] R3 backwards arrow: actId=' + act.id + ' src=' + act.source + ' tgt=' + act.target); }
         }
         parts.push('<g data-activity-id="' + act.id + '" data-src="' + act.source + '" data-tgt="' + act.target + '">');
         parts.push('<path class="act-arrow" d="' + pathD + '" fill="none" stroke="' + arrow.color
             + '" stroke-width="' + (isCrit ? criticalWidth : normalWidth) + '" marker-end="' + arrow.id + '"/>');
-        // R3: backwards arrows get a semi-transparent red overlay
         if (isBackwards) {
             parts.push('<path class="act-arrow-r3" d="' + pathD + '" fill="none" stroke="#e74c3c" stroke-opacity="0.6" stroke-width="' + (parseFloat(isCrit ? criticalWidth : normalWidth) + 2) + '" stroke-dasharray="4,2" marker-end="' + arrow.id + '"/>');
         }
 
-        var lx = (sx + ex) / 2, ly = sy - NODE_R - 6;
+        var lx = (sx + ex) / 2;
+        var ly = sy - NODE_R - 6;
         var labelFields = p.labelFields || [];
         var fieldSet = {};
         labelFields.forEach(function(f) { fieldSet[f] = true; });
@@ -1262,39 +1231,20 @@ function buildNetworkSvg(params) {
         if (!act.source || !act.target) return;
         var src = p.layout.events[act.source], tgt = p.layout.events[act.target];
         if (!src || !tgt) return;
-        var off = act._yOffset || 0;
-        var bendX = src.x + NODE_R + 10;
-        var ex = tgt.x, isSameLayer = Math.abs(src.y - tgt.y) < 5;
+        var sx = src.x + NODE_R, sy = src.y, ex = tgt.x, ey = tgt.y;
         var segs = [];
         if (isTimeMode) {
-            if (isSameLayer && Math.abs(off) < 2) {
-                segs = [{x1:src.x+NODE_R, y1:src.y, x2:ex, y2:tgt.y}];
-            } else if (isSameLayer && Math.abs(off) >= 2) {
-                var nearTargetX = ex - Math.min(8, Math.abs(off)) - 6;
-                segs = [
-                    {x1:src.x+NODE_R, y1:src.y, x2:bendX, y2:src.y},
-                    {x1:bendX, y1:src.y, x2:bendX, y2:src.y+off},
-                    {x1:bendX, y1:src.y+off, x2:nearTargetX, y2:src.y+off},
-                    {x1:nearTargetX, y1:src.y+off, x2:nearTargetX, y2:tgt.y},
-                    {x1:nearTargetX, y1:tgt.y, x2:ex, y2:tgt.y}
-                ];
-            } else if (off === 0) {
-                segs = [
-                    {x1:src.x+NODE_R, y1:src.y, x2:ex-2, y2:src.y},
-                    {x1:ex-2, y1:src.y, x2:ex-2, y2:tgt.y},
-                    {x1:ex-2, y1:tgt.y, x2:ex, y2:tgt.y}
-                ];
+            if (Math.abs(ey - sy) < 2) {
+                segs = [{x1:sx, y1:sy, x2:ex, y2:ey}];
             } else {
                 segs = [
-                    {x1:src.x+NODE_R, y1:src.y, x2:bendX, y2:src.y},
-                    {x1:bendX, y1:src.y, x2:bendX, y2:src.y+off},
-                    {x1:bendX, y1:src.y+off, x2:ex-2, y2:src.y+off},
-                    {x1:ex-2, y1:src.y+off, x2:ex-2, y2:tgt.y},
-                    {x1:ex-2, y1:tgt.y, x2:ex, y2:tgt.y}
+                    {x1:sx, y1:sy, x2:ex-2, y2:sy},
+                    {x1:ex-2, y1:sy, x2:ex-2, y2:ey},
+                    {x1:ex-2, y1:ey, x2:ex, y2:ey}
                 ];
             }
         } else {
-            segs = [{x1:src.x+NODE_R, y1:src.y, x2:ex, y2:tgt.y}];
+            segs = [{x1:sx, y1:sy, x2:ex, y2:ey}];
         }
         allSegments.push({
             actId: act.id,
@@ -1347,10 +1297,10 @@ function buildNetworkSvg(params) {
                                 // 原则4: 确保弧的两端接触被跨箭线(即弧的端点在交叉点开始接触)
                                 parts.push('<path d="M' + (cross.x - nx * 2) + ' ' + (cross.y - ny * 2)
                                     + ' A' + (arcR + 1) + ' ' + (arcR + 1) + ' 0 0 0 ' + (cross.x + nx * 2) + ' ' + (cross.y + ny * 2)
-                                    + '" fill="none" stroke="#fff" stroke-width="' + (lineW + 2) + '" stroke-linecap="round"/>');
+                                    + '" class="net-cross-arc" fill="none" stroke="#fff" stroke-width="' + (lineW + 2) + '" stroke-linecap="round"/>');
                                 parts.push('<path d="M' + (cross.x - nx * 2) + ' ' + (cross.y - ny * 2)
                                     + ' A' + (arcR + 1) + ' ' + (arcR + 1) + ' 0 0 0 ' + (cross.x + nx * 2) + ' ' + (cross.y + ny * 2)
-                                    + '" fill="none" stroke="#999" stroke-width="1" stroke-linecap="round"/>');
+                                    + '" class="net-cross-arc" fill="none" stroke="#999" stroke-width="1" stroke-linecap="round"/>');
                             }
                         }
                     }
@@ -1733,13 +1683,16 @@ window.renderNetwork = function(elementsJson, opts) {
         }
     });
     // 重渲染后恢复箭头路径(基于保存偏移)
+    var hasOffsets = false;
     Object.keys(_netEventOffsets).forEach(function(eid) {
         var off = _netEventOffsets[eid];
         if (off.x !== 0 || off.y !== 0) {
             _netUpdateArrows(eid, off.x, off.y);
             _netUpdateDummys(eid, off.x, off.y);
+            hasOffsets = true;
         }
     });
+    if (hasOffsets) _netUpdateCrossArcs();
 
     if (svg) {
         svg.addEventListener('mousedown', function(e) {
@@ -1952,6 +1905,94 @@ function _netFindConnected(eventId) {
     if (_netActivities) _netActivities.forEach(function(a) { if (a.source === eventId || a.target === eventId) ids.push(a.id); });
     return ids;
 }
+function _netUpdateCrossArcs() {
+    var svg = _netSvg;
+    if (!svg) return;
+    // 删除旧的跨线符
+    var old = svg.querySelectorAll('.net-cross-arc');
+    for (var i = 0; i < old.length; i++) { old[i].parentNode.removeChild(old[i]); }
+    // 获取当前有效偏移的活动布局坐标
+    var acts = [];
+    if (!_netLayout || !_netLayout.events) return;
+    (_netActivities || []).forEach(function(act) {
+        if (!act.source || !act.target) return;
+        var s = _netLayout.events[act.source], t = _netLayout.events[act.target];
+        if (!s || !t) return;
+        var sx = s.x + (_netEventOffsets[s.id] ? _netEventOffsets[s.id].x : 0) + NODE_R;
+        var sy = s.y + (_netEventOffsets[s.id] ? _netEventOffsets[s.id].y : 0);
+        var ex = t.x + (_netEventOffsets[t.id] ? _netEventOffsets[t.id].x : 0);
+        var ey = t.y + (_netEventOffsets[t.id] ? _netEventOffsets[t.id].y : 0);
+        acts.push({ id: act.id, isCritical: act.isCritical || false, sx: sx, sy: sy, ex: ex, ey: ey });
+    });
+    if (acts.length < 2) return;
+    // 构建线段
+    var allSegments = [];
+    acts.forEach(function(a) {
+        var segs;
+        if (Math.abs(a.ey - a.sy) < 2) {
+            segs = [{x1:a.sx, y1:a.sy, x2:a.ex, y2:a.ey}];
+        } else {
+            segs = [
+                {x1:a.sx, y1:a.sy, x2:a.ex-2, y2:a.sy},
+                {x1:a.ex-2, y1:a.sy, x2:a.ex-2, y2:a.ey},
+                {x1:a.ex-2, y1:a.ey, x2:a.ex, y2:a.ey}
+            ];
+        }
+        allSegments.push({ actId: a.id, isCritical: a.isCritical, segs: segs });
+    });
+    // 交叉检测
+    for (var i = 0; i < allSegments.length; i++) {
+        for (var j = i + 1; j < allSegments.length; j++) {
+            var a = allSegments[i], b = allSegments[j];
+            if (a.actId === b.actId) continue;
+            for (var ai = 0; ai < a.segs.length; ai++) {
+                for (var bi = 0; bi < b.segs.length; bi++) {
+                    var s1 = a.segs[ai], s2 = b.segs[bi];
+                    var cross = findSegIntersection(s1.x1, s1.y1, s1.x2, s1.y2, s2.x1, s2.y1, s2.x2, s2.y2);
+                    if (cross) {
+                        var skipArc = false;
+                        var arcOn;
+                        if (!a.isCritical && b.isCritical) { arcOn = a; }
+                        else if (a.isCritical && !b.isCritical) { arcOn = b; }
+                        else if (!a.isCritical && !b.isCritical) { arcOn = a; }
+                        else { skipArc = true; }
+                        if (!skipArc && arcOn && cross) {
+                            var bSeg = (arcOn === a) ? s2 : s1;
+                            var bdx = bSeg.x2 - bSeg.x1, bdy = bSeg.y2 - bSeg.y1;
+                            var blen = Math.sqrt(bdx*bdx + bdy*bdy) || 1;
+                            var nx = -bdy / blen, ny = bdx / blen;
+                            var arcR = 5;
+                            var lineW = arcOn.isCritical ? 3 : 1.5;
+                            var doc = svg instanceof SVGElement ? svg : null;
+                            if (doc) {
+                                var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                                g.setAttribute('class', 'net-cross-arc');
+                                var arc1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                                arc1.setAttribute('d', 'M' + (cross.x - nx * 2) + ' ' + (cross.y - ny * 2)
+                                    + ' A' + (arcR + 1) + ' ' + (arcR + 1) + ' 0 0 0 ' + (cross.x + nx * 2) + ' ' + (cross.y + ny * 2));
+                                arc1.setAttribute('fill', 'none');
+                                arc1.setAttribute('stroke', '#fff');
+                                arc1.setAttribute('stroke-width', '' + (lineW + 2));
+                                arc1.setAttribute('stroke-linecap', 'round');
+                                g.appendChild(arc1);
+                                var arc2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                                arc2.setAttribute('d', 'M' + (cross.x - nx * 2) + ' ' + (cross.y - ny * 2)
+                                    + ' A' + (arcR + 1) + ' ' + (arcR + 1) + ' 0 0 0 ' + (cross.x + nx * 2) + ' ' + (cross.y + ny * 2));
+                                arc2.setAttribute('fill', 'none');
+                                arc2.setAttribute('stroke', '#999');
+                                arc2.setAttribute('stroke-width', '1');
+                                arc2.setAttribute('stroke-linecap', 'round');
+                                g.appendChild(arc2);
+                                svg.appendChild(g);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 function _netUpdateArrows(eventId, dx, dy) {
     var ids = _netFindConnected(eventId);
     var svg = _netSvg;
@@ -1963,30 +2004,20 @@ function _netUpdateArrows(eventId, dx, dy) {
         var s = _netLayout ? _netLayout.events[sid] : null, t = _netLayout ? _netLayout.events[tid] : null;
         if (!s || !t) return;
         var nr = 11;
-        // 查找活动获取偏移信息
-        var actRef = _netActivities ? _netActivities.find(function(a) { return a.id == actId; }) : null;
-        var off = actRef ? (actRef._yOffset || 0) : 0;
         var sx = s.x + (sid === eventId ? dx : (_netEventOffsets[sid] ? _netEventOffsets[sid].x : 0)) + nr;
-        var sy0 = s.y + (sid === eventId ? dy : (_netEventOffsets[sid] ? _netEventOffsets[sid].y : 0));
+        var sy = s.y + (sid === eventId ? dy : (_netEventOffsets[sid] ? _netEventOffsets[sid].y : 0));
         var ex = t.x + (tid === eventId ? dx : (_netEventOffsets[tid] ? _netEventOffsets[tid].x : 0));
-        var ey0 = t.y + (tid === eventId ? dy : (_netEventOffsets[tid] ? _netEventOffsets[tid].y : 0));
+        var ey = t.y + (tid === eventId ? dy : (_netEventOffsets[tid] ? _netEventOffsets[tid].y : 0));
         var pd;
-        if (Math.abs(ey0 - sy0) < 5 && Math.abs(off) < 2) {
-            pd = 'M' + sx + ' ' + sy0 + ' L' + (ex - 2) + ' ' + ey0;
-        } else if (Math.abs(ey0 - sy0) < 5 && Math.abs(off) >= 2) {
-            var bnd = sx + 10;
-            var nrTgt = ex - Math.min(8, Math.abs(off)) - 6;
-            pd = 'M' + sx + ' ' + sy0 + ' L' + bnd + ' ' + sy0 + ' L' + bnd + ' ' + (sy0+off) + ' L' + nrTgt + ' ' + (sy0+off) + ' L' + nrTgt + ' ' + ey0 + ' L' + ex + ' ' + ey0;
-        } else if (off === 0) {
-            pd = 'M' + sx + ' ' + sy0 + ' L' + (ex - 2) + ' ' + sy0 + ' L' + (ex - 2) + ' ' + ey0 + ' L' + ex + ' ' + ey0;
+        if (Math.abs(ey - sy) < 5) {
+            pd = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + ey;
         } else {
-            var bnd = sx + 10;
-            pd = 'M' + sx + ' ' + sy0 + ' L' + bnd + ' ' + sy0 + ' L' + bnd + ' ' + (sy0+off) + ' L' + (ex - 2) + ' ' + (sy0+off) + ' L' + (ex - 2) + ' ' + ey0 + ' L' + ex + ' ' + ey0;
+            pd = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + sy + ' L' + (ex - 2) + ' ' + ey + ' L' + ex + ' ' + ey;
         }
         var p = g.querySelector('.act-arrow'); if (p) p.setAttribute('d', pd);
         var lx = (sx + ex) / 2;
-        var lb = g.querySelector('.act-label'); if (lb) { lb.setAttribute('x', lx); lb.setAttribute('y', sy0 - nr - 6); }
-        var du = g.querySelector('.act-dur'); if (du) { du.setAttribute('x', lx); du.setAttribute('y', sy0 + nr + 10); }
+        var lb = g.querySelector('.act-label'); if (lb) { lb.setAttribute('x', lx); lb.setAttribute('y', sy - nr - 6); }
+        var du = g.querySelector('.act-dur'); if (du) { du.setAttribute('x', lx); du.setAttribute('y', sy + nr + 10); }
     });
 }
 // 更新虚箭线(关系线,无活动箭头)
@@ -2024,11 +2055,11 @@ if (!window._netDragSetup) {
         if (!_netNodeDrag) return;
         var rawDx = e.clientX - _netNodeDrag.startX, rawDy = e.clientY - _netNodeDrag.startY;
         var dx = _netNodeDrag.offX + rawDx;
-        var LAYER_H = (_networkOpts && _networkOpts.layerHeight) ? _networkOpts.layerHeight : 60;
-        var dy = _netNodeDrag.offY + Math.round(rawDy / LAYER_H) * LAYER_H;
+        var dy = _netNodeDrag.offY + rawDy;
         _netNodeDrag.group.setAttribute('transform', 'translate(' + dx + ',' + dy + ')');
         _netUpdateArrows(_netNodeDrag.eventId, dx, dy);
         _netUpdateDummys(_netNodeDrag.eventId, dx, dy);
+        _netUpdateCrossArcs();
         _netNodeDrag.moved = true;
         // 记录实时天数
         _netNodeDrag.rawDx = rawDx; _netNodeDrag.cx = e.clientX; _netNodeDrag.cy = e.clientY;
@@ -2075,6 +2106,7 @@ if (!window._netDragSetup) {
                         _netEventOffsets[eid] = { x: preXOff, y: preYOff };
                         _netUpdateArrows(eid, preXOff, preYOff);
                         _netUpdateDummys(eid, preXOff, preYOff);
+                        _netUpdateCrossArcs();
                     }
                 });
             } else if (dx !== 0 || dy !== 0) {
@@ -2087,6 +2119,7 @@ if (!window._netDragSetup) {
             delete _netEventOffsets[eid];
             _netUpdateArrows(eid, 0, 0);
             _netUpdateDummys(eid, 0, 0);
+            _netUpdateCrossArcs();
         }
     });
 }
