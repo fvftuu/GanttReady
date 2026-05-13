@@ -856,14 +856,14 @@ body {
     border-left: 1px solid #ccc;
 }
 
-/* 日边界 - 更细线 */
+/* 日边界 - 细线 */
 .grid-line.day-line {
-    border-left: 1px solid #f0f0f0;
+    border-left: 1px solid #e0e0e0;
 }
 
-/* 周边界 - 细点线（备选） */
+/* 周（周日）边界 - 虚线 */
 .grid-line.week-line {
-    border-left: 1px dashed #e0e0e0;
+    border-left: 1px dashed #aaa;
 }
 
 /* 前置关系线 SVG */

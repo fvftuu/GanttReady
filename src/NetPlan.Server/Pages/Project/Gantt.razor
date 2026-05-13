@@ -298,7 +298,16 @@
                         var dayDate = months[i].date.AddDays(d);
                         if (dayDate > projectStartDate.AddDays(totalDays)) break;
                         var dayOffset = (dayDate - projectStartDate).Days;
-                        <div class="grid-line day-line" style="left: @(dayOffset * dayWidth)px;"></div>
+                        // 周日用稍粗虚线
+                        var isSunday = dayDate.DayOfWeek == DayOfWeek.Sunday;
+                        if (isSunday)
+                        {
+                            <div class="grid-line week-line" style="left: @(dayOffset * dayWidth)px;"></div>
+                        }
+                        else
+                        {
+                            <div class="grid-line day-line" style="left: @(dayOffset * dayWidth)px;"></div>
+                        }
                     }
                 }
             </div>
