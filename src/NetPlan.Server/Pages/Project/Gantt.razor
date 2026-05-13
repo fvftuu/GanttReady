@@ -1562,8 +1562,26 @@
     {
         try
         {
+            // 重新计算时间范围(确保根据最新任务日期更新)
+            var project = projects.FirstOrDefault(p => p.Id == currentProjectId);
+            if (project != null)
+            {
+                var chartStart = project.PlanStartDate;
+                var chartEnd = project.PlanEndDate;
+                if (tasks.Any())
+                {
+                    chartStart = new[] { project.PlanStartDate, tasks.Min(t => t.PlanStartDate) }.Min();
+                    if (tasks.Any(t => t.ActualStartDate.HasValue))
+                        chartStart = new[] { chartStart, tasks.Where(t => t.ActualStartDate.HasValue).Min(t => t.ActualStartDate.Value) }.Min();
+                    chartEnd = new[] { project.PlanEndDate, tasks.Max(t => t.PlanEndDate) }.Max();
+                    if (tasks.Any(t => t.ActualEndDate.HasValue))
+                        chartEnd = new[] { chartEnd, tasks.Where(t => t.ActualEndDate.HasValue).Max(t => t.ActualEndDate.Value) }.Max();
+                }
+                totalDays = Math.Max(10, (chartEnd - chartStart).Days + 30);
+                projectStartDate = chartStart;
+            }
             var rightWidth = await JS.InvokeAsync<double>("eval", "document.getElementById('gantt-right')?.clientWidth || 800");
-            if (totalDays <= 0) return;
+            if (totalDays <= 0) totalDays = 90;
             var targetDayW = (rightWidth - 20) / Math.Max(1, totalDays);
             var newZoom = targetDayW / 40.0 * 100;
             zoomLevel = Math.Max(1, Math.Min(3000, (int)Math.Round(newZoom)));
