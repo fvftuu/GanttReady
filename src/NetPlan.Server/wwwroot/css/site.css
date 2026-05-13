@@ -836,7 +836,7 @@ body {
     left: 0;
     right: 0;
     pointer-events: none;
-    z-index: 0;
+    z-index: 5;
 }
 
 .grid-line {
@@ -858,7 +858,7 @@ body {
 
 /* 日边界 - 细线 */
 .grid-line.day-line {
-    border-left: 1px solid #e0e0e0;
+    border-left: 1px solid #bbb;
 }
 
 /* 周（周日）边界 - 虚线 */
