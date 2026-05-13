@@ -557,8 +557,8 @@ body {
 
 .gantt-left-row {
     display: flex;
-    align-items: flex-start;
-    min-height: 36px;
+    align-items: center;
+    min-height: 48px;
     border-bottom: 1px solid #f0f0f0;
     font-size: 13px;
     cursor: pointer;
@@ -566,7 +566,7 @@ body {
     padding: 0;
 }
 .gantt-left-row > div {
-    flex: none; min-height: 36px;
+    flex: none; min-height: 48px;
     border-right: 1px solid #d0d0d0;
     box-sizing: border-box;
     padding-top: 4px;
