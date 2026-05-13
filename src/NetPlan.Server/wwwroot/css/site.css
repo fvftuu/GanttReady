@@ -755,6 +755,13 @@ body {
     top: 0; height: 20px;
     background: linear-gradient(180deg, #1890ff 0%, #096dd9 100%);
     border-radius: 1px 1px 0 0;
+    display: flex; align-items: center;
+    padding-left: 4px;
+    font-size: 11px; color: #fff;
+    white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    box-sizing: border-box;
 }
 
 /* 实际进度条（绿色，下半部分） */
@@ -763,21 +770,6 @@ body {
     bottom: 0; height: 16px;
     background: linear-gradient(180deg, #52c41a 0%, #389e0d 100%);
     border-radius: 0 0 1px 1px;
-}
-
-/* 进度条标签（在 bar 内部左对齐） */
-.bar-label {
-    position: absolute;
-    top: 0; left: 4px;
-    display: flex; align-items: center;
-    height: 20px;
-    font-size: 11px; color: #fff;
-    white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
-    pointer-events: none;
-}
-    pointer-events: none; z-index: 1;
 }
 
 /* ===== 条形颜色规则（按状态/里程碑，调整边框和阴影色调） ===== */

@@ -398,13 +398,15 @@
                          title="@task.Name"
                          data-task-id="@task.Id">
                         @* 计划进度（蓝色上半部） *@
-                        <div class="bar-plan" style="left: @(planLeft)px; width: @(planW)px;"></div>
+                        <div class="bar-plan" style="left: @(planLeft)px; width: @(planW)px;">
+                            @task.Name @(task.CompletionPercentage > 0 ? $"({task.CompletionPercentage}%)" : "")
+                        </div>
                         @* 实际进度（绿色下半部） *@
                         @if (hasActual)
                         {
                             <div class="bar-act" style="left: @(actLeft)px; width: @(actW)px;"></div>
                         }
-                        <span class="bar-label">@task.Name @(task.CompletionPercentage > 0 ? $"({task.CompletionPercentage}%)" : "")</span>
+                        <span class="bar-label" style="display:none;">@task.Name</span>
                     </div>
                 }
                 }
