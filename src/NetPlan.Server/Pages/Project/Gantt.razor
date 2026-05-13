@@ -291,6 +291,15 @@
                     {
                         <div class="grid-line month-line" style="left: @(monthStartOffset * dayWidth)px;"></div>
                     }
+                    @* 每日竖线 *@
+                    var daysInMonth = DateTime.DaysInMonth(months[i].date.Year, months[i].date.Month);
+                    for (int d = 1; d < daysInMonth; d++)
+                    {
+                        var dayDate = months[i].date.AddDays(d);
+                        if (dayDate > projectStartDate.AddDays(totalDays)) break;
+                        var dayOffset = (dayDate - projectStartDate).Days;
+                        <div class="grid-line day-line" style="left: @(dayOffset * dayWidth)px;"></div>
+                    }
                 }
             </div>
             @* 前置关系线 SVG 层 *@

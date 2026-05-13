@@ -856,6 +856,11 @@ body {
     border-left: 1px solid #ccc;
 }
 
+/* 日边界 - 更细线 */
+.grid-line.day-line {
+    border-left: 1px solid #f0f0f0;
+}
+
 /* 周边界 - 细点线（备选） */
 .grid-line.week-line {
     border-left: 1px dashed #e0e0e0;
