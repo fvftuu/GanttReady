@@ -367,6 +367,12 @@
             </svg>
             @* 甘特条形图（重构：蓝上绿下 共享边框） *@
             <div class="gantt-bars" style="height: @(tasks.Count * rowHeight)px;">
+                <svg class="gantt-hgrid" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+                    @for (int r = 1; r < tasks.Count; r++)
+                    {
+                        <line x1="0" y1="@(r * rowHeight)" x2="100%" y2="@(r * rowHeight)" stroke="#e8e8e8" stroke-width="1"/>
+                    }
+                </svg>
                 @foreach (var task in tasks)
                 {
                     var rowIndex = tasks.IndexOf(task);

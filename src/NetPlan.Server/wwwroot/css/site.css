@@ -643,9 +643,6 @@ body {
 
 .gantt-bars {
     position: relative;
-    /* 水平网格线，每行底边 */
-    background-image: linear-gradient(to bottom, transparent 35px, #f0f0f0 35px, #f0f0f0 36px);
-    background-size: 100% 36px;
 }
 
 /* 双层时间轴头部 */
