@@ -277,43 +277,50 @@
                         }
                     }
                 }
-                @* 年度粗实线（始终显示） *@
-                @foreach (var yb in yearBoundaries)
+                @* 网格竖线(按缩放级别) *@
+                @if (gridMode == "month")
                 {
-                    <div class="grid-line year-line" style="left: @(yb.dayOffset * dayWidth)px;"></div>
+                    @* 月模式: 年线 + 月线 *@
+                    @foreach (var yb in yearBoundaries)
+                    {
+                        <div class="grid-line year-line" style="left: @(yb.dayOffset * dayWidth)px;"></div>
+                    }
+                    @for (int i = 0; i < months.Count; i++)
+                    {
+                        var monthStartOffset = (months[i].date - projectStartDate).Days;
+                        var isYearStart = months[i].date.Month == 1;
+                        @if (!isYearStart)
+                        {
+                            <div class="grid-line month-line" style="left: @(monthStartOffset * dayWidth)px;"></div>
+                        }
+                    }
                 }
-                @* 月度细实线（年度边界除外） *@
-                @for (int i = 0; i < months.Count; i++)
+                else if (gridMode == "week")
                 {
-                    var monthStartOffset = (months[i].date - projectStartDate).Days;
-                    var isYearStart = months[i].date.Month == 1;
-                    @if (!isYearStart)
+                    @* 周模式: 年线 + 周起始线 *@
+                    @foreach (var yb in yearBoundaries)
                     {
-                        <div class="grid-line month-line" style="left: @(monthStartOffset * dayWidth)px;"></div>
+                        <div class="grid-line year-line" style="left: @(yb.dayOffset * dayWidth)px;"></div>
                     }
-                    @* 周/日级竖线（按缩放级别） *@
-                    if (gridMode == "day")
+                    @for (int wi = 1; wi < weeks.Count; wi++)
                     {
-                        var daysInMonth = DateTime.DaysInMonth(months[i].date.Year, months[i].date.Month);
-                        for (int d = 1; d < daysInMonth; d++)
-                        {
-                            var dayDate = months[i].date.AddDays(d);
-                            if (dayDate > projectStartDate.AddDays(totalDays)) break;
-                            var dayOffset = (dayDate - projectStartDate).Days;
-                            <div class="grid-line day-line" style="left: @(dayOffset * dayWidth)px;"></div>
-                        }
+                        var wStart = weeks[wi].startDate;
+                        if (wStart > projectStartDate.AddDays(totalDays)) break;
+                        var dayOffset = (wStart - projectStartDate).Days;
+                        if (dayOffset <= 0) continue;
+                        <div class="grid-line week-line" style="left: @(dayOffset * dayWidth)px;"></div>
                     }
-                    else if (gridMode == "week")
+                }
+                else if (gridMode == "day")
+                {
+                    @* 日模式: 年线 + 每日线 *@
+                    @foreach (var yb in yearBoundaries)
                     {
-                        @* 用 weeks 列表画每周起始线,确保与时间标尺周列对齐 *@
-                        for (int wi = 1; wi < weeks.Count; wi++)
-                        {
-                            var wStart = weeks[wi].startDate;
-                            if (wStart > projectStartDate.AddDays(totalDays)) break;
-                            var dayOffset = (wStart - projectStartDate).Days;
-                            if (dayOffset <= 0) continue;
-                            <div class="grid-line week-line" style="left: @(dayOffset * dayWidth)px;"></div>
-                        }
+                        <div class="grid-line year-line" style="left: @(yb.dayOffset * dayWidth)px;"></div>
+                    }
+                    @for (int d = 1; d <= totalDays; d++)
+                    {
+                        <div class="grid-line day-line" style="left: @(d * dayWidth)px;"></div>
                     }
                 }
             </div>
