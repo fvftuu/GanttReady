@@ -265,6 +265,7 @@
             @* 时间标尺竖线层 *@
             <div class="gantt-grid-lines" style="height: @(tasks.Count * rowHeight + 40)px;">
                 @{
+                    var gridMode = dayWidth > 20 ? "day" : (dayWidth >= 10 ? "week" : "month");
                     // 计算年份边界线位置
                     var yearBoundaries = new List<(DateTime date, int dayOffset, bool isYearStart)>(); 
                     for (int year = projectStartDate.Year; year <= projectStartDate.AddDays(totalDays).Year; year++)
@@ -277,7 +278,7 @@
                         }
                     }
                 }
-                @* 年度粗实线 *@
+                @* 年度粗实线（始终显示） *@
                 @foreach (var yb in yearBoundaries)
                 {
                     <div class="grid-line year-line" style="left: @(yb.dayOffset * dayWidth)px;"></div>
@@ -291,22 +292,38 @@
                     {
                         <div class="grid-line month-line" style="left: @(monthStartOffset * dayWidth)px;"></div>
                     }
-                    @* 每日竖线 *@
-                    var daysInMonth = DateTime.DaysInMonth(months[i].date.Year, months[i].date.Month);
-                    for (int d = 1; d < daysInMonth; d++)
+                    @* 周/日级竖线（按缩放级别） *@
+                    if (gridMode == "day")
                     {
-                        var dayDate = months[i].date.AddDays(d);
-                        if (dayDate > projectStartDate.AddDays(totalDays)) break;
-                        var dayOffset = (dayDate - projectStartDate).Days;
-                        // 周日用稍粗虚线
-                        var isSunday = dayDate.DayOfWeek == DayOfWeek.Sunday;
-                        if (isSunday)
+                        var daysInMonth = DateTime.DaysInMonth(months[i].date.Year, months[i].date.Month);
+                        for (int d = 1; d < daysInMonth; d++)
                         {
-                            <div class="grid-line week-line" style="left: @(dayOffset * dayWidth)px;"></div>
+                            var dayDate = months[i].date.AddDays(d);
+                            if (dayDate > projectStartDate.AddDays(totalDays)) break;
+                            var dayOffset = (dayDate - projectStartDate).Days;
+                            var isSunday = dayDate.DayOfWeek == DayOfWeek.Sunday;
+                            if (isSunday)
+                            {
+                                <div class="grid-line week-line" style="left: @(dayOffset * dayWidth)px;"></div>
+                            }
+                            else
+                            {
+                                <div class="grid-line day-line" style="left: @(dayOffset * dayWidth)px;"></div>
+                            }
                         }
-                        else
+                    }
+                    else if (gridMode == "week")
+                    {
+                        var daysInMonth = DateTime.DaysInMonth(months[i].date.Year, months[i].date.Month);
+                        for (int d = 1; d < daysInMonth; d++)
                         {
-                            <div class="grid-line day-line" style="left: @(dayOffset * dayWidth)px;"></div>
+                            var dayDate = months[i].date.AddDays(d);
+                            if (dayDate > projectStartDate.AddDays(totalDays)) break;
+                            if (dayDate.DayOfWeek == DayOfWeek.Sunday)
+                            {
+                                var dayOffset = (dayDate - projectStartDate).Days;
+                                <div class="grid-line week-line" style="left: @(dayOffset * dayWidth)px;"></div>
+                            }
                         }
                     }
                 }
