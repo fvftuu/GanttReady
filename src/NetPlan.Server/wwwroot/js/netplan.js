@@ -777,15 +777,20 @@ function buildNetworkSvg(params) {
         function cross(Ax, Ay, Bx, By, Cx, Cy) {
             return (Bx - Ax) * (Cy - Ay) - (By - Ay) * (Cx - Ax);
         }
-        // 快速排斥: 检查包围盒是否重叠
-        if (Math.max(ax1, ax2) < Math.min(bx1, bx2) || Math.min(ax1, ax2) > Math.max(bx1, bx2) ||
-            Math.max(ay1, ay2) < Math.min(by1, by2) || Math.min(ay1, ay2) > Math.max(by1, by2)) return null;
+        // 快速排斥: 检查包围盒是否重叠(使用<=允许边界接触)
+        if (Math.max(ax1, ax2) <= Math.min(bx1, bx2) || Math.min(ax1, ax2) >= Math.max(bx1, bx2) ||
+            Math.max(ay1, ay2) <= Math.min(by1, by2) || Math.min(ay1, ay2) >= Math.max(by1, by2)) return null;
         // 跨立实验
         var c1 = cross(ax1, ay1, ax2, ay2, bx1, by1);
         var c2 = cross(ax1, ay1, ax2, ay2, bx2, by2);
         var c3 = cross(bx1, by1, bx2, by2, ax1, ay1);
         var c4 = cross(bx1, by1, bx2, by2, ax2, ay2);
-        if (c1 * c2 >= 0 || c3 * c4 >= 0) return null;
+        if (c1 * c2 > 0 || c3 * c4 > 0) return null;
+        // 排除共线但不重叠的情况
+        if (c1 === 0 && c2 === 0 && c3 === 0 && c4 === 0) {
+            if (Math.max(ax1, ax2) < Math.min(bx1, bx2) || Math.min(ax1, ax2) > Math.max(bx1, bx2) ||
+                Math.max(ay1, ay2) < Math.min(by1, by2) || Math.min(ay1, ay2) > Math.max(by1, by2)) return null;
+        }
         // 计算交叉点(参数化)
         var dxA = ax2 - ax1, dyA = ay2 - ay1;
         var dxB = bx2 - bx1, dyB = by2 - by1;
@@ -1405,19 +1410,19 @@ function buildNetworkSvg(params) {
                     var s1 = a.segs[ai], s2 = b.segs[bi];
                     var cross = findSegIntersection(s1.x1, s1.y1, s1.x2, s1.y2, s2.x1, s2.y1, s2.x2, s2.y2);
                     if (cross) {
-                        // 原则4: 跨线符画在非关键线上,圆弧两端接触被跨箭线
-                        var skipArc = false;
+                        // 跨线符: 画在非关键线上(若两条均关键则画在A上)
                         var arcOn;
                         if (!a.isCritical && b.isCritical) { arcOn = a; }
                         else if (a.isCritical && !b.isCritical) { arcOn = b; }
                         else if (!a.isCritical && !b.isCritical) { arcOn = a; }
-                        else { skipArc = true; }
-                        if (!skipArc && arcOn) {
-                            // 圆弧沿被跨箭线方向,半径 = 线宽一半 + 1
-                            var lineW = arcOn.isCritical ? 3 : 1.5;
-                            // 确定跨线方向: 沿被跨线垂直方向画弧
-                            var ax1, ay1, ax2, ay2;
-                            if (cross) {
+                        else { arcOn = b; }
+                        // 修正: 即使两条都是关键线也在B上画弧(2017规范允许关键线也可画跨线符)
+                        if (!arcOn) arcOn = a;
+                        // 圆弧沿被跨箭线方向,半径 = 线宽一半 + 1
+                        var lineW = arcOn.isCritical ? 3 : 1.5;
+                        // 确定跨线方向: 沿被跨线垂直方向画弧
+                        var ax1, ay1, ax2, ay2;
+                        if (cross) {
                                 // 被跨越的线是s2,跨线符画在arcOn的线上
                                 // 从交叉点沿被跨箭线垂直方向偏移
                                 var aSeg;
@@ -1445,7 +1450,6 @@ function buildNetworkSvg(params) {
                                     + ' A' + (arcR + 1) + ' ' + (arcR + 1) + ' 0 0 0 ' + (cross.x + nx * 2) + ' ' + (cross.y + ny * 2)
                                     + '" class="net-cross-arc" fill="none" stroke="#999" stroke-width="1" stroke-linecap="round"/>');
                             }
-                        }
                     }
                 }
             }
@@ -2233,8 +2237,15 @@ if (!window._netDragSetup) {
         var mx = tf.match(/translate\(([-\d.]+),([-\d.]+)\)/);
         var dx = mx ? parseFloat(mx[1]) : 0, dy = mx ? parseFloat(mx[2]) : 0;
         _netEventOffsets[eid] = { x: dx, y: dy };
-        // 弹出输入框确认偏移天数
-        var deltaDays = Math.round((_netNodeDrag.rawDx || 0) / (_netDayWidth || 40));
+        // 弹出输入框确认偏移天数(考虑SVG缩放)
+        var svgEl = document.getElementById('network-svg');
+        var scaleFactor = 1;
+        if (svgEl) {
+            var svgScale = svgEl.style.transform || svgEl.style.webkitTransform || '';
+            var sm = svgScale.match(/scale\(([\d.]+)\)/);
+            if (sm) scaleFactor = parseFloat(sm[1]);
+        }
+        var deltaDays = Math.round((_netNodeDrag.rawDx || 0) / scaleFactor / (_netDayWidth || 40));
         var cx = _netNodeDrag.cx || 0, cy = _netNodeDrag.cy || 0;
         var nodeDrag = _netNodeDrag;
         _netNodeDrag = null;
