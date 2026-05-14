@@ -190,7 +190,8 @@ document.addEventListener('dragend', function() {
     // 弹出输入框 → 确认后调用 C# MoveTaskDays
     _showDayPopup(deltaDays, cx, cy, function(days) {
         if (window._ganttDotNet && days !== 0)
-            window._ganttDotNet.invokeMethodAsync('MoveTaskDays', parseInt(taskId), days);
+            window._ganttDotNet.invokeMethodAsync('MoveTaskDays', parseInt(taskId), days).catch(function(e) { console.warn('[NET] invokeMethodAsync error:', e); });
+
     });
 });
 
@@ -747,7 +748,7 @@ function calculateVerticalLayout(data) {
 var _svgArrowId = 0;
 function svgArrowMarker(crit, optCritColor, optNormalColor) {
     _svgArrowId++;
-    var color = crit ? (optCritColor || '#e63946') : (optNormalColor || '#333');
+    var color = crit ? (optCritColor || '#e63946') : (optNormalColor || '#1890ff');
     var id = 'arr-' + _svgArrowId;
     // 开口箭头：尖头在 refX=0，V 形从左到右
     var m = '<marker id="' + id + '" markerWidth="10" markerHeight="10" refX="0" refY="5" orient="auto" markerUnits="userSpaceOnUse">'
@@ -791,7 +792,7 @@ function buildNetworkSvg(params) {
     // A5: 线颜色及线宽设置
     var criticalColor = p.criticalColor || '#e63946';
     var normalColor = p.normalColor || '#333';
-    var dummyColor = p.dummyColor || '#aaa';
+    var dummyColor = p.dummyColor || '#1890ff';
     var criticalWidth = p.criticalWidth || 3;
     var normalWidth = p.normalWidth || 1.5;
     var mode = p.mode || 'time';
@@ -1225,9 +1226,9 @@ function buildNetworkSvg(params) {
         var isVirtual = evt.isVirtual === true;
         var isCrit = evt.isCritical && p.showCritical;
         var fill = isVirtual ? '#fff' : (isCrit ? criticalColor : '#fff');
-        var evtStroke = isVirtual ? '#888' : (isCrit ? '#b30000' : criticalColor);
+        var evtStroke = isVirtual ? '#999' : (isCrit ? '#b30000' : '#1890ff');
         var evtStrokeDash = isVirtual ? ' stroke-dasharray="4,3"' : '';
-        var tc = isVirtual ? '#888' : (isCrit ? '#fff' : '#000');
+        var tc = isVirtual ? '#999' : (isCrit ? '#fff' : '#000');
         var cursorStyle = isVirtual ? 'cursor:default;pointer-events:none;' : 'cursor:grab;';
         parts.push('<g class="net-event" data-task-id="' + evt.taskId + '" data-event-id="' + eid + '" style="' + cursorStyle + '">');
         if (nodeShape === 'ellipse' || p.nodeEllipse) {
@@ -1282,7 +1283,15 @@ function buildNetworkSvg(params) {
 
     // === 前锋线(JGJ/T121-2015): 逐工作进度点连折线 ===
     if (isTimeMode && p.showProgressLine) {
-        if (!_progressCheckDate) { _progressCheckDate = new Date(); _progressCheckDate.setHours(0,0,0,0); }
+                // 尝试从 localStorage 恢复前锋线日期
+        var savedDate = localStorage.getItem('netplan_progress_date');
+        if (savedDate) {
+            _progressCheckDate = new Date(savedDate);
+            _progressCheckDate.setHours(0,0,0,0);
+        } else {
+            _progressCheckDate = new Date();
+            _progressCheckDate.setHours(0,0,0,0);
+        }
         var progressOffset = Math.floor((_progressCheckDate.getTime() - sd.getTime()) / 86400000);
         if (progressOffset < 0) progressOffset = 0;
         if (progressOffset >= td) progressOffset = td - 1;
@@ -1291,6 +1300,7 @@ function buildNetworkSvg(params) {
         _progressX = pxLine;
         _projStartDate = sd;
         var checkLabel = _progressCheckDate.getFullYear() + '-' + String(_progressCheckDate.getMonth()+1).padStart(2,'0') + '-' + String(_progressCheckDate.getDate()).padStart(2,'0');
+        localStorage.setItem('netplan_progress_date', checkLabel);
 
         // 收集所有工作箭线上的进度点(按行从上到下排列)
         var progPts = [];
@@ -1300,16 +1310,23 @@ function buildNetworkSvg(params) {
             if (!src || !tgt) return;
             var dur = act.duration || 1;
             var comp = act.completion || 0;
-            // 计划进度点: 检查日 - ES 在箭线上的位置
-            var checkDay = Math.round(progressOffset);
             var es = act.es || 0;
             var ef = act.ef || 0;
-            // 实际进度点: 按实际完成百分比在工作箭线上定位
-            if (dur > 0 && ef > es) {
-                var totalPxWidth = (ef - es) * dw;
-                var actualPx = src.x + NODE_R + totalPxWidth * comp / 100;
-                progPts.push({ x: actualPx, y: src.y, act: act, type: 'actual' });
+            if (dur <= 0 || ef <= es) return;
+            var sx = src.x + NODE_R, sy = src.y, ex = tgt.x, ey = tgt.y;
+            var totalPxWidth = (ef - es) * dw;
+            var ratio = Math.min(comp / 100, 1);
+            var actualPx = sx + totalPxWidth * ratio;
+            // 对跨层L型箭线: 计算进度点在路径上的实际Y
+            var actualY = sy;
+            if (Math.abs(ey - sy) >= 2 && isTimeMode) {
+                var turnX = ex - 2;
+                if (actualPx > turnX) {
+                    var vRatio = (actualPx - turnX) / (ex - turnX || 1);
+                    actualY = sy + (ey - sy) * vRatio;
+                }
             }
+            progPts.push({ x: actualPx, y: actualY, act: act, type: 'actual' });
         });
         // 按Y从上到下排序
         progPts.sort(function(a, b) { return a.y - b.y; });
@@ -1753,13 +1770,15 @@ window.renderNetwork = function(elementsJson, opts) {
             var el = e.target.closest('.net-event');
             if (el) {
                 var tid = parseInt(el.getAttribute('data-task-id'));
-                if (tid) { console.log('[NET] dblclick node taskId=', tid); dotNet.invokeMethodAsync('OpenTaskEditor', tid); }
+                if (tid) { console.log('[NET] dblclick node taskId=', tid); dotNet.invokeMethodAsync('OpenTaskEditor', tid).catch(function(e) { console.warn('[NET] invokeMethodAsync error:', e); }); }
+
                 return;
             }
             var activityEl = e.target.closest('[data-activity-id]');
             if (activityEl) {
                 var aid = parseInt(activityEl.getAttribute('data-activity-id'));
-                if (!isNaN(aid) && aid > 0) { console.log('[NET] dblclick activity taskId=', aid); dotNet.invokeMethodAsync('OpenTaskEditor', aid); }
+                if (!isNaN(aid) && aid > 0) { console.log('[NET] dblclick activity taskId=', aid); dotNet.invokeMethodAsync('OpenTaskEditor', aid).catch(function(e) { console.warn('[NET] invokeMethodAsync error:', e); }); }
+
                 return;
             }
             // C1: 双击空白区,从X坐标推算dayOffset
@@ -1767,7 +1786,8 @@ window.renderNetwork = function(elementsJson, opts) {
             var clickX = e.clientX - rect.left;
             var dayOffset = Math.max(0, Math.round((clickX - 80) / dayWidth));
             console.log('[NET] dblclick blank area, dayOffset=', dayOffset);
-            dotNet.invokeMethodAsync('ShowAddTaskModal', 0, dayOffset);
+            dotNet.invokeMethodAsync('ShowAddTaskModal', 0, dayOffset).catch(function(e) { console.warn('[NET] invokeMethodAsync error:', e); });
+
         };
     }
 
@@ -1880,7 +1900,8 @@ window.renderNetwork = function(elementsJson, opts) {
                 _progressCheckDate.setDate(_progressCheckDate.getDate() + dayOffset);
                 _progressDate = new Date(_progressCheckDate);
                 _progressX = newX;
-                var cl = _progressDate.getFullYear()+'-'+String(_progressDate.getMonth()+1).padStart(2,'0')+'-'+String(_progressDate.getDate()).padStart(2,'0');
+                                var cl = _progressDate.getFullYear()+'-'+String(_progressDate.getMonth()+1).padStart(2,'0')+'-'+String(_progressDate.getDate()).padStart(2,'0');
+                localStorage.setItem('netplan_progress_date', cl);
                 if (label) label.textContent = cl;
             }
 
@@ -2227,9 +2248,9 @@ if (!window._netDragSetup) {
                             }
                         });
                         window._netPendingOffsets = pendingOffs;
-                        dotNet.invokeMethodAsync('SyncNodeDrag', [tid], days || 0, nodeRole);
+                        dotNet.invokeMethodAsync('SyncNodeDrag', [tid], days || 0, nodeRole).catch(function(e) { console.warn('[NET] invokeMethodAsync error:', e); });
+
                     }
-                });
                 });
             } else if (dx !== 0 || dy !== 0) {
                 // 合并节点(无 taskId 或 tid=0):只做纵向微调,不弹出日期框
