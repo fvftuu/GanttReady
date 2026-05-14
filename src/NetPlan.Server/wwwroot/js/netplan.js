@@ -142,7 +142,7 @@ function _showDayPopup(deltaDays, cx, cy, onConfirm) {
     _dayPopup = document.createElement('div');
     _dayPopup.style.cssText = 'position:fixed;z-index:9999;background:#fff;border:1px solid #d9d9d9;border-radius:6px;padding:8px 12px;box-shadow:0 4px 16px rgba(0,0,0,0.15);font-size:13px;';
     _dayPopup.style.left = cx + 'px';
-    _dayPopup.style.top = (cy - 60) + 'px';
+    _dayPopup.style.top = Math.max(10, cy - 60) + 'px';
     var inp = document.createElement('input');
     inp.type = 'number';
     inp.value = deltaDays;
@@ -1399,6 +1399,27 @@ function buildNetworkSvg(params) {
             isCritical: allCritFlags[act.id],
             segs: segs
         });
+    });
+    // 添加虚工作线段到交叉检测
+    p.timeParams.relations.forEach(function(rel) {
+        var predEf = taskEfMap[rel.source];
+        var succEs = taskEsMap[rel.target];
+        if (predEf === undefined || succEs === undefined) return;
+        var srcId = 'T' + predEf, tgtId = 'T' + succEs;
+        if (srcId === tgtId) return;
+        var src = p.layout.events[srcId], tgt = p.layout.events[tgtId];
+        if (!src || !tgt) return;
+        var sx = src.x + NODE_R, sy = src.y, ex = tgt.x, ey = tgt.y;
+        var dseg;
+        if (Math.abs(ey - sy) < 2) {
+            dseg = [{x1:sx, y1:sy, x2:ex, y2:ey}];
+        } else {
+            dseg = [
+                {x1:sx, y1:sy, x2:sx, y2:ey},
+                {x1:sx, y1:ey, x2:ex, y2:ey}
+            ];
+        }
+        allSegments.push({ actId: 'dummy-' + rel.source + '-' + rel.target, isCritical: false, segs: dseg, isDummy: true });
     });
     // 两两检测交叉,在非关键线上画跨线符
     for (var i = 0; i < allSegments.length; i++) {
