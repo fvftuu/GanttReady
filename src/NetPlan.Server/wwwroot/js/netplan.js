@@ -1,4 +1,4 @@
-// NetPlan.js - 甘特图交互脚本
+﻿// NetPlan.js - 甘特图交互脚本
 //
 // ==== RENDER PIPELINE ====
 // 1. C# BuildDataInternal: 从DB读取TaskItem/TaskRelation → 序列化为 JSON
@@ -340,6 +340,7 @@ var _networkOpts = null;
 var _netRendered = false;
 // 网络图模式: 'time' = 时标网络图, 'logic' = 逻辑双代号图
 var _netMode = 'time';
+var _netTimeScaleMode = 0; // 0=标准 1=月日均分 2=第X年第X天
 var _progressDate = null;   // 前锋线检查日期(Date)
 var _progressCheckDate = null; // 前锋线独立日期(与今日线解耦)
 var _progressX = 0;         // 前锋线像素位置
@@ -359,6 +360,11 @@ window.setNetworkMode = function(mode) {
 // 清除节点偏移(不重置前锋线日期)
 window.clearNetworkOffsets = function() {
     _netEventOffsets = {};
+};
+
+// 设置网络图时间标尺模式
+window.setNetTimeScaleMode = function(mode) {
+    _netTimeScaleMode = mode;
 };
 
 // ISO 8601 周次(甘特图/网络图标尺共用)
@@ -623,6 +629,80 @@ function calculateVerticalLayout(data) {
     var LAYER_HEIGHT = 60;
     var MARGIN_TOP = 100;
 
+    // ===== 双代号同行算法 =====
+    // 每个活动的 source 和 target 事件必须在同一行
+    // 方法: 对每个结束事件(target)分配一个唯一行号
+    // 一个开始事件(source)如果有唯一的 target 则与之同行
+    // 如果一个 source 被多个活动共享(即多个 target 指向同一 source 的不同活动)
+    // 则这个 source 跟随第一个 target 的行号
+    
+    var eventLayer = {};
+    
+    // 收集所有 target 事件
+    var targets = {};
+    activities.forEach(function(act) {
+        targets[act.target] = true;
+    });
+    
+    // 按 ES 排序分配行号
+    var sortedTargets = Object.keys(targets).sort(function(a, b) {
+        var ea = events[a];
+        var eb = events[b];
+        var ac = a.startsWith('TE') ? 99999 : (ea ? ea.es : 0);
+        var bc = b.startsWith('TE') ? 99999 : (eb ? eb.es : 0);
+        return ac - bc;
+    });
+    
+    sortedTargets.forEach(function(eid, idx) {
+        eventLayer[eid] = idx + 1;
+    });
+    
+    // 现在处理 source 事件:每个活动的 source 跟随其 target 的行号
+    activities.forEach(function(act) {
+        if (eventLayer[act.source] === undefined) {
+            eventLayer[act.source] = eventLayer[act.target];
+        } else {
+            // 如果 source 已经有行号(来自另一个活动),不做改变
+            // 但如果 source 的行号与当前活动的 target 不同,说明冲突
+            // 标准做法:合并行号
+            if (eventLayer[act.source] !== eventLayer[act.target]) {
+                // 让 target 跟随 source(取较小值保持紧凑)
+                var minLayer = Math.min(eventLayer[act.source], eventLayer[act.target]);
+                var maxLayer = Math.max(eventLayer[act.source], eventLayer[act.target]);
+                // 将所有在 maxLayer 的事件移到 minLayer
+                Object.keys(eventLayer).forEach(function(eid) {
+                    if (eventLayer[eid] === maxLayer) {
+                        eventLayer[eid] = minLayer;
+                    }
+                });
+            }
+        }
+    });
+    
+    // 重复一遍处理因为合并后可能产生新的冲突
+    activities.forEach(function(act) {
+        if (eventLayer[act.source] !== undefined && eventLayer[act.target] !== undefined) {
+            if (eventLayer[act.source] !== eventLayer[act.target]) {
+                var minLayer = Math.min(eventLayer[act.source], eventLayer[act.target]);
+                var maxLayer = Math.max(eventLayer[act.source], eventLayer[act.target]);
+                Object.keys(eventLayer).forEach(function(eid) {
+                    if (eventLayer[eid] === maxLayer) {
+                        eventLayer[eid] = minLayer;
+                    }
+                });
+            }
+        } else if (eventLayer[act.target] !== undefined && eventLayer[act.source] === undefined) {
+            eventLayer[act.source] = eventLayer[act.target];
+        }
+    });
+    
+    // 剩余未分配的事件
+    Object.keys(events).forEach(function(eid) {
+        if (eventLayer[eid] === undefined) {
+            eventLayer[eid] = 1;
+        }
+    });
+    
     // 标记关键线路事件
     var criticalEvents = {};
     activities.forEach(function(act) {
@@ -631,59 +711,6 @@ function calculateVerticalLayout(data) {
             criticalEvents[act.target] = true;
         }
     });
-
-    // ===== 改进的分层算法:拓扑BFS(单向推进,不会振荡)=====
-    var eventLayer = {};
-    var inDeg = {};
-    Object.keys(events).forEach(function(eid) {
-        inDeg[eid] = eventPred[eid] ? eventPred[eid].length : 0;
-    });
-
-    // 关键事件优先分配到第1层
-    var queue = [];
-    Object.keys(events).forEach(function(eid) {
-        if (inDeg[eid] === 0) {
-            eventLayer[eid] = criticalEvents[eid] ? 1 : 2;
-            queue.push(eid);
-        }
-    });
-
-    // BFS拓扑推进:每往下走一层,层次+1
-    while (queue.length > 0) {
-        var current = queue.shift();
-        var successorIds = eventSucc[current] || [];
-        successorIds.forEach(function(next) {
-            // 计算后继事件的层次:当前层次 + 1(非关键再加1)
-            var proposedLayer = eventLayer[current] + (criticalEvents[next] ? 1 : 2);
-            if (eventLayer[next] === undefined || eventLayer[next] < proposedLayer) {
-                eventLayer[next] = proposedLayer;
-            }
-            inDeg[next]--;
-            if (inDeg[next] === 0) {
-                queue.push(next);
-            }
-        });
-    }
-
-    // 边界处理:未分配层次的事件(孤立节点)
-    Object.keys(events).forEach(function(eid) {
-        if (eventLayer[eid] === undefined) {
-            eventLayer[eid] = criticalEvents[eid] ? 1 : 2;
-        }
-    });
-
-    // 按TF微调
-    Object.keys(events).forEach(function(eid) {
-        if (!criticalEvents[eid]) {
-            var tf = events[eid].tf || 0;
-            var extraLayer = Math.min(Math.floor(tf / 14), 3); // 紧凑系数
-            eventLayer[eid] = eventLayer[eid] + extraLayer;
-        }
-    });
-
-    // === 事件合并后不再强制同行约束(真双代号图中工作箭线可跨层)===
-    // 之前单代号需要同行是因为 S/E 节点属于同一任务
-    // 现在节点被多个任务共享,拉平会破坏分层
 
     // 将事件按层级分组
     var layerEvents = {};
@@ -703,9 +730,6 @@ function calculateVerticalLayout(data) {
             events[eid].y = y;
         });
     });
-
-    // 分配X坐标需要在renderNetwork中做(依赖dayWidth)
-    // 此处只分配Y坐标和层级
 
     return {
         events: events,
@@ -760,6 +784,7 @@ function buildNetworkSvg(params) {
 
     // A3: 节点半径可配置
     var NODE_R = (p.nodeRadius && p.nodeRadius >= 8 && p.nodeRadius <= 16) ? p.nodeRadius : 11;
+    window._netNodeRadius = NODE_R; // 供全局函数使用
     // A3: 节点形状
     var nodeShape = p.nodeShape || 'circle';
     var cw = p.canvasW, ch = p.canvasH;
@@ -788,82 +813,171 @@ function buildNetworkSvg(params) {
 
     if (isTimeMode) {
     // === 时间标尺(精确对齐甘特图:上层28 + 下层24 = 52px)===
+    var tsm = (typeof _netTimeScaleMode !== 'undefined') ? _netTimeScaleMode : 0;
     // 背景
     parts.push('<rect x="0" y="0" width="' + cw + '" height="' + upperH + '" fill="url(#rulerGrad)"/>');
     parts.push('<defs><linearGradient id="rulerGrad" x1="0" y1="0" x2="0" y2="1">'
         + '<stop offset="0%" stop-color="#f5f5f5"/><stop offset="100%" stop-color="#fafafa"/></linearGradient></defs>');
     parts.push('<rect x="0" y="' + lowerY + '" width="' + cw + '" height="' + lowerH + '" fill="#f5f5f5"/>');
 
-    // 上层:年/月标签(font12 bold #333)
-    if (dw > 20) {
-        for (var d = 0; d < td; d++) {
-            var dt = new Date(sd); dt.setDate(dt.getDate() + d);
-            if (dt.getDate() === 1) {
-                var x = MARGIN_LEFT + d * dw;
-                var monthSpan = Math.min(new Date(dt.getFullYear(), dt.getMonth()+1, 0).getDate() - dt.getDate() + 1, td - d);
-                var mw = monthSpan * dw;
-                parts.push('<text x="' + (x + mw/2) + '" y="18" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
-                    + dt.getFullYear() + '/' + String(dt.getMonth()+1).padStart(2,'0') + '</text>');
+    if (tsm === 0) {
+        // ==== 标准模式 ====
+        if (dw > 20) {
+            for (var d = 0; d < td; d++) {
+                var dt = new Date(sd); dt.setDate(dt.getDate() + d);
+                if (dt.getDate() === 1) {
+                    var x = MARGIN_LEFT + d * dw;
+                    var monthSpan = Math.min(new Date(dt.getFullYear(), dt.getMonth()+1, 0).getDate() - dt.getDate() + 1, td - d);
+                    var mw = monthSpan * dw;
+                    parts.push('<text x="' + (x + mw/2) + '" y="18" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
+                        + dt.getFullYear() + '/' + String(dt.getMonth()+1).padStart(2,'0') + '</text>');
+                }
+            }
+        } else {
+            var lastYear = -1, yearStartX = 0;
+            for (var d = 0; d <= td; d++) {
+                var dt = new Date(sd); dt.setDate(dt.getDate() + d);
+                var cy = dt.getFullYear();
+                if (cy !== lastYear) {
+                    if (lastYear >= 0) {
+                        var yw = MARGIN_LEFT + d * dw - yearStartX;
+                        parts.push('<text x="' + (yearStartX + yw/2) + '" y="18" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
+                            + lastYear + '</text>');
+                    }
+                    lastYear = cy; yearStartX = MARGIN_LEFT + d * dw;
+                }
+            }
+            if (lastYear >= 0) {
+                var lastW = MARGIN_LEFT + td * dw - yearStartX;
+                parts.push('<text x="' + (yearStartX + lastW/2) + '" y="18" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
+                    + lastYear + '</text>');
             }
         }
-    } else {
-        var lastYear = -1, yearStartX = 0;
+        parts.push('<line x1="0" y1="' + lowerY + '" x2="' + cw + '" y2="' + lowerY + '" stroke="#d9d9d9"/>');
+        parts.push('<line x1="0" y1="' + RULER_H + '" x2="' + cw + '" y2="' + RULER_H + '" stroke="#b0b0b0" stroke-width="2"/>');
+        if (dw > 20) {
+            for (var d = 0; d <= td; d++) {
+                var dt = new Date(sd); dt.setDate(dt.getDate() + d);
+                var x = MARGIN_LEFT + d * dw;
+                var dow = dt.getDay();
+                var isWeekend = (dow === 0 || dow === 6);
+                if (isWeekend && restDayPattern) {
+                    parts.push('<rect x="' + x + '" y="' + lowerY + '" width="' + dw
+                        + '" height="' + lowerH + '" fill="#f0f0f0"/>');
+                }
+                parts.push('<text x="' + (x + dw/2) + '" y="42" font-size="10" fill="'
+                    + (isWeekend ? '#999' : '#666') + '" text-anchor="middle">'
+                    + String(dt.getDate()).padStart(2,'0') + '</text>');
+            }
+        } else if (dw >= 10) {
+            var lastWeek = -1;
+            for (var d = 0; d < td; d++) {
+                var dt = new Date(sd); dt.setDate(dt.getDate() + d);
+                var x = MARGIN_LEFT + d * dw;
+                var week = getISOWeek(dt);
+                if (week !== lastWeek) {
+                    lastWeek = week;
+                    parts.push('<text x="' + (x + 3) + '" y="42" font-size="10" fill="#666">第' + week + '周</text>');
+                }
+            }
+        } else {
+            for (var d = 0; d < td; d++) {
+                var dt = new Date(sd); dt.setDate(dt.getDate() + d);
+                if (dt.getDate() === 1) {
+                    var x = MARGIN_LEFT + d * dw;
+                    parts.push('<text x="' + (x + 3) + '" y="42" font-size="10" fill="#666">' + String(dt.getMonth()+1) + '月</text>');
+                }
+            }
+        }
+    } else if (tsm === 1) {
+        // ==== 模式1: 上层不变,下层平均分布月日 ====
+        if (dw > 20) {
+            for (var d = 0; d < td; d++) {
+                var dt = new Date(sd); dt.setDate(dt.getDate() + d);
+                if (dt.getDate() === 1) {
+                    var x = MARGIN_LEFT + d * dw;
+                    var monthSpan = Math.min(new Date(dt.getFullYear(), dt.getMonth()+1, 0).getDate() - dt.getDate() + 1, td - d);
+                    var mw = monthSpan * dw;
+                    parts.push('<text x="' + (x + mw/2) + '" y="18" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
+                        + dt.getFullYear() + '/' + String(dt.getMonth()+1).padStart(2,'0') + '</text>');
+                }
+            }
+        } else {
+            var lastYear = -1, yearStartX = 0;
+            for (var d = 0; d <= td; d++) {
+                var dt = new Date(sd); dt.setDate(dt.getDate() + d);
+                var cy = dt.getFullYear();
+                if (cy !== lastYear) {
+                    if (lastYear >= 0) {
+                        var yw = MARGIN_LEFT + d * dw - yearStartX;
+                        parts.push('<text x="' + (yearStartX + yw/2) + '" y="18" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
+                            + lastYear + '</text>');
+                    }
+                    lastYear = cy; yearStartX = MARGIN_LEFT + d * dw;
+                }
+            }
+            if (lastYear >= 0) {
+                var lastW = MARGIN_LEFT + td * dw - yearStartX;
+                parts.push('<text x="' + (yearStartX + lastW/2) + '" y="18" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
+                    + lastYear + '</text>');
+            }
+        }
+        parts.push('<line x1="0" y1="' + lowerY + '" x2="' + cw + '" y2="' + lowerY + '" stroke="#d9d9d9"/>');
+        parts.push('<line x1="0" y1="' + RULER_H + '" x2="' + cw + '" y2="' + RULER_H + '" stroke="#b0b0b0" stroke-width="2"/>');
+        var totalPx = cw - MARGIN_LEFT;
+        var cellCn = 10;
+        for (var ci = 0; ci < cellCn; ci++) {
+            var startX = Math.floor(ci * totalPx / cellCn);
+            var endX = Math.floor((ci + 1) * totalPx / cellCn);
+            var cellW = endX - startX;
+            var x = MARGIN_LEFT + startX;
+            var dayIdx = Math.floor(startX / dw);
+            if (dayIdx > td) dayIdx = td;
+            var dt3;
+            if (ci === 0) {
+                dt3 = new Date(sd);
+            } else if (ci === cellCn - 1) {
+                dt3 = new Date(sd); dt3.setDate(dt3.getDate() + td);
+            } else {
+                dt3 = new Date(sd); dt3.setDate(dt3.getDate() + dayIdx);
+            }
+            var lb = String(dt3.getMonth()+1).padStart(2,'0') + '/' + String(dt3.getDate()).padStart(2,'0');
+            parts.push('<text x="' + (x + cellW/2) + '" y="42" font-size="10" fill="#666" text-anchor="middle">' + lb + '</text>');
+        }
+    } else if (tsm === 2) {
+        // ==== 模式2: 上层"第X年",下层"第X天" ====
+        var lastYear = -1, yearStartX2 = 0, yearIdx = 0;
         for (var d = 0; d <= td; d++) {
             var dt = new Date(sd); dt.setDate(dt.getDate() + d);
             var cy = dt.getFullYear();
             if (cy !== lastYear) {
+                yearIdx++;
                 if (lastYear >= 0) {
-                    var yw = MARGIN_LEFT + d * dw - yearStartX;
-                    parts.push('<text x="' + (yearStartX + yw/2) + '" y="18" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
-                        + lastYear + '</text>');
+                    var yw = MARGIN_LEFT + d * dw - yearStartX2;
+                    parts.push('<text x="' + (yearStartX2 + yw/2) + '" y="18" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
+                        + '第' + yearIdx + '年</text>');
                 }
-                lastYear = cy; yearStartX = MARGIN_LEFT + d * dw;
+                lastYear = cy; yearStartX2 = MARGIN_LEFT + d * dw;
             }
         }
         if (lastYear >= 0) {
-            var lastW = MARGIN_LEFT + td * dw - yearStartX;
-            parts.push('<text x="' + (yearStartX + lastW/2) + '" y="18" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
-                + lastYear + '</text>');
+            var lastW2 = MARGIN_LEFT + td * dw - yearStartX2;
+            parts.push('<text x="' + (yearStartX2 + lastW2/2) + '" y="18" font-size="12" font-weight="600" fill="#333" text-anchor="middle">'
+                + '第' + yearIdx + '年</text>');
         }
-    }
-
-    // 分隔线
-    parts.push('<line x1="0" y1="' + lowerY + '" x2="' + cw + '" y2="' + lowerY + '" stroke="#d9d9d9"/>');
-    parts.push('<line x1="0" y1="' + RULER_H + '" x2="' + cw + '" y2="' + RULER_H + '" stroke="#b0b0b0" stroke-width="2"/>');
-
-    // 下层:日/周/月
-    if (dw > 20) {
-        for (var d = 0; d <= td; d++) {
-            var dt = new Date(sd); dt.setDate(dt.getDate() + d);
-            var x = MARGIN_LEFT + d * dw;
-            var dow = dt.getDay();
-            var isWeekend = (dow === 0 || dow === 6);
-            if (isWeekend && restDayPattern) {
-                parts.push('<rect x="' + x + '" y="' + lowerY + '" width="' + dw
-                    + '" height="' + lowerH + '" fill="#f0f0f0"/>');
-            }
-            parts.push('<text x="' + (x + dw/2) + '" y="42" font-size="10" fill="'
-                + (isWeekend ? '#999' : '#666') + '" text-anchor="middle">'
-                + String(dt.getDate()).padStart(2,'0') + '</text>');
-        }
-    } else if (dw >= 10) {
-        var lastWeek = -1;
-        for (var d = 0; d < td; d++) {
-            var dt = new Date(sd); dt.setDate(dt.getDate() + d);
-            var x = MARGIN_LEFT + d * dw;
-            var week = getISOWeek(dt);
-            if (week !== lastWeek) {
-                lastWeek = week;
-                parts.push('<text x="' + (x + 3) + '" y="42" font-size="10" fill="#666">第' + week + '周</text>');
-            }
-        }
-    } else {
-        for (var d = 0; d < td; d++) {
-            var dt = new Date(sd); dt.setDate(dt.getDate() + d);
-            if (dt.getDate() === 1) {
-                var x = MARGIN_LEFT + d * dw;
-                parts.push('<text x="' + (x + 3) + '" y="42" font-size="10" fill="#666">' + String(dt.getMonth()+1) + '月</text>');
-            }
+        parts.push('<line x1="0" y1="' + lowerY + '" x2="' + cw + '" y2="' + lowerY + '" stroke="#d9d9d9"/>');
+        parts.push('<line x1="0" y1="' + RULER_H + '" x2="' + cw + '" y2="' + RULER_H + '" stroke="#b0b0b0" stroke-width="2"/>');
+        var totalPx = cw - MARGIN_LEFT;
+        var cellCnt = 10;
+        for (var ci = 0; ci < cellCnt; ci++) {
+            var startX = Math.floor(ci * totalPx / cellCnt);
+            var endX = Math.floor((ci + 1) * totalPx / cellCnt);
+            var cellW = endX - startX;
+            var x = MARGIN_LEFT + startX;
+            var dayIdx = Math.floor(startX / dw);
+            if (dayIdx > td) dayIdx = td;
+            var dayNum = ci === 0 ? 1 : (ci === cellCnt - 1 ? td + 1 : dayIdx + 1);
+            parts.push('<text x="' + (x + cellW/2) + '" y="42" font-size="10" fill="#666" text-anchor="middle">第' + dayNum + '天</text>');
         }
     }
     } // isTimeMode
@@ -1677,12 +1791,14 @@ window.renderNetwork = function(elementsJson, opts) {
     // 重渲染后偏移量调整: SyncNodeDrag 后布局坐标已变,需补偿偏移让节点视觉位置不变
     if (window._netPendingOffsets) {
         Object.keys(_netPendingOffsets).forEach(function(eid) {
-            var oldX = _netPendingOffsets[eid];
+            var oldPos = _netPendingOffsets[eid];
             var evt = layout.events[eid];
             if (evt && _netEventOffsets[eid]) {
                 // 布局坐标变化量
-                var deltaLayoutX = evt.x - oldX;
+                var deltaLayoutX = evt.x - oldPos.x;
+                var deltaLayoutY = evt.y - oldPos.y;
                 _netEventOffsets[eid].x -= deltaLayoutX;
+                _netEventOffsets[eid].y -= deltaLayoutY;
             }
         });
         delete window._netPendingOffsets;
@@ -1931,7 +2047,7 @@ function _netUpdateCrossArcs() {
         if (!act.source || !act.target) return;
         var s = _netLayout.events[act.source], t = _netLayout.events[act.target];
         if (!s || !t) return;
-        var sx = s.x + (_netEventOffsets[s.id] ? _netEventOffsets[s.id].x : 0) + NODE_R;
+        var sx = s.x + (_netEventOffsets[s.id] ? _netEventOffsets[s.id].x : 0) + window._netNodeRadius;
         var sy = s.y + (_netEventOffsets[s.id] ? _netEventOffsets[s.id].y : 0);
         var ex = t.x + (_netEventOffsets[t.id] ? _netEventOffsets[t.id].x : 0);
         var ey = t.y + (_netEventOffsets[t.id] ? _netEventOffsets[t.id].y : 0);
@@ -2047,7 +2163,7 @@ function _netUpdateDummys(eventId, dx, dy) {
         if (!srcId && !tgtId) continue;
         var s = _netLayout.events[sid], t = _netLayout.events[tid];
         if (!s || !t) continue;
-        var sx = srcId ? (s.x + dx + NODE_R) : (s.x + (_netEventOffsets[sid] ? _netEventOffsets[sid].x : 0) + NODE_R);
+        var sx = srcId ? (s.x + dx + window._netNodeRadius) : (s.x + (_netEventOffsets[sid] ? _netEventOffsets[sid].x : 0) + window._netNodeRadius);
         var sy = srcId ? (s.y + dy) : (s.y + (_netEventOffsets[sid] ? _netEventOffsets[sid].y : 0));
         var ex = tgtId ? (t.x + dx) : (t.x + (_netEventOffsets[tid] ? _netEventOffsets[tid].x : 0));
         var ey = tgtId ? (t.y + dy) : (t.y + (_netEventOffsets[tid] ? _netEventOffsets[tid].y : 0));
@@ -2099,33 +2215,21 @@ if (!window._netDragSetup) {
 
             if (tid > 0) {
                 // 标准拖拽:修改现有任务日期/工期
-                // 保存拖拽前的偏移量(用于 ESC 取消时弹回)
-                var preXOff = _netEventOffsets[eid] ? _netEventOffsets[eid].x : 0;
-                var preYOff = _netEventOffsets[eid] ? _netEventOffsets[eid].y : 0;
                 _showDayPopup(deltaDays, (nodeDrag.cx || 0), (nodeDrag.cy || 0), function(days) {
-                    if (days !== 0) {
-                        var dotNet = _netDotNet || window._netDotNet;
-                        var nodeRole = evt.type === 'start' ? 'start' : (evt.type === 'both' ? 'end' : 'end');
-                        if (dotNet) {
-                            // 保存拖拽前布局坐标,重渲染时补偿偏移量使节点视觉位置不变
-                            var pendingOffs = {};
-                            Object.keys(_netEventOffsets).forEach(function(peid) {
-                                if (_netLayout && _netLayout.events[peid]) {
-                                    pendingOffs[peid] = _netLayout.events[peid].x;
-                                }
-                            });
-                            window._netPendingOffsets = pendingOffs;
-                            var curOff = _netEventOffsets[eid] || { x: 0, y: 0 };
-                            dotNet.invokeMethodAsync('SyncNodeDrag', [tid], days, nodeRole);
-                        }
-                    } else {
-                        // ESC/取消 → 弹回到拖拽前位置
-                        nodeDrag.group.setAttribute('transform', 'translate(' + preXOff + ',' + preYOff + ')');
-                        _netEventOffsets[eid] = { x: preXOff, y: preYOff };
-                        _netUpdateArrows(eid, preXOff, preYOff);
-                        _netUpdateDummys(eid, preXOff, preYOff);
-                        _netUpdateCrossArcs();
+                    var dotNet = _netDotNet || window._netDotNet;
+                    var nodeRole = evt.type === 'start' ? 'start' : (evt.type === 'both' ? 'end' : 'end');
+                    if (dotNet) {
+                        // 保存拖拽前布局坐标,重渲染时补偿偏移量使节点视觉位置不变
+                        var pendingOffs = {};
+                        Object.keys(_netEventOffsets).forEach(function(peid) {
+                            if (_netLayout && _netLayout.events[peid]) {
+                                pendingOffs[peid] = { x: _netLayout.events[peid].x, y: _netLayout.events[peid].y };
+                            }
+                        });
+                        window._netPendingOffsets = pendingOffs;
+                        dotNet.invokeMethodAsync('SyncNodeDrag', [tid], days || 0, nodeRole);
                     }
+                });
                 });
             } else if (dx !== 0 || dy !== 0) {
                 // 合并节点(无 taskId 或 tid=0):只做纵向微调,不弹出日期框

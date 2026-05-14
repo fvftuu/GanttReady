@@ -70,6 +70,11 @@
         <button class="btn btn-sm btn-default" @onclick="DeleteBlankRow" title="移除选中层的空行">删除</button>
     </div>
     <div class="header-right">
+        <div class="scale-switch">
+            <button class="scale-btn @(timeScaleMode == 0 ? "active" : "")" @onclick="() => SetTimeScaleMode(0)" title="标准模式">标准</button>
+            <button class="scale-btn @(timeScaleMode == 1 ? "active" : "")" @onclick="() => SetTimeScaleMode(1)" title="模式1:月日平均分布">模式1</button>
+            <button class="scale-btn @(timeScaleMode == 2 ? "active" : "")" @onclick="() => SetTimeScaleMode(2)" title="模式2:第X年第X天">模式2</button>
+        </div>
         <button class="btn btn-default" @onclick="PrintPage" title="页面预览">
             <span class="oi oi-print"></span> 预览
         </button>
@@ -480,6 +485,7 @@
     private string? graphJson;
     private string optionsJson = "{}";
     private int renderToken = 0;
+    private int timeScaleMode = 0;
     private bool isLoading = false;
     private string? statusMessage;
 
@@ -653,6 +659,17 @@
         var newZoom = targetDayW / 40.0 * 100.0;
         zoomLevel = Math.Max(1, Math.Min(3000, (int)Math.Round(newZoom)));
         await RerenderGraph();
+    }
+
+    // ========== 时间标尺模式切换 ==========
+    private async Task SetTimeScaleMode(int mode)
+    {
+        timeScaleMode = mode;
+        await JS.InvokeVoidAsync("setNetTimeScaleMode", mode);
+        if (!string.IsNullOrEmpty(graphJson))
+        {
+            try { await JS.InvokeVoidAsync("renderNetwork", graphJson, optionsJson); } catch { }
+        }
     }
 
     private async Task PrintPage()

@@ -1,4 +1,4 @@
-@page "/project/{ProjectId:int}/gantt"
+﻿@page "/project/{ProjectId:int}/gantt"
 @inject IProjectService ProjectService
 @inject IResourceService ResourceService
 @inject IJSRuntime JS
@@ -79,6 +79,11 @@
         </div>
     </div>
     <div class="header-right">
+        <div class="scale-switch">
+            <button class="scale-btn @(timeScaleMode == 0 ? "active" : "")" @onclick="() => SetTimeScaleMode(0)" title="标准模式">标准</button>
+            <button class="scale-btn @(timeScaleMode == 1 ? "active" : "")" @onclick="() => SetTimeScaleMode(1)" title="模式1:月日平均分布">模式1</button>
+            <button class="scale-btn @(timeScaleMode == 2 ? "active" : "")" @onclick="() => SetTimeScaleMode(2)" title="模式2:第X年第X天">模式2</button>
+        </div>
         <button class="btn btn-default" @onclick="PrintPage" title="页面预览">
             <span class="oi oi-print"></span> 预览
         </button>
@@ -188,81 +193,184 @@
                 var lowerDisplayMode = dayWidth > 20 ? "day" : (dayWidth >= 10 ? "week" : "month");
             }
             <div class="gantt-timeline-container">
-                @* 上层：年月/年月/年 *@
-                <div class="gantt-timeline-header gantt-timeline-upper">
-                    @if (upperDisplayMode == "year")
-                    {
-                        @* 只显示年 *@
-                        var years = months.GroupBy(m => m.date.Year).ToList();
-                        foreach (var yearGroup in years)
+    @if (timeScaleMode == 0)
+    {
+        @* ==== 标准模式(当前缩放逻辑) ==== *@
+        @* 上层：年 / 年月 / 年 *@
+        <div class="gantt-timeline-header gantt-timeline-upper">
+            @if (upperDisplayMode == "year")
+            {
+                @* 只显示年 *@
+                var years = months.GroupBy(m => m.date.Year).ToList();
+                foreach (var yearGroup in years)
+                {
+                    var totalSpan = yearGroup.Sum(m => m.span);
+                    <div class="timeline-month" style="width: @(totalSpan * dayWidth)px;">
+                        <span>@yearGroup.Key</span>
+                    </div>
+                }
+            }
+            else
+            {
+                @foreach (var month in months)
+                {
+                    <div class="timeline-month" style="width: @(month.span * dayWidth)px;">
+                        @if (upperDisplayMode == "full")
                         {
-                            var totalSpan = yearGroup.Sum(m => m.span);
-                            <div class="timeline-month" style="width: @(totalSpan * dayWidth)px;">
-                                <span>@yearGroup.Key</span>
-                            </div>
+                            <span>@month.date.ToString("yyyy/MM")</span>
                         }
+                        else
+                        {
+                            <span>@month.date.ToString("MM")</span>
+                        }
+                    </div>
+                }
+            }
+        </div>
+        @* 下层：日 / 周 / 月 *@
+        <div class="gantt-timeline-header gantt-timeline-lower">
+            @if (lowerDisplayMode == "day")
+            {
+                @* 每日显示 *@
+                @for (int day = 0; day <= totalDays; day++)
+                {
+                    var date = projectStartDate.AddDays(day);
+                    var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+                    <div class="timeline-day @(isWeekend ? "weekend" : "")"
+                         style="width: @(dayWidth)px;">
+                        @date.ToString("dd")
+                    </div>
+                }
+            }
+            else if (lowerDisplayMode == "week")
+            {
+                @* 周显示 - 显示本年度第X周 *@
+                var currentYear = 0;
+                @foreach (var week in weeks)
+                {
+                    if (week.startDate.Year != currentYear)
+                    {
+                        currentYear = week.startDate.Year;
+                    }
+                    <div class="timeline-day" style="width: @(week.span * dayWidth)px;">
+                        第@(week.weekOfYear)周
+                    </div>
+                }
+            }
+            else
+            {
+                @* 月显示 *@
+                @foreach (var month in months)
+                {
+                    <div class="timeline-day" style="width: @(month.span * dayWidth)px;">
+                        @month.date.ToString("MM")
+                    </div>
+                }
+            }
+        </div>
+    }
+    else if (timeScaleMode == 1)
+    {
+        @* ==== 模式1: 上层不变,下层平均分布月日 ==== *@
+        <div class="gantt-timeline-header gantt-timeline-upper">
+            @if (upperDisplayMode == "year")
+            {
+                var years = months.GroupBy(m => m.date.Year).ToList();
+                foreach (var yearGroup in years)
+                {
+                    var totalSpan = yearGroup.Sum(m => m.span);
+                    <div class="timeline-month" style="width: @(totalSpan * dayWidth)px;">
+                        <span>@yearGroup.Key</span>
+                    </div>
+                }
+            }
+            else
+            {
+                @foreach (var month in months)
+                {
+                    <div class="timeline-month" style="width: @(month.span * dayWidth)px;">
+                        @if (upperDisplayMode == "full")
+                        {
+                            <span>@month.date.ToString("yyyy/MM")</span>
+                        }
+                        else
+                        {
+                            <span>@month.date.ToString("MM")</span>
+                        }
+                    </div>
+                }
+            }
+        </div>
+        @* 下层: 平均分布显示月日,起止与图形完全对齐 *@
+        <div class="gantt-timeline-header gantt-timeline-lower">
+            @{
+                var totalPx = totalDays * dayWidth;
+                var cellCount = 10;
+            }
+            @for (int ci = 0; ci < cellCount; ci++)
+            {
+                var startX = (int)((long)ci * totalPx / cellCount);
+                var endX = (int)((long)(ci + 1) * totalPx / cellCount);
+                var cellW = endX - startX;
+                var dayIdx = (int)((long)startX / dayWidth);
+                if (dayIdx > totalDays) dayIdx = totalDays;
+                var date = projectStartDate.AddDays(ci == 0 ? 0 : (ci == cellCount - 1 ? totalDays : dayIdx));
+                <div class="timeline-day" style="width: @(cellW)px;" title="@date.ToString("yyyy-MM-dd")">
+                    @(ci == 0 ? projectStartDate.ToString("MM/dd") : (ci == cellCount - 1 ? projectStartDate.AddDays(totalDays).ToString("MM/dd") : date.ToString("MM/dd")))
+                </div>
+            }
+        </div>
+    }
+    else if (timeScaleMode == 2)
+    {
+        @* ==== 模式2: 上层"第1年/第2年...",下层"第1天/第n天..." ==== *@
+        @* 上层: 第X年 *@
+        <div class="gantt-timeline-header gantt-timeline-upper">
+            @{
+                var yearGroups = months.GroupBy(m => m.date.Year).ToList();
+                int yi = 0;
+                foreach (var yg in yearGroups)
+                {
+                    yi++;
+                    var totalSpan = yg.Sum(m => m.span);
+                    <div class="timeline-month" style="width: @(totalSpan * dayWidth)px;">
+                        <span>第@(yi)年</span>
+                    </div>
+                }
+            }
+        </div>
+        @* 下层: 平均分布显示第X天,起止与图形完全对齐 *@
+        <div class="gantt-timeline-header gantt-timeline-lower">
+            @{
+                var totalPx = totalDays * dayWidth;
+                var cellCount = 10;
+            }
+            @for (int ci = 0; ci < cellCount; ci++)
+            {
+                var startX = (int)((long)ci * totalPx / cellCount);
+                var endX = (int)((long)(ci + 1) * totalPx / cellCount);
+                var cellW = endX - startX;
+                var dayIdx = (int)((long)startX / dayWidth);
+                if (dayIdx > totalDays) dayIdx = totalDays;
+                <div class="timeline-day" style="width: @(cellW)px;" title="第@(dayIdx+1)天">
+                    @if (ci == 0)
+                    {
+                        <span>第1天</span>
+                    }
+                    else if (ci == cellCount - 1)
+                    {
+                        <span>第@(totalDays + 1)天</span>
                     }
                     else
                     {
-                        @foreach (var month in months)
-                        {
-                            <div class="timeline-month" style="width: @(month.span * dayWidth)px;">
-                                @if (upperDisplayMode == "full")
-                                {
-                                    <span>@month.date.ToString("yyyy/MM")</span>
-                                }
-                                else
-                                {
-                                    <span>@month.date.ToString("MM")</span>
-                                }
-                            </div>
-                        }
+                        <span>第@(dayIdx + 1)天</span>
                     }
                 </div>
-                @* 下层：日/周/月 *@
-                <div class="gantt-timeline-header gantt-timeline-lower">
-                    @if (lowerDisplayMode == "day")
-                    {
-                        @* 每日显示 *@
-                        @for (int day = 0; day <= totalDays; day++)
-                        {
-                            var date = projectStartDate.AddDays(day);
-                            var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
-                            <div class="timeline-day @(isWeekend ? "weekend" : "")"
-                                 style="width: @(dayWidth)px;">
-                                @date.ToString("dd")
-                            </div>
-                        }
-                    }
-                    else if (lowerDisplayMode == "week")
-                    {
-                        @* 周显示 - 显示本年度第X周 *@
-                        var currentYear = 0;
-                        @foreach (var week in weeks)
-                        {
-                            if (week.startDate.Year != currentYear)
-                            {
-                                currentYear = week.startDate.Year;
-                            }
-                            <div class="timeline-day" style="width: @(week.span * dayWidth)px;">
-                                第@(week.weekOfYear)周
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        @* 月显示 *@
-                        @foreach (var month in months)
-                        {
-                            <div class="timeline-day" style="width: @(month.span * dayWidth)px;">
-                                @month.date.ToString("MM")
-                            </div>
-                        }
-                    }
-                </div>
-            </div>
-            @* 时间标尺竖线层 *@
-            <div class="gantt-grid-lines" style="height: @(tasks.Count * rowHeight + 40)px;">
+            }
+        </div>
+    }
+</div>
+@* 时间标尺竖线层 *@            <div class="gantt-grid-lines" style="height: @(tasks.Count * rowHeight + 40)px;">
                 @{
                     var gridMode = dayWidth > 20 ? "day" : (dayWidth >= 10 ? "week" : "month");
                     // 计算年份边界线位置
@@ -768,6 +876,14 @@
 @code {
     [Parameter]
     public int? ProjectId { get; set; }
+
+    private int timeScaleMode = 0; // 0=标准 1=模式1(月日均分) 2=模式2(第X年第X天)
+
+    private void SetTimeScaleMode(int mode)
+    {
+        timeScaleMode = mode;
+        StateHasChanged();
+    }
 
     private List<Models.Project> projects = new();
     private List<TaskItem> tasks = new();
