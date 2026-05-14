@@ -791,7 +791,7 @@ function buildNetworkSvg(params) {
     var cw = p.canvasW, ch = p.canvasH;
     // A5: 线颜色及线宽设置
     var criticalColor = p.criticalColor || '#e63946';
-    var normalColor = p.normalColor || '#333';
+    var normalColor = p.normalColor || '#1890ff';
     var dummyColor = p.dummyColor || '#1890ff';
     var criticalWidth = p.criticalWidth || 3;
     var normalWidth = p.normalWidth || 1.5;
