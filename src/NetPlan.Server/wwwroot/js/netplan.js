@@ -1,4 +1,16 @@
-﻿// NetPlan.js - 甘特图交互脚本
+﻿// Node.js 测试环境 mock（必须放在所有代码之前）
+if (typeof global !== 'undefined' && typeof window === 'undefined') {
+    global.window = global;
+    global.document = { createElement: function() { return {}; }, getElementById: function() { return null; }, querySelector: function() { return null; }, querySelectorAll: function() { return []; }, addEventListener: function() {} };
+    global.navigator = { userAgent: 'node' };
+    global.location = { href: '' };
+    global.setTimeout = setTimeout;
+    global.clearTimeout = clearTimeout;
+    global.localStorage = { getItem: function() {}, setItem: function() {}, removeItem: function() {} };
+    global.console = console;
+}
+
+// NetPlan.js - 甘特图交互脚本
 //
 // ==== RENDER PIPELINE ====
 // 1. C# BuildDataInternal: 从DB读取TaskItem/TaskRelation → 序列化为 JSON
@@ -2464,3 +2476,17 @@ window.networkFit = function() {
     // 延迟初始化(等待 Blazor 渲染完成)
     setTimeout(initResize, 1000);
 })();
+
+// Node.js 测试环境: mock 浏览器全局对象 + 导出核心算法
+if (typeof module !== 'undefined' && module.exports) {
+    if (typeof window === 'undefined') {
+        global.window = { location: { href: '' }, document: { createElement: function() { return {}; } } };
+        global.document = { createElement: function() { return {}; }, getElementById: function() { return null; } };
+        global.navigator = { userAgent: 'node' };
+    }
+    module.exports = {
+        calculateTimeParams: calculateTimeParams,
+        applySingleStartEnd: applySingleStartEnd,
+        calculateVerticalLayout: calculateVerticalLayout,
+    };
+}

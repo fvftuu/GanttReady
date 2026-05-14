@@ -1,3 +1,4 @@
 @echo off
-cd /d i:\NetPlan
-dotnet run --project src\NetPlan.Server\NetPlan.Server.csproj --urls http://localhost:5000
+cd /d I:\NetPlan
+echo Starting NetPlan at http://localhost:5000
+dotnet run --project src\NetPlan.Server --urls http://localhost:5000
