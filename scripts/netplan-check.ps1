@@ -30,7 +30,7 @@ Write-Host "[2/4] Key function check..." -ForegroundColor Yellow
 $funcs = @(
     "calculateTimeParams",
     "buildNetworkSvg",
-    "renderNetwork",
+    "window.renderNetwork",
     "applySingleStartEnd",
     "calculateVerticalLayout",
     "validateNetworkRender"
