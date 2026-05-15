@@ -286,23 +286,38 @@ export function buildNetworkSvg(params: any): string {
       }
     }
 
+    // ---- 计算最后一行的 Y 坐标 ----
+    var lastRowY = 100; // 默认
+    var lh = p.layerHeight || 60;
+    Object.keys(events).forEach(function(eid) {
+      var evt = events[eid];
+      if (evt.y && evt.y > lastRowY) lastRowY = evt.y;
+    });
+    // 最右侧任务节点的 X 坐标
+    var rightmostX = MARGIN_LEFT + (p.totalDays || 90) * dw;
+    Object.keys(events).forEach(function(eid) {
+      var evt = events[eid];
+      if (evt.x && evt.x > rightmostX) rightmostX = evt.x;
+    });
+
     // ---- 图例 ----
-    var legendBottom = p.canvasH - 75;
-    parts.push('<rect x="10" y="' + legendBottom + '" width="220" height="68" fill="rgba(255,255,255,0.95)" stroke="#ccc" rx="4"/>');
-    parts.push('<text x="20" y="' + (legendBottom + 15) + '" font-size="11" font-weight="bold" fill="#333">图例</text>');
+    var legendTop = lastRowY + lh + 10; // 最后一行下方一个行距
+    parts.push('<rect x="10" y="' + legendTop + '" width="220" height="68" fill="rgba(255,255,255,0.95)" stroke="#ccc" rx="4"/>');
+    parts.push('<text x="20" y="' + (legendTop + 15) + '" font-size="11" font-weight="bold" fill="#333">图例</text>');
     [
       { label: '关键线路', color: '#ff4d4f', w: 2.5, d: false },
       { label: '非关键工作', color: '#1890ff', w: 1.5, d: false },
       { label: '虚工作', color: '#52c41a', w: 1, d: true, dw: '6,3' }
     ].forEach(function(it, i) {
-      var iy = legendBottom + 28 + i * 13;
+      var iy = legendTop + 28 + i * 13;
       parts.push('<line x1="20" y1="' + iy + '" x2="60" y2="' + iy + '" stroke="' + it.color + '" stroke-width="' + it.w + '"' + (it.d ? ' stroke-dasharray="' + (it.dw || '4,3') + '"' : '') + '/>');
       parts.push('<text x="66" y="' + (iy + 4) + '" font-size="9" fill="#333">' + it.label + '</text>');
     });
 
     // ---- 总工期 ----
     var totalDur = p.totalDuration || 0;
-    parts.push('<text x="' + (p.canvasW - 12) + '" y="80" font-size="12" font-weight="bold" fill="#e63946" text-anchor="end">总工期=' + totalDur + '天</text>');
+    var durationTextX = rightmostX + (p.nodeRadius || 11) * 2 + 10;
+    parts.push('<text x="' + durationTextX + '" y="' + (lastRowY - 30) + '" font-size="12" font-weight="bold" fill="#e63946">总工期=' + totalDur + '天</text>');
 
     // ---- 底部镜像标尺 ----
     if (isTimeMode) {
