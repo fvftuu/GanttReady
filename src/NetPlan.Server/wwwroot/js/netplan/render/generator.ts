@@ -213,29 +213,115 @@ export function buildNetworkSvg(params: any): string {
     });
     parts.push('</g>');
 
-    // ---- 前锋线 ----
-    // ... (legacy progress line logic)
+    // ---- 今日线(红色虚线,从标尺顶部到底部标尺上方) ----
+    if (isTimeMode && p.showTodayLine) {
+      var today = new Date();
+      var todayOffset = Math.floor((today.getTime() - sd.getTime()) / 86400000);
+      if (todayOffset >= 0 && todayOffset < p.totalDays) {
+        var tx = MARGIN_LEFT + todayOffset * dw + dw / 2;
+        parts.push('<line x1="' + tx + '" y1="0" x2="' + tx + '" y2="' + (p.canvasH - 28) + '" stroke="#ff4d4f" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>');
+        parts.push('<text x="' + (tx + 4) + '" y="14" font-size="10" fill="#ff4d4f">今日 ' + today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0') + '</text>');
+      }
+    }
+
+    // ---- 前锋线(检查日线) ----
+    if (isTimeMode && p.showProgressLine && p.projectStartDate) {
+      var progressSaved = window.localStorage && window.localStorage.getItem('netplan_progress_date');
+      var gWin = window as any;
+      var pdStr = progressSaved || (gWin._progressDate ? (gWin._progressDate.getFullYear() + '-' + String(gWin._progressDate.getMonth() + 1).padStart(2, '0') + '-' + String(gWin._progressDate.getDate()).padStart(2, '0')) : null);
+      if (pdStr) {
+        var pd = new Date(pdStr);
+        var pOffset = Math.round((pd.getTime() - sd.getTime()) / 86400000);
+        if (pOffset >= 0) {
+          var px = MARGIN_LEFT + pOffset * dw;
+          parts.push('<g id="net-progress-check">');
+          parts.push('<line x1="' + px + '" y1="0" x2="' + px + '" y2="' + (p.canvasH - 28) + '" stroke="#52c41a" stroke-width="2" stroke-dasharray="6,3"/>');
+          parts.push('<polygon points="' + (px - 7) + ',0 ' + (px + 7) + ',0 ' + px + ',14" fill="#52c41a"/>');
+          parts.push('<text x="' + (px + 4) + '" y="14" font-size="11" fill="#52c41a" font-weight="bold">' + pdStr + '</text>');
+          parts.push('</g>');
+          
+          // 进度三角标记
+          var events = p.layout.events;
+          Object.keys(events).forEach(function(eid) {
+            var evt = events[eid];
+            if (evt.isVirtual) return;
+            if (pOffset >= evt.es && pOffset <= evt.ef) {
+              var ratio = evt.ef > evt.es ? (pOffset - evt.es) / (evt.ef - evt.es) : 1;
+              var progX = MARGIN_LEFT + (evt.es + ratio * (evt.ef - evt.es)) * dw;
+              var progY = (evt.y || 0) - 4;
+              parts.push('<polygon points="' + (progX - 4) + ',' + progY + ' ' + (progX + 4) + ',' + progY + ' ' + progX + ',' + (progY - 6) + '" fill="#52c41a"/>');
+            }
+          });
+        }
+      }
+    }
+
+    // ---- 进度曲线 ----
+    if (p.showProgressCurve && isTimeMode) {
+      var acts = (p.timeParams && p.timeParams.activities) || [];
+      if (acts.length > 0) {
+        var curvePoints: string[] = [];
+        var curveYMin = 120, curveYMax = 90;
+        var curveYRange = curveYMin - curveYMax;
+        for (var d = 0; d < p.totalDays; d++) {
+          var dayComp = 0, dayCount = 0;
+          acts.forEach(function(a: any) {
+            var aes = a.es || parseInt(String(a.source || 'T0').replace('T', '') || '0');
+            var aef = a.ef || parseInt(String(a.target || 'T0').replace('T', '') || '0');
+            if (d >= aes && d < aef) { dayComp += (a.completion || 0); dayCount++; }
+          });
+          var avgPct = dayCount > 0 ? dayComp / dayCount : -1;
+          if (avgPct < 0) continue;
+          var cpx = MARGIN_LEFT + d * dw + dw / 2;
+          var cpy = curveYMax + curveYRange * (1 - avgPct / 100);
+          curvePoints.push(cpx + ',' + cpy);
+        }
+        if (curvePoints.length > 1) {
+          var firstX = curvePoints[0].split(',')[0];
+          var lastX = curvePoints[curvePoints.length - 1].split(',')[0];
+          var fillPath = 'M' + firstX + ',' + curveYMin + ' L' + curvePoints.join(' L') + ' L' + lastX + ',' + curveYMin + ' Z';
+          parts.push('<path d="' + fillPath + '" fill="rgba(173,216,230,0.3)" stroke="none"/>');
+          parts.push('<polyline fill="none" stroke="#5dade2" stroke-width="2" points="' + curvePoints.join(' ') + '"/>');
+        }
+      }
+    }
 
     // ---- 图例 ----
-    // ...
+    var legendBottom = p.canvasH - 75;
+    parts.push('<rect x="10" y="' + legendBottom + '" width="220" height="68" fill="rgba(255,255,255,0.95)" stroke="#ccc" rx="4"/>');
+    parts.push('<text x="20" y="' + (legendBottom + 15) + '" font-size="11" font-weight="bold" fill="#333">图例</text>');
+    [
+      { label: '关键线路', color: '#ff4d4f', w: 2.5, d: false },
+      { label: '非关键工作', color: '#1890ff', w: 1.5, d: false },
+      { label: '虚工作', color: '#52c41a', w: 1, d: true, dw: '6,3' }
+    ].forEach(function(it, i) {
+      var iy = legendBottom + 28 + i * 13;
+      parts.push('<line x1="20" y1="' + iy + '" x2="60" y2="' + iy + '" stroke="' + it.color + '" stroke-width="' + it.w + '"' + (it.d ? ' stroke-dasharray="' + (it.dw || '4,3') + '"' : '') + '/>');
+      parts.push('<text x="66" y="' + (iy + 4) + '" font-size="9" fill="#333">' + it.label + '</text>');
+    });
 
     // ---- 总工期 ----
-    // ...
+    var totalDur = p.totalDuration || 0;
+    parts.push('<text x="' + (p.canvasW - 12) + '" y="80" font-size="12" font-weight="bold" fill="#e63946" text-anchor="end">总工期=' + totalDur + '天</text>');
 
-    // ---- 底部标尺(Logic模式下不显示) ----
-    if (isTimeMode && dw >= 4) {
-        parts.push('<g class="bottom-ruler">');
-        var lastMonth = -1;
-        for (var d = 0; d <= p.totalDays; d += 7) {
-            var dt = new Date(sd.getTime() + d * 86400000);
-            var x = MARGIN_LEFT + d * dw;
-            if (dt.getMonth() !== lastMonth) {
-                parts.push('<text x="' + x + '" y="' + (p.canvasH - 5) + '" font-size="10" fill="#999"> ' + dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '</text>');
-                lastMonth = dt.getMonth();
-            }
+    // ---- 底部镜像标尺 ----
+    if (isTimeMode) {
+      var upperH = 28, lowerH = 24;
+      var bottomRulerY = p.canvasH - upperH - lowerH - 5;
+      parts.push('<rect x="0" y="' + bottomRulerY + '" width="' + p.canvasW + '" height="' + upperH + '" fill="#fafafa"/>');
+      parts.push('<rect x="0" y="' + (bottomRulerY + upperH) + '" width="' + p.canvasW + '" height="' + lowerH + '" fill="#f5f5f5"/>');
+      var lastMonth = -1;
+      for (var d = 0; d <= p.totalDays; d += 7) {
+        var dt = new Date(sd.getTime() + d * 86400000);
+        var x = MARGIN_LEFT + d * dw;
+        if (dt.getMonth() !== lastMonth) {
+          parts.push('<text x="' + x + '" y="' + (bottomRulerY + 18) + '" font-size="10" fill="#999"> ' + dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '</text>');
+          lastMonth = dt.getMonth();
         }
-        parts.push('</g>');
+      }
     }
+
+
 
     // ---- 组装 SVG ----
     var svg = '<svg id="network-svg" class="network-svg" xmlns="http://www.w3.org/2000/svg" width="' + p.canvasW + '" height="' + p.canvasH + '" style="background:#fafafa">\n';
