@@ -6,6 +6,7 @@
 import { calculateTimeParams, applySingleStartEnd } from './core/cpm.js';
 import { calculateVerticalLayout } from './core/layout.js';
 
+import { renderNetwork } from './render/network.js';
 import { updateProgressColors } from './render/progress.js';
 
 import { initGanttScroll, networkFit } from './interaction/panzoom.js';
@@ -27,9 +28,8 @@ const api: WindowNetPlan = {
   setNetworkMode(mode: string) { (window as any)._netMode = mode; },
   setNetTimeScaleMode(mode: number) { (window as any)._netTimeScaleMode = mode; },
   clearNetworkOffsets() { (window as any)._netEventOffsets = {}; },
-  renderNetwork(_elementsJson: string, _optsJson: string) {
-    console.warn('renderNetwork: TS module loaded, but renderNetwork not yet migrated');
-  },
+  renderNetwork,
+  // 直接使用 renderNetwork（从 render/network.ts 导入）
   initProgressColors() {
     updateProgressColors([], null, new Date());
   },
