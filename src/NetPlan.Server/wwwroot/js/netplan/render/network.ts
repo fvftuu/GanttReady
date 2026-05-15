@@ -368,6 +368,7 @@ export function renderNetwork(elementsJson: string, optsIn: any): void {
               (window as any)._netPendingOffsets = pending;
 
               // 弹出天数对话框
+              var existingOffXDays = Math.round((offsets[eid] ? offsets[eid].x : 0) / dayWidth);
               (window as any)._netLastPopupTime = Date.now();
               showDayPopup(deltaDays, e.clientX, e.clientY, function(confirmedDays: number) {
                 (window as any)._netLastPopupTime = Date.now();
@@ -379,7 +380,7 @@ export function renderNetwork(elementsJson: string, optsIn: any): void {
                   delete pending[eid];
                   return;
                 }
-                // 确认：保存偏移到全局（renderNetwork 会在后续渲染中自动恢复偏移）
+                // 保存本轮累计总偏移
                 offsets[eid] = { x: finalX, y: dy };
 
                 // 立即应用偏移到 SVG，不等 C# 异步响应
@@ -392,15 +393,20 @@ export function renderNetwork(elementsJson: string, optsIn: any): void {
                 updateDummyPaths(eid, finalX, dy);
                 updateCrossArcOverlays();
 
-                // 通知 C# 更新数据库
-                var dotNet = (window as any)._netDotNet;
-                if (dotNet && eid) {
-                  var tid = evt!.taskId || parseInt(eid.replace('T', ''));
-                  if (tid && tid > 0) {
-                    dotNet.invokeMethodAsync('SyncNodeDrag', tid, confirmedDays, 0)
-                      .catch(function(err: any) { console.warn('[NET] SyncNodeDrag error:', err); });
+                // 计算净增加的天数（相对 C# 已保存的上次值）
+                var netDelta = confirmedDays - existingOffXDays;
+                if (netDelta !== 0) {
+                  var dotNet = (window as any)._netDotNet;
+                  if (dotNet && eid) {
+                    var tid = evt!.taskId || parseInt(eid.replace('T', ''));
+                    if (tid && tid > 0) {
+                      dotNet.invokeMethodAsync('SyncNodeDrag', tid, netDelta, 0)
+                        .catch(function(err: any) { console.warn('[NET] SyncNodeDrag error:', err); });
+                    }
                   }
                 }
+                // 更新 existingOffXDays 为当前值，供下一次拖拽使用
+                existingOffXDays = confirmedDays;
               });
             }
           }
