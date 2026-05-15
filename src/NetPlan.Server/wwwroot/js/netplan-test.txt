@@ -1,0 +1,1884 @@
+"use strict";
+var NetPlan = (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/index.js
+  var index_exports = {};
+  __export(index_exports, {
+    applySingleStartEnd: () => applySingleStartEnd,
+    calculateTimeParams: () => calculateTimeParams,
+    calculateVerticalLayout: () => calculateVerticalLayout
+  });
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/core/cpm.js
+  function calculateTimeParams(tasks, relations) {
+    var starts = {};
+    var ends = {};
+    var taskEs = {};
+    var taskEf = {};
+    tasks.forEach(function(task) {
+      var es = task.es || 0;
+      var ef = task.ef || es + (task.duration || 0);
+      taskEs[task.id] = es;
+      taskEf[task.id] = ef;
+      if (!starts[es])
+        starts[es] = [];
+      if (starts[es].indexOf(task.id) === -1)
+        starts[es].push(task.id);
+      if (!ends[ef])
+        ends[ef] = [];
+      if (ends[ef].indexOf(task.id) === -1)
+        ends[ef].push(task.id);
+    });
+    var events = {};
+    var allTimeOffsets = [];
+    Object.keys(starts).forEach(function(t) {
+      if (allTimeOffsets.indexOf(t) === -1)
+        allTimeOffsets.push(t);
+    });
+    Object.keys(ends).forEach(function(t) {
+      if (allTimeOffsets.indexOf(t) === -1)
+        allTimeOffsets.push(t);
+    });
+    allTimeOffsets.sort(function(a, b) {
+      return parseInt(a) - parseInt(b);
+    });
+    allTimeOffsets.forEach(function(timeOffset) {
+      var eid2 = "T" + timeOffset;
+      var isStart = starts[timeOffset] !== void 0;
+      var isEnd = ends[timeOffset] !== void 0;
+      var type = isStart && isEnd ? "both" : isStart ? "start" : "end";
+      var associated = [];
+      var sArr = starts[timeOffset] || [];
+      var eArr = ends[timeOffset] || [];
+      var both = sArr.concat(eArr);
+      both.forEach(function(tid) {
+        if (associated.indexOf(tid) === -1)
+          associated.push(tid);
+      });
+      var taskId = parseInt(String(associated[0])) || 0;
+      var isCritical = false;
+      var tf = 0;
+      tasks.forEach(function(t) {
+        if (associated.indexOf(t.id) !== -1) {
+          if (t.isCritical)
+            isCritical = true;
+          if ((t.tf || 0) > tf)
+            tf = t.tf || 0;
+        }
+      });
+      events[eid2] = {
+        id: eid2,
+        taskId,
+        type,
+        num: 0,
+        es: parseInt(timeOffset),
+        ef: parseInt(timeOffset),
+        ls: 0,
+        lf: 0,
+        tf,
+        ff: 0,
+        isCritical
+      };
+    });
+    var activities = [];
+    tasks.forEach(function(task) {
+      var es = taskEs[task.id];
+      var ef = taskEf[task.id];
+      activities.push({
+        id: task.id,
+        source: "T" + es,
+        target: "T" + ef,
+        es,
+        ef,
+        ls: task.ls || task.lateStart || es,
+        lf: task.lf || task.lateFinish || ef,
+        duration: task.duration || 0,
+        code: task.label || "",
+        name: task.name || "",
+        isCritical: task.isCritical || false,
+        tf: task.tf || 0,
+        ff: task.ff || 0,
+        completion: task.completion || 0
+      });
+    });
+    var eventPred = {};
+    var eventSucc = {};
+    Object.keys(events).forEach(function(eid2) {
+      eventPred[eid2] = [];
+      eventSucc[eid2] = [];
+    });
+    function addEdge(f, t) {
+      if (f === t)
+        return;
+      if (!events[f] || !events[t])
+        return;
+      if (eventSucc[f].indexOf(t) === -1)
+        eventSucc[f].push(t);
+      if (eventPred[t].indexOf(f) === -1)
+        eventPred[t].push(f);
+    }
+    activities.forEach(function(act) {
+      addEdge(act.source, act.target);
+    });
+    relations.forEach(function(rel) {
+      var predEf = taskEf[rel.source];
+      var succEs = taskEs[rel.target];
+      if (predEf === void 0 || succEs === void 0)
+        return;
+      addEdge("T" + predEf, "T" + succEs);
+    });
+    var inDeg = {};
+    Object.keys(events).forEach(function(eid2) {
+      inDeg[eid2] = eventPred[eid2].length;
+    });
+    var queue = [];
+    Object.keys(inDeg).forEach(function(eid2) {
+      if (inDeg[eid2] === 0)
+        queue.push(eid2);
+    });
+    var sortedEvents = [];
+    var nextNum = 1;
+    while (queue.length > 0) {
+      var eid = queue.shift();
+      events[eid].num = nextNum;
+      nextNum++;
+      sortedEvents.push(eid);
+      eventSucc[eid].forEach(function(neighbor) {
+        inDeg[neighbor]--;
+        if (inDeg[neighbor] === 0)
+          queue.push(neighbor);
+      });
+    }
+    return {
+      events,
+      activities,
+      relations,
+      eventPred,
+      eventSucc,
+      sortedEvents
+    };
+  }
+  function applySingleStartEnd(data) {
+    var events = data.events;
+    var activities = data.activities;
+    var eventPred = data.eventPred;
+    var eventSucc = data.eventSucc;
+    var sortedEvents = data.sortedEvents;
+    var maxEf = -Infinity;
+    Object.keys(events).forEach(function(eid) {
+      if (events[eid].ef > maxEf)
+        maxEf = events[eid].ef;
+    });
+    var minEs = Infinity;
+    Object.keys(events).forEach(function(eid) {
+      if (events[eid].es < minEs)
+        minEs = events[eid].es;
+    });
+    var startCandidates = [];
+    var endCandidates = [];
+    Object.keys(events).forEach(function(eid) {
+      var evt = events[eid];
+      if (evt.isVirtual)
+        return;
+      if (evt.es === minEs)
+        startCandidates.push(eid);
+      if (evt.ef === maxEf)
+        endCandidates.push(eid);
+    });
+    if (startCandidates.length <= 1 && endCandidates.length <= 1)
+      return data;
+    if (startCandidates.length > 1) {
+      var sid = "TS";
+      events[sid] = {
+        id: sid,
+        taskId: 0,
+        type: "start",
+        num: 0,
+        es: minEs - 5,
+        ef: minEs - 5,
+        ls: 0,
+        lf: 0,
+        tf: 0,
+        ff: 0,
+        isCritical: false,
+        isVirtual: true
+      };
+      eventPred[sid] = [];
+      eventSucc[sid] = startCandidates.slice();
+      startCandidates.forEach(function(seid) {
+        eventPred[seid].push(sid);
+      });
+      sortedEvents.unshift(sid);
+    }
+    if (endCandidates.length > 1) {
+      var eid2 = "TE";
+      events[eid2] = {
+        id: eid2,
+        taskId: 0,
+        type: "end",
+        num: 0,
+        es: maxEf + 5,
+        ef: maxEf + 5,
+        ls: 0,
+        lf: 0,
+        tf: 0,
+        ff: 0,
+        isCritical: false,
+        isVirtual: true
+      };
+      eventPred[eid2] = endCandidates.slice();
+      eventSucc[eid2] = [];
+      endCandidates.forEach(function(eeid) {
+        eventSucc[eeid].push(eid2);
+      });
+      sortedEvents.push(eid2);
+    }
+    return {
+      events,
+      activities,
+      eventPred,
+      eventSucc,
+      sortedEvents
+    };
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/core/layout.js
+  function calculateVerticalLayout(data) {
+    var events = data.events;
+    var activities = data.activities;
+    var eventPred = data.eventPred;
+    var eventSucc = data.eventSucc;
+    var LAYER_HEIGHT = 60;
+    var MARGIN_TOP = 100;
+    var sameRow = {};
+    function union(rowKey, eid) {
+      if (!sameRow[rowKey])
+        sameRow[rowKey] = [];
+      if (sameRow[rowKey].indexOf(eid) === -1)
+        sameRow[rowKey].push(eid);
+    }
+    var esGroup = {};
+    Object.keys(events).forEach(function(eid) {
+      var es = events[eid].es || 0;
+      if (!esGroup[es])
+        esGroup[es] = [];
+      esGroup[es].push(eid);
+    });
+    Object.keys(esGroup).forEach(function(es) {
+      var rowKey = "ES_" + es;
+      esGroup[Number(es)].forEach(function(eid) {
+        union(rowKey, eid);
+      });
+    });
+    activities.forEach(function(act) {
+      var rowKey = "act_" + act.source + "_" + act.target;
+      union(rowKey, act.source);
+      union(rowKey, act.target);
+    });
+    var layers = {};
+    var visited = {};
+    var queue = [];
+    var degrees = {};
+    var pred = eventPred || {};
+    var succ = eventSucc || {};
+    Object.keys(events).forEach(function(eid) {
+      degrees[eid] = pred[eid] ? pred[eid].length : 0;
+    });
+    Object.keys(degrees).forEach(function(eid) {
+      if (degrees[eid] === 0) {
+        queue.push(eid);
+        layers[eid] = 0;
+        visited[eid] = true;
+      }
+    });
+    while (queue.length > 0) {
+      var cur = queue.shift();
+      var curLayer = layers[cur] || 0;
+      if (succ[cur]) {
+        succ[cur].forEach(function(next) {
+          if (!visited[next]) {
+            degrees[next]--;
+            if (degrees[next] === 0) {
+              var maxLayer2 = curLayer;
+              Object.keys(sameRow).forEach(function(rk) {
+                if (sameRow[rk].indexOf(next) !== -1) {
+                  sameRow[rk].forEach(function(sib) {
+                    if (layers[sib] !== void 0 && layers[sib] > maxLayer2)
+                      maxLayer2 = layers[sib];
+                  });
+                }
+              });
+              layers[next] = maxLayer2 + 1;
+              queue.push(next);
+              visited[next] = true;
+            }
+          }
+        });
+      }
+    }
+    var maxLayer = 0;
+    Object.keys(layers).forEach(function(eid) {
+      if (layers[eid] > maxLayer)
+        maxLayer = layers[eid];
+    });
+    var critEvents = [];
+    Object.keys(events).forEach(function(eid) {
+      if (events[eid].isCritical)
+        critEvents.push(eid);
+    });
+    var halfLayer = Math.floor(maxLayer / 2);
+    Object.keys(layers).forEach(function(eid) {
+      if (critEvents.indexOf(eid) !== -1) {
+        var mid = halfLayer;
+        if (layers[eid] < mid)
+          layers[eid] = Math.min(mid, layers[eid] + Math.floor(mid / 2));
+      }
+    });
+    var layout = {};
+    Object.keys(events).forEach(function(eid) {
+      var layer = layers[eid] || 0;
+      events[eid].layer = layer;
+      events[eid].y = MARGIN_TOP + layer * LAYER_HEIGHT;
+      layout[eid] = { layer, y: MARGIN_TOP + layer * LAYER_HEIGHT, num: events[eid].num };
+    });
+    return {
+      events,
+      activities,
+      layout,
+      maxLayer
+    };
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/render/crossarc.js
+  function findSegIntersection(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2) {
+    var d = (ax2 - ax1) * (by2 - by1) - (ay2 - ay1) * (bx2 - bx1);
+    if (Math.abs(d) < 1e-10)
+      return null;
+    var t = ((bx1 - ax1) * (by2 - by1) - (by1 - ay1) * (bx2 - bx1)) / d;
+    var u = ((bx1 - ax1) * (ay2 - ay1) - (by1 - ay1) * (ax2 - ax1)) / d;
+    if (t < 0 || t > 1 || u < 0 || u > 1)
+      return null;
+    return { x: ax1 + t * (ax2 - ax1), y: ay1 + t * (ay2 - ay1) };
+  }
+  function generateCrossArcs(allSegments, parts, _isTimeMode) {
+    for (var i = 0; i < allSegments.length; i++) {
+      for (var j = i + 1; j < allSegments.length; j++) {
+        var a = allSegments[i], b = allSegments[j];
+        if (a.actId === b.actId)
+          continue;
+        for (var ai = 0; ai < a.segs.length; ai++) {
+          for (var bi = 0; bi < b.segs.length; bi++) {
+            var s1 = a.segs[ai], s2 = b.segs[bi];
+            var cross = findSegIntersection(s1.x1, s1.y1, s1.x2, s1.y2, s2.x1, s2.y1, s2.x2, s2.y2);
+            if (cross) {
+              var arcOn;
+              if (!a.isCritical && b.isCritical) {
+                arcOn = a;
+              } else if (a.isCritical && !b.isCritical) {
+                arcOn = b;
+              } else if (!a.isCritical && !b.isCritical) {
+                arcOn = a;
+              } else {
+                arcOn = b;
+              }
+              if (!arcOn)
+                arcOn = a;
+              var bSeg;
+              if (arcOn === a) {
+                bSeg = s2;
+              } else {
+                bSeg = s1;
+              }
+              var bdx = bSeg.x2 - bSeg.x1, bdy = bSeg.y2 - bSeg.y1;
+              var blen = Math.sqrt(bdx * bdx + bdy * bdy) || 1;
+              var nx = -bdy / blen, ny = bdx / blen;
+              var arcR = 5;
+              var lineW = arcOn.isCritical ? 3 : 1.5;
+              parts.push('<path d="M' + (cross.x - nx * 2) + " " + (cross.y - ny * 2) + " A" + (arcR + 1) + " " + (arcR + 1) + " 0 0 0 " + (cross.x + nx * 2) + " " + (cross.y + ny * 2) + '" class="net-cross-arc" fill="none" stroke="#fff" stroke-width="' + (lineW + 2) + '" stroke-linecap="round"/>');
+              parts.push('<path d="M' + (cross.x - nx * 2) + " " + (cross.y - ny * 2) + " A" + (arcR + 1) + " " + (arcR + 1) + " 0 0 0 " + (cross.x + nx * 2) + " " + (cross.y + ny * 2) + '" class="net-cross-arc" fill="none" stroke="#999" stroke-width="1" stroke-linecap="round"/>');
+            }
+          }
+        }
+      }
+    }
+  }
+  function collectAllSegments(layout, activities, relations, isTimeMode, NODE_R) {
+    var allSegments = [];
+    var events = layout.events;
+    var taskEsMap = {};
+    var taskEfMap = {};
+    activities.forEach(function(act) {
+      taskEsMap[act.source] = act.es;
+      taskEfMap[act.target] = act.ef;
+    });
+    activities.forEach(function(act) {
+      var srcId = act.source, tgtId = act.target;
+      var src = events[srcId], tgt = events[tgtId];
+      if (!src || !tgt)
+        return;
+      var sx = (src.x || 0) + NODE_R, sy = src.y || 0;
+      var ex = tgt.x || 0, ey = tgt.y || 0;
+      var segs = [];
+      if (isTimeMode) {
+        if (Math.abs(ey - sy) < 2) {
+          segs = [{ x1: sx, y1: sy, x2: ex, y2: ey }];
+        } else {
+          segs = [
+            { x1: sx, y1: sy, x2: ex - 2, y2: sy },
+            { x1: ex - 2, y1: sy, x2: ex - 2, y2: ey },
+            { x1: ex - 2, y1: ey, x2: ex, y2: ey }
+          ];
+        }
+      } else {
+        segs = [{ x1: sx, y1: sy, x2: ex, y2: ey }];
+      }
+      allSegments.push({
+        actId: act.id,
+        isCritical: act.isCritical || false,
+        segs
+      });
+    });
+    relations.forEach(function(rel) {
+      var predEf = taskEfMap[rel.source];
+      var succEs = taskEsMap[rel.target];
+      if (predEf === void 0 || succEs === void 0)
+        return;
+      var srcId = "T" + predEf, tgtId = "T" + succEs;
+      if (srcId === tgtId)
+        return;
+      var src = events[srcId], tgt = events[tgtId];
+      if (!src || !tgt)
+        return;
+      var sx = (src.x || 0) + NODE_R, sy = src.y || 0;
+      var ex = tgt.x || 0, ey = tgt.y || 0;
+      var dseg;
+      if (Math.abs(ey - sy) < 2) {
+        dseg = [{ x1: sx, y1: sy, x2: ex, y2: ey }];
+      } else {
+        dseg = [
+          { x1: sx, y1: sy, x2: sx, y2: ey },
+          { x1: sx, y1: ey, x2: ex, y2: ey }
+        ];
+      }
+      allSegments.push({ actId: "dummy-" + rel.source + "-" + rel.target, isCritical: false, segs: dseg, isDummy: true });
+    });
+    return allSegments;
+  }
+  function updateCrossArcOverlays() {
+    var svg = window._netSvg;
+    if (!svg)
+      return;
+    var old = svg.querySelectorAll(".net-cross-arc");
+    for (var i = 0; i < old.length; i++) {
+      old[i].parentNode.removeChild(old[i]);
+    }
+    var layout = window._netLayout;
+    var activities = window._netActivities;
+    var offsets = window._netEventOffsets || {};
+    var nr = window._netNodeRadius || 11;
+    if (!layout || !layout.events || !activities)
+      return;
+    var acts = [];
+    activities.forEach(function(act) {
+      if (!act.source || !act.target)
+        return;
+      var s = layout.events[act.source];
+      var t = layout.events[act.target];
+      if (!s || !t)
+        return;
+      var sx = s.x + (offsets[s.id] ? offsets[s.id].x : 0) + nr;
+      var sy = s.y + (offsets[s.id] ? offsets[s.id].y : 0);
+      var ex = t.x + (offsets[t.id] ? offsets[t.id].x : 0);
+      var ey = t.y + (offsets[t.id] ? offsets[t.id].y : 0);
+      acts.push({ id: act.id, isCritical: act.isCritical || false, sx, sy, ex, ey });
+    });
+    if (acts.length < 2)
+      return;
+    var allSegments = [];
+    acts.forEach(function(a2) {
+      var segs;
+      if (Math.abs(a2.ey - a2.sy) < 2) {
+        segs = [{ x1: a2.sx, y1: a2.sy, x2: a2.ex, y2: a2.ey }];
+      } else {
+        segs = [
+          { x1: a2.sx, y1: a2.sy, x2: a2.ex - 2, y2: a2.sy },
+          { x1: a2.ex - 2, y1: a2.sy, x2: a2.ex - 2, y2: a2.ey },
+          { x1: a2.ex - 2, y1: a2.ey, x2: a2.ex, y2: a2.ey }
+        ];
+      }
+      allSegments.push({ actId: a2.id, isCritical: a2.isCritical, segs });
+    });
+    function addArc(crossX, crossY, nx2, ny2, lineW2) {
+      var arcR = 5;
+      var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("class", "net-cross-arc");
+      var arc1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      arc1.setAttribute("d", "M" + (crossX - nx2 * 2) + " " + (crossY - ny2 * 2) + " A" + (arcR + 1) + " " + (arcR + 1) + " 0 0 0 " + (crossX + nx2 * 2) + " " + (crossY + ny2 * 2));
+      arc1.setAttribute("fill", "none");
+      arc1.setAttribute("stroke", "#fff");
+      arc1.setAttribute("stroke-width", "" + (lineW2 + 2));
+      arc1.setAttribute("stroke-linecap", "round");
+      g.appendChild(arc1);
+      var arc2 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      arc2.setAttribute("d", "M" + (crossX - nx2 * 2) + " " + (crossY - ny2 * 2) + " A" + (arcR + 1) + " " + (arcR + 1) + " 0 0 0 " + (crossX + nx2 * 2) + " " + (crossY + ny2 * 2));
+      arc2.setAttribute("fill", "none");
+      arc2.setAttribute("stroke", "#999");
+      arc2.setAttribute("stroke-width", "1");
+      arc2.setAttribute("stroke-linecap", "round");
+      g.appendChild(arc2);
+      svg.appendChild(g);
+    }
+    for (var i = 0; i < allSegments.length; i++) {
+      for (var j = i + 1; j < allSegments.length; j++) {
+        var a = allSegments[i], b = allSegments[j];
+        if (a.actId === b.actId)
+          continue;
+        for (var ai = 0; ai < a.segs.length; ai++) {
+          for (var bi = 0; bi < b.segs.length; bi++) {
+            var s1 = a.segs[ai], s2 = b.segs[bi];
+            var cross = findSegIntersection(s1.x1, s1.y1, s1.x2, s1.y2, s2.x1, s2.y1, s2.x2, s2.y2);
+            if (cross) {
+              var skipArc = false;
+              var arcOn = null;
+              if (!a.isCritical && b.isCritical) {
+                arcOn = a;
+              } else if (a.isCritical && !b.isCritical) {
+                arcOn = b;
+              } else if (!a.isCritical && !b.isCritical) {
+                arcOn = a;
+              } else {
+                skipArc = true;
+              }
+              if (!skipArc && arcOn && cross) {
+                var bSeg = arcOn === a ? s2 : s1;
+                var bdx = bSeg.x2 - bSeg.x1, bdy = bSeg.y2 - bSeg.y1;
+                var blen = Math.sqrt(bdx * bdx + bdy * bdy) || 1;
+                var nx = -bdy / blen, ny = bdx / blen;
+                var lineW = arcOn.isCritical ? 3 : 1.5;
+                addArc(cross.x, cross.y, nx, ny, lineW);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/render/generator.js
+  function buildNetworkSvg(params) {
+    var p = params, parts = [], markers = [];
+    var MARGIN_LEFT = 80, RULER_H = 52;
+    var _prStartDate = p.projectStartDate || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    var sd = new Date(_prStartDate);
+    var dw = p.dayWidth || 8;
+    var tsm = window._netTimeScaleMode || 0;
+    var mode = p.mode || "time";
+    var isTimeMode = mode === "time";
+    if (isTimeMode) {
+      parts.push('<g class="timeline">');
+      if (tsm === 0) {
+        var lastYear = -1;
+        for (var d = 0; d <= p.totalDays; d++) {
+          var dt = new Date(sd.getTime() + d * 864e5);
+          var x = MARGIN_LEFT + d * dw;
+          if (dt.getDate() === 1 || d === 0) {
+            var monthSpan = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+            parts.push('<text x="' + (x + monthSpan * dw / 2) + '" y="20" text-anchor="middle" font-size="11" fill="#333" font-weight="bold">' + dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "</text>");
+            if (dt.getFullYear() !== lastYear) {
+              parts.push('<text x="' + x + '" y="10" font-size="10" fill="#999"> ' + lastYear + "\u5E74</text>");
+              lastYear = dt.getFullYear();
+            }
+          }
+        }
+        var lastWeek = -1;
+        for (var d = 0; d <= p.totalDays; d++) {
+          var dt = new Date(sd.getTime() + d * 864e5);
+          var x = MARGIN_LEFT + d * dw;
+          var dow = dt.getDay();
+          var isSat = dow === 6, isSun = dow === 0;
+          if (isSat || isSun) {
+            parts.push('<rect x="' + x + '" y="26" width="' + dw + '" height="26" fill="' + (isSat ? "#e6f7ff" : "#fff0f0") + '" opacity="0.1" class="rest-day"/>');
+          }
+          parts.push('<text x="' + (x + dw / 2) + '" y="42" text-anchor="middle" font-size="10" fill="' + (isSat || isSun ? "#ccc" : "#666") + '">' + dt.getDate() + "</text>");
+          var wkn = getISOWeek(dt);
+          if (wkn !== lastWeek) {
+            parts.push('<text x="' + x + '" y="52" font-size="9" fill="#aaa">W' + wkn + "</text>");
+            lastWeek = wkn;
+          }
+        }
+      } else if (tsm === 1) {
+        var lastYear = -1;
+        for (var d = 0; d <= p.totalDays; d++) {
+          var dt = new Date(sd.getTime() + d * 864e5);
+          var x = MARGIN_LEFT + d * dw;
+          if (dt.getDate() === 1 || d === 0) {
+            var monthSpan = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+            parts.push('<text x="' + (x + monthSpan * dw / 2) + '" y="20" text-anchor="middle" font-size="11" fill="#333" font-weight="bold">' + dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "</text>");
+            if (dt.getFullYear() !== lastYear) {
+              lastYear = dt.getFullYear();
+            }
+          }
+        }
+        var totalPx = p.totalDays * dw;
+        var cellW = Math.max(dw, totalPx / Math.min(p.totalDays, 20));
+        var startX = MARGIN_LEFT, endX = MARGIN_LEFT + totalPx;
+        var dayIdx = 0;
+        for (var x = startX; x < endX; x += cellW) {
+          var dt3 = new Date(sd.getTime() + dayIdx * 864e5);
+          parts.push('<text x="' + (x + cellW / 2) + '" y="42" text-anchor="middle" font-size="10" fill="#666">' + (dt3.getMonth() + 1) + "/" + dt3.getDate() + "</text>");
+          dayIdx += Math.round(cellW / dw);
+        }
+      } else if (tsm === 2) {
+        var lastYear = -1;
+        for (var d = 0; d <= p.totalDays; d++) {
+          var dt = new Date(sd.getTime() + d * 864e5);
+          var x = MARGIN_LEFT + d * dw;
+          if (dt.getDate() === 1 || d === 0) {
+            var monthSpan = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+            parts.push('<text x="' + (x + monthSpan * dw / 2) + '" y="20" text-anchor="middle" font-size="11" fill="#333" font-weight="bold">' + dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "</text>");
+            if (dt.getFullYear() !== lastYear) {
+              lastYear = dt.getFullYear();
+            }
+          }
+        }
+        var lastW = -1;
+        for (var d = 0; d <= p.totalDays; d++) {
+          var dt = new Date(sd.getTime() + d * 864e5);
+          var x = MARGIN_LEFT + d * dw;
+          var wkn = getISOWeek(dt);
+          var dayNum = (dt.getDay() + 6) % 7;
+          if (wkn !== lastW) {
+            var weekStart = new Date(dt);
+            weekStart.setDate(dt.getDate() - dayNum);
+            var weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            var ws = Math.max(0, Math.round((weekStart.getTime() - sd.getTime()) / 864e5));
+            var we = Math.min(p.totalDays, Math.round((weekEnd.getTime() - sd.getTime()) / 864e5) + 1);
+            parts.push('<text x="' + (x + (we - ws) * dw / 2) + '" y="42" text-anchor="middle" font-size="10" fill="#666">W' + wkn + "</text>");
+            lastW = wkn;
+          }
+        }
+      }
+      parts.push("</g>");
+    }
+    var layout = p.layout, events = layout.events, activities = p.timeParams.activities;
+    var actGroupOpen = false;
+    var crossArcs = [];
+    function emitAct() {
+      if (!actGroupOpen) {
+        parts.push('<g class="net-arrows">');
+        actGroupOpen = true;
+      }
+    }
+    var showCritical = p.showCritical !== false;
+    var critActs = [], nonCritActs = [];
+    (activities || []).forEach(function(act) {
+      (act.isCritical && showCritical ? critActs : nonCritActs).push(act);
+    });
+    [nonCritActs, critActs].forEach(function(actList) {
+      actList.forEach(function(act) {
+        var srcEvt = events[act.source], tgtEvt = events[act.target];
+        if (!srcEvt || !tgtEvt)
+          return;
+        var x1 = srcEvt.x || 0, y1 = srcEvt.y || 0;
+        var x2 = tgtEvt.x || 0, y2 = tgtEvt.y || 0;
+        var isCrit = act.isCritical;
+        var isDummy = act.isDummy || act.duration === 0 && act.id < 0;
+        var strokeColor = isCrit && showCritical ? "#ff4d4f" : isDummy ? "#52c41a" : "#1890ff";
+        var strokeW = isCrit && showCritical ? 2.5 : isDummy ? 1 : 1.5;
+        var dash = isDummy ? "6,3" : isCrit && showCritical ? "none" : "none";
+        emitAct();
+        if (actList === critActs && showCritical && critActs) {
+          parts.push('<line x1="' + x1 + '" y1="' + (y1 + 1) + '" x2="' + x2 + '" y2="' + (y2 + 1) + '" stroke="#ff4d4f" stroke-width="4" opacity="0.2"/>');
+          parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + strokeColor + '" stroke-width="' + strokeW + '" stroke-dasharray="' + dash + '" data-activity-id="' + act.id + '"/>');
+        } else {
+          parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + strokeColor + '" stroke-width="' + strokeW + '" stroke-dasharray="' + dash + '" data-activity-id="' + act.id + '"/>');
+        }
+        var midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+        if (!isDummy) {
+          parts.push('<text x="' + midX + '" y="' + (midY - 4) + '" text-anchor="middle" font-size="9" fill="' + strokeColor + '">' + (act.code || "") + "</text>");
+          parts.push('<text x="' + midX + '" y="' + (midY + 8) + '" text-anchor="middle" font-size="8" fill="#999">' + act.duration + "</text>");
+        }
+        var angle = Math.atan2(y2 - y1, x2 - x1);
+        var alen = 7;
+        markers.push('<polygon points="' + (x2 - alen * Math.cos(angle - 0.4)) + "," + (y2 - alen * Math.sin(angle - 0.4)) + " " + x2 + "," + y2 + " " + (x2 - alen * Math.cos(angle + 0.4)) + "," + (y2 - alen * Math.sin(angle + 0.4)) + '" fill="' + strokeColor + '"/>');
+        if (isDummy)
+          crossArcs.push({ x1, y1, x2, y2, type: "dummy" });
+      });
+    });
+    if (actGroupOpen)
+      parts.push("</g>");
+    markers.forEach(function(m) {
+      parts.push(m);
+    });
+    if (p.showDummyArrows !== false) {
+    }
+    if (p.timeParams && p.timeParams.activities) {
+      var allSegs = collectAllSegments(p.layout, p.timeParams.activities, p.timeParams.relations || [], isTimeMode, nr);
+      generateCrossArcs(allSegs, parts, isTimeMode);
+    }
+    var nr = p.nodeRadius || 11;
+    var nfs = Math.max(9, nr);
+    var showFloat = p.showFloat !== false;
+    parts.push('<g class="net-events">');
+    Object.keys(events).forEach(function(eid) {
+      var evt = events[eid];
+      if (evt.isVirtual)
+        return;
+      var ex = evt.x || 0, ey = evt.y || 0;
+      var isCrit = evt.isCritical && showCritical;
+      parts.push('<g class="net-event" data-event-id="' + eid + '" data-task-id="' + (evt.taskId || 0) + '">');
+      if (isCrit) {
+        parts.push('<circle cx="' + ex + '" cy="' + ey + '" r="' + nr + '" fill="#fff" stroke="#ff4d4f" stroke-width="3"/>');
+        parts.push('<circle cx="' + ex + '" cy="' + ey + '" r="' + (nr - 4) + '" fill="#ff4d4f" stroke="#ff4d4f" stroke-width="1.5"/>');
+      } else {
+        parts.push('<circle cx="' + ex + '" cy="' + ey + '" r="' + nr + '" fill="#fff" stroke="#1890ff" stroke-width="1.5"/>');
+      }
+      parts.push('<text x="' + ex + '" y="' + (ey + 4) + '" text-anchor="middle" font-size="' + nfs + '" fill="' + (isCrit ? "#fff" : "#333") + '" font-weight="bold">' + (evt.num || eid) + "</text>");
+      if (isTimeMode) {
+        parts.push('<text x="' + ex + '" y="' + (ey + nr + 12) + '" text-anchor="middle" font-size="8" fill="#999">ET=' + evt.es + "</text>");
+      }
+      if (showFloat && evt.tf > 0) {
+        parts.push('<text x="' + ex + '" y="' + (ey + nr + 22) + '" text-anchor="middle" font-size="7" fill="#e67e22">TF=' + evt.tf + "</text>");
+      }
+      parts.push("</g>");
+    });
+    parts.push("</g>");
+    if (isTimeMode && p.showTodayLine) {
+      var today = /* @__PURE__ */ new Date();
+      var todayOffset = Math.floor((today.getTime() - sd.getTime()) / 864e5);
+      if (todayOffset >= 0 && todayOffset < p.totalDays) {
+        var tx = MARGIN_LEFT + todayOffset * dw + dw / 2;
+        parts.push('<line x1="' + tx + '" y1="0" x2="' + tx + '" y2="' + (p.canvasH - 28) + '" stroke="#ff4d4f" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>');
+        parts.push('<text x="' + (tx + 4) + '" y="14" font-size="10" fill="#ff4d4f">\u4ECA\u65E5 ' + today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0") + "</text>");
+      }
+    }
+    if (isTimeMode && p.showProgressLine && p.projectStartDate) {
+      var progressSaved = window.localStorage && window.localStorage.getItem("netplan_progress_date");
+      var gWin = window;
+      var pdStr = progressSaved || (gWin._progressDate ? gWin._progressDate.getFullYear() + "-" + String(gWin._progressDate.getMonth() + 1).padStart(2, "0") + "-" + String(gWin._progressDate.getDate()).padStart(2, "0") : null);
+      if (pdStr) {
+        var pd = new Date(pdStr);
+        var pOffset = Math.round((pd.getTime() - sd.getTime()) / 864e5);
+        if (pOffset >= 0) {
+          var px = MARGIN_LEFT + pOffset * dw;
+          parts.push('<g id="net-progress-check">');
+          parts.push('<line x1="' + px + '" y1="0" x2="' + px + '" y2="' + (p.canvasH - 28) + '" stroke="#52c41a" stroke-width="2" stroke-dasharray="6,3"/>');
+          parts.push('<polygon points="' + (px - 7) + ",0 " + (px + 7) + ",0 " + px + ',14" fill="#52c41a"/>');
+          parts.push('<text x="' + (px + 4) + '" y="14" font-size="11" fill="#52c41a" font-weight="bold">' + pdStr + "</text>");
+          parts.push("</g>");
+          var events = p.layout.events;
+          Object.keys(events).forEach(function(eid) {
+            var evt = events[eid];
+            if (evt.isVirtual)
+              return;
+            if (pOffset >= evt.es && pOffset <= evt.ef) {
+              var ratio = evt.ef > evt.es ? (pOffset - evt.es) / (evt.ef - evt.es) : 1;
+              var progX = MARGIN_LEFT + (evt.es + ratio * (evt.ef - evt.es)) * dw;
+              var progY = (evt.y || 0) - 4;
+              parts.push('<polygon points="' + (progX - 4) + "," + progY + " " + (progX + 4) + "," + progY + " " + progX + "," + (progY - 6) + '" fill="#52c41a"/>');
+            }
+          });
+        }
+      }
+    }
+    if (p.showProgressCurve && isTimeMode) {
+      var acts = p.timeParams && p.timeParams.activities || [];
+      if (acts.length > 0) {
+        var curvePoints = [];
+        var curveYMin = 120, curveYMax = 90;
+        var curveYRange = curveYMin - curveYMax;
+        for (var d = 0; d < p.totalDays; d++) {
+          var dayComp = 0, dayCount = 0;
+          acts.forEach(function(a) {
+            var aes = a.es || parseInt(String(a.source || "T0").replace("T", "") || "0");
+            var aef = a.ef || parseInt(String(a.target || "T0").replace("T", "") || "0");
+            if (d >= aes && d < aef) {
+              dayComp += a.completion || 0;
+              dayCount++;
+            }
+          });
+          var avgPct = dayCount > 0 ? dayComp / dayCount : -1;
+          if (avgPct < 0)
+            continue;
+          var cpx = MARGIN_LEFT + d * dw + dw / 2;
+          var cpy = curveYMax + curveYRange * (1 - avgPct / 100);
+          curvePoints.push(cpx + "," + cpy);
+        }
+        if (curvePoints.length > 1) {
+          var firstX = curvePoints[0].split(",")[0];
+          var lastX = curvePoints[curvePoints.length - 1].split(",")[0];
+          var fillPath = "M" + firstX + "," + curveYMin + " L" + curvePoints.join(" L") + " L" + lastX + "," + curveYMin + " Z";
+          parts.push('<path d="' + fillPath + '" fill="rgba(173,216,230,0.3)" stroke="none"/>');
+          parts.push('<polyline fill="none" stroke="#5dade2" stroke-width="2" points="' + curvePoints.join(" ") + '"/>');
+        }
+      }
+    }
+    var lastRowY = 100;
+    var lh = p.layerHeight || 60;
+    Object.keys(events).forEach(function(eid) {
+      var evt = events[eid];
+      if (evt.y && evt.y > lastRowY)
+        lastRowY = evt.y;
+    });
+    var rightmostX = MARGIN_LEFT + (p.totalDays || 90) * dw;
+    Object.keys(events).forEach(function(eid) {
+      var evt = events[eid];
+      if (evt.x && evt.x > rightmostX)
+        rightmostX = evt.x;
+    });
+    var legendTop = lastRowY + lh + 10;
+    parts.push('<rect x="10" y="' + legendTop + '" width="220" height="68" fill="rgba(255,255,255,0.95)" stroke="#ccc" rx="4"/>');
+    parts.push('<text x="20" y="' + (legendTop + 15) + '" font-size="11" font-weight="bold" fill="#333">\u56FE\u4F8B</text>');
+    [
+      { label: "\u5173\u952E\u7EBF\u8DEF", color: "#ff4d4f", w: 2.5, d: false },
+      { label: "\u975E\u5173\u952E\u5DE5\u4F5C", color: "#1890ff", w: 1.5, d: false },
+      { label: "\u865A\u5DE5\u4F5C", color: "#52c41a", w: 1, d: true, dw: "6,3" }
+    ].forEach(function(it, i) {
+      var iy = legendTop + 28 + i * 13;
+      parts.push('<line x1="20" y1="' + iy + '" x2="60" y2="' + iy + '" stroke="' + it.color + '" stroke-width="' + it.w + '"' + (it.d ? ' stroke-dasharray="' + (it.dw || "4,3") + '"' : "") + "/>");
+      parts.push('<text x="66" y="' + (iy + 4) + '" font-size="9" fill="#333">' + it.label + "</text>");
+    });
+    var totalDur = p.totalDuration || 0;
+    var durationTextX = rightmostX + (p.nodeRadius || 11) * 2 + 10;
+    parts.push('<text x="' + durationTextX + '" y="' + (lastRowY - 30) + '" font-size="12" font-weight="bold" fill="#e63946">\u603B\u5DE5\u671F=' + totalDur + "\u5929</text>");
+    if (isTimeMode) {
+      var upperH = 28, lowerH = 24;
+      var bottomRulerY = p.canvasH - upperH - lowerH - 5;
+      parts.push('<rect x="0" y="' + bottomRulerY + '" width="' + p.canvasW + '" height="' + upperH + '" fill="#fafafa"/>');
+      parts.push('<rect x="0" y="' + (bottomRulerY + upperH) + '" width="' + p.canvasW + '" height="' + lowerH + '" fill="#f5f5f5"/>');
+      var lastMonth = -1;
+      for (var d = 0; d <= p.totalDays; d += 7) {
+        var dt = new Date(sd.getTime() + d * 864e5);
+        var x = MARGIN_LEFT + d * dw;
+        if (dt.getMonth() !== lastMonth) {
+          parts.push('<text x="' + x + '" y="' + (bottomRulerY + 18) + '" font-size="10" fill="#999"> ' + dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "</text>");
+          lastMonth = dt.getMonth();
+        }
+      }
+    }
+    var svg = '<svg id="network-svg" class="network-svg" xmlns="http://www.w3.org/2000/svg" width="' + p.canvasW + '" height="' + p.canvasH + '" style="background:#fafafa">\n';
+    svg += '<rect x="0" y="0" width="' + p.canvasW + '" height="' + p.canvasH + '" fill="#fafafa" stroke="#e8e8e8"/>\n';
+    svg += renderRowBackground(p);
+    if (isTimeMode)
+      svg += '<rect x="0" y="0" width="' + p.canvasW + '" height="' + RULER_H + '" fill="#fff" stroke="#e8e8e8"/>\n';
+    svg += parts.join("\n");
+    svg += "\n</svg>";
+    return svg;
+  }
+  function getISOWeek(dt) {
+    var d = new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()));
+    var dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 864e5 + 1) / 7);
+  }
+  function renderRowBackground(p) {
+    var events = p.layout.events;
+    var layers = [];
+    Object.keys(events).forEach(function(eid) {
+      var evt = events[eid];
+      if (evt.y !== void 0 && layers.indexOf(evt.y) === -1)
+        layers.push(evt.y);
+    });
+    layers.sort(function(a, b) {
+      return a - b;
+    });
+    var parts = [];
+    parts.push('<g class="net-row-bg">');
+    layers.forEach(function(y, idx) {
+      var lh = p.layerHeight || 60;
+      var isEven = idx % 2 === 0;
+      parts.push('<rect class="net-row-bg" x="0" y="' + (y - lh / 2) + '" width="' + p.canvasW + '" height="' + lh + '" fill="' + (isEven ? "#ffffff" : "#f5f5f5") + '" opacity="0.3"/>');
+      if (p.mode === "logic") {
+        parts.push('<text x="4" y="' + (y + 4) + '" font-size="10" fill="#999">L' + idx + "</text>");
+      }
+    });
+    parts.push("</g>");
+    return parts.join("\n");
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/render/arrows.js
+  function findConnectedEvents(eventId) {
+    var ids = [];
+    var acts = window._netActivities || [];
+    acts.forEach(function(a) {
+      if (a.source === eventId || a.target === eventId)
+        ids.push(a.id);
+    });
+    return ids;
+  }
+  function updateArrowPaths(eventId, dx, dy) {
+    var ids = findConnectedEvents(eventId);
+    var svg = window._netSvg;
+    var layout = window._netLayout;
+    var offsets = window._netEventOffsets || {};
+    if (!svg || !layout)
+      return;
+    ids.forEach(function(actId) {
+      var g = svg.querySelector('[data-activity-id="' + actId + '"]');
+      if (!g)
+        return;
+      var sid = g.getAttribute("data-src");
+      var tid = g.getAttribute("data-tgt");
+      if (!sid || !tid)
+        return;
+      var s = layout.events[sid];
+      var t = layout.events[tid];
+      if (!s || !t)
+        return;
+      var nr = 11;
+      var sx = s.x + (sid === eventId ? dx : offsets[sid] ? offsets[sid].x : 0) + nr;
+      var sy = s.y + (sid === eventId ? dy : offsets[sid] ? offsets[sid].y : 0);
+      var ex = t.x + (tid === eventId ? dx : offsets[tid] ? offsets[tid].x : 0);
+      var ey = t.y + (tid === eventId ? dy : offsets[tid] ? offsets[tid].y : 0);
+      var pd;
+      if (Math.abs(ey - sy) < 5) {
+        pd = "M" + sx + " " + sy + " L" + (ex - 2) + " " + ey;
+      } else {
+        pd = "M" + sx + " " + sy + " L" + (ex - 2) + " " + sy + " L" + (ex - 2) + " " + ey + " L" + ex + " " + ey;
+      }
+      var p = g.querySelector(".act-arrow");
+      if (p)
+        p.setAttribute("d", pd);
+      var lx = (sx + ex) / 2;
+      var lb = g.querySelector(".act-label");
+      if (lb) {
+        lb.setAttribute("x", String(lx));
+        lb.setAttribute("y", String(sy - nr - 6));
+      }
+      var du = g.querySelector(".act-dur");
+      if (du) {
+        du.setAttribute("x", String(lx));
+        du.setAttribute("y", String(sy + nr + 10));
+      }
+    });
+  }
+  function updateDummyPaths(eventId, dx, dy) {
+    var svg = window._netSvg;
+    var layout = window._netLayout;
+    var offsets = window._netEventOffsets || {};
+    if (!svg || !layout)
+      return;
+    var dummies = svg.querySelectorAll(".dummy-rel");
+    for (var i = 0; i < dummies.length; i++) {
+      var g = dummies[i];
+      var sid = g.getAttribute("data-dummy-src") || "";
+      var tid = g.getAttribute("data-dummy-tgt") || "";
+      var s = layout.events[sid];
+      var t = layout.events[tid];
+      if (!s || !t)
+        continue;
+      var nr = window._netNodeRadius || 11;
+      var sx = sid === eventId ? s.x + dx + nr : s.x + (offsets[sid] ? offsets[sid].x : 0) + nr;
+      var sy = sid === eventId ? s.y + dy : s.y + (offsets[sid] ? offsets[sid].y : 0);
+      var ex = tid === eventId ? t.x + dx : t.x + (offsets[tid] ? offsets[tid].x : 0);
+      var ey = tid === eventId ? t.y + dy : t.y + (offsets[tid] ? offsets[tid].y : 0);
+      var pd;
+      if (Math.abs(ey - sy) < 2) {
+        pd = "M" + sx + " " + sy + " L" + ex + " " + ey;
+      } else {
+        var mx = (sx + ex) / 2;
+        pd = "M" + sx + " " + sy + " L" + mx + " " + sy + " L" + mx + " " + ey + " L" + ex + " " + ey;
+      }
+      var p = g.querySelector("path");
+      if (p)
+        p.setAttribute("d", pd);
+    }
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/interaction/nodedrag.js
+  var _dayPopup = null;
+  function showDayPopup(deltaDays, cx, cy, onConfirm) {
+    _hideDayPopup();
+    const popup = document.createElement("div");
+    popup.className = "day-popup";
+    popup.style.cssText = `
+    position: fixed; z-index: 10000;
+    left: ${cx}px; top: ${Math.max(10, cy)}px;
+    background: #fff; border: 1px solid #d9d9d9;
+    border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    padding: 12px; min-width: 160px;
+  `;
+    const label = document.createElement("div");
+    label.textContent = `\u504F\u79FB\u5929\u6570 (\u5F53\u524D: ${deltaDays >= 0 ? "+" : ""}${deltaDays})`;
+    label.style.cssText = "font-size: 12px; color: #666; margin-bottom: 8px;";
+    popup.appendChild(label);
+    const input = document.createElement("input");
+    input.type = "number";
+    input.value = String(deltaDays);
+    input.style.cssText = "width: 120px; margin-bottom: 8px; display: block;";
+    popup.appendChild(input);
+    const btnGroup = document.createElement("div");
+    btnGroup.style.cssText = "display: flex; gap: 8px; justify-content: flex-end;";
+    const cancelBtn = document.createElement("button");
+    cancelBtn.textContent = "\u53D6\u6D88";
+    cancelBtn.onclick = () => _hideDayPopup();
+    btnGroup.appendChild(cancelBtn);
+    const confirmBtn = document.createElement("button");
+    confirmBtn.textContent = "\u786E\u5B9A";
+    confirmBtn.style.cssText = "background: #1890ff; color: #fff; border: none; padding: 4px 12px; border-radius: 4px;";
+    confirmBtn.onclick = () => {
+      const val = parseInt(input.value) || 0;
+      _hideDayPopup();
+      onConfirm(val);
+    };
+    btnGroup.appendChild(confirmBtn);
+    popup.appendChild(btnGroup);
+    document.body.appendChild(popup);
+    _dayPopup = popup;
+    input.focus();
+  }
+  function _hideDayPopup() {
+    if (_dayPopup) {
+      document.body.removeChild(_dayPopup);
+      _dayPopup = null;
+    }
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/render/network.js
+  function renderNetwork(elementsJson, optsIn) {
+    var opts = optsIn;
+    if (typeof opts === "string") {
+      try {
+        opts = JSON.parse(opts);
+      } catch (e) {
+        opts = {};
+      }
+    }
+    opts = opts || {};
+    var mode = opts.mode || window._netMode || "time";
+    window._netMode = mode;
+    var showCritical = opts.showCritical !== false;
+    var showFloat = opts.showFloat !== false;
+    var showTodayLine = opts.showTodayLine !== false && mode === "time";
+    var showProgressLine = opts.showProgressLine !== false && mode === "time";
+    var psd = opts.projectStartDate || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    var totalDays = opts.totalDays || 90;
+    var vw = window.innerWidth || document.documentElement.clientWidth || 1920;
+    var dayWidth = mode === "logic" ? 80 : opts.dayWidth || 8;
+    if (mode !== "logic" && vw < 1400 && dayWidth > 12) {
+      dayWidth = Math.max(8, dayWidth * 0.7);
+    }
+    var pn = opts.projectName || "\u7F51\u7EDC\u8BA1\u5212";
+    console.log("[NET] SVG render. opts:", JSON.stringify({ totalDays, dayWidth, showTodayLine, showProgressLine, mode }));
+    window._netRendered = false;
+    var ce = document.getElementById("cy");
+    if (!ce) {
+      console.warn("[NET] cy not found, retry in 100ms");
+      setTimeout(function() {
+        renderNetwork(elementsJson, opts);
+      }, 100);
+      return;
+    }
+    var elements;
+    try {
+      elements = JSON.parse(elementsJson);
+    } catch (e) {
+      console.error("JSON parse", e);
+      return;
+    }
+    var tasks = [], rels = [];
+    elements.forEach(function(el) {
+      if (el.data) {
+        if (el.data.es !== void 0)
+          tasks.push(el.data);
+        if (el.data.source)
+          rels.push(el.data);
+      }
+    });
+    if (!tasks.length) {
+      console.warn("[NET] No tasks");
+      return;
+    }
+    console.log("[NET] tasks:", tasks.length, "| rels:", rels.length);
+    var tp = calculateTimeParams(tasks, rels);
+    try {
+      applySingleStartEnd(tp);
+    } catch (e) {
+      console.error("[NET] applySingleStartEnd failed:", e);
+    }
+    var layout = calculateVerticalLayout(tp);
+    layout.eventIn = {};
+    layout.eventOut = {};
+    Object.keys(layout.events).forEach(function(eid) {
+      layout.eventIn[eid] = (tp.eventPred[eid] || []).length;
+      layout.eventOut[eid] = (tp.eventSucc[eid] || []).length;
+    });
+    var ML = 80;
+    var cx;
+    if (mode === "logic") {
+      var sortedEids = tp.sortedEvents;
+      var logicGap = dayWidth * 1.8;
+      sortedEids.forEach(function(eid, idx) {
+        layout.events[eid].x = ML + idx * logicGap + logicGap / 2;
+      });
+      cx = ML + sortedEids.length * logicGap + 200;
+    } else {
+      var maxEs = 0;
+      Object.keys(layout.events).forEach(function(eid) {
+        layout.events[eid].x = ML + (layout.events[eid].es || 0) * dayWidth;
+        if ((layout.events[eid].es || 0) > maxEs)
+          maxEs = layout.events[eid].es;
+      });
+      var rightMargin = Math.max(totalDays, maxEs) * dayWidth;
+      cx = ML + rightMargin + 100;
+    }
+    var netLayerHeight = opts.layerHeight || 60;
+    var netNodeRadius = opts.nodeRadius || 11;
+    var layerKeys = Object.keys(layout.layerEvents || {}).map(Number);
+    var maxLayerNum = layerKeys.length > 0 ? Math.max.apply(null, layerKeys) : 1;
+    var cySize = Math.max(100 + maxLayerNum * netLayerHeight + 60, 400);
+    console.log("[NET] SVG size:", cx, "x", cySize);
+    var layerScale = netLayerHeight / 60;
+    if (Math.abs(layerScale - 1) > 0.01) {
+      Object.keys(layout.events).forEach(function(eid) {
+        layout.events[eid].y = 100 + (layout.events[eid].y - 100) * layerScale;
+      });
+    }
+    var extraSpacing = window._netExtraSpacing || {};
+    Object.keys(extraSpacing).forEach(function(key) {
+      var extraCount = extraSpacing[key];
+      if (!extraCount || extraCount <= 0)
+        return;
+      var layerNum = parseInt(key);
+      Object.keys(layout.events).forEach(function(eid) {
+        var evt = layout.events[eid];
+        var layerIdx = Math.round((evt.y - 100) / netLayerHeight);
+        if (layerIdx >= layerNum) {
+          evt.y += extraCount * netLayerHeight;
+        }
+      });
+    });
+    ce.innerHTML = buildNetworkSvg({
+      projectStartDate: psd,
+      totalDays,
+      totalDuration: opts.totalDuration || 0,
+      dayWidth,
+      timeParams: tp,
+      layout,
+      mode,
+      showCritical,
+      showFloat,
+      showTodayLine,
+      showProgressLine,
+      showDummyArrows: opts.showDummyArrows,
+      showProgressCurve: opts.showProgressCurve === true,
+      projectName: pn,
+      nodeRadius: netNodeRadius,
+      layerHeight: netLayerHeight,
+      labelFontSize: opts.labelFontSize || 10,
+      labelFields: opts.labelFields || [],
+      rowLabels: opts.rowLabels || [],
+      restDayPattern: opts.restDayPattern !== false,
+      canvasW: cx,
+      canvasH: cySize
+    });
+    console.log("[NET] SVG rendered.");
+    var svg = ce.querySelector("svg");
+    if (svg) {
+      svg.ondblclick = function(e) {
+        var dotNet = window._netDotNet;
+        if (window._netLastPopupTime && Date.now() - window._netLastPopupTime < 500)
+          return;
+        if (!dotNet) {
+          console.warn("[NET] dblclick: _netDotNet not set");
+          return;
+        }
+        var el = e.target.closest(".net-event");
+        if (el) {
+          var tid = parseInt(el.getAttribute("data-task-id") || "");
+          if (tid) {
+            console.log("[NET] dblclick node taskId=", tid);
+            dotNet.invokeMethodAsync("OpenTaskEditor", tid).catch(function(e2) {
+              console.warn("[NET] invokeMethodAsync error:", e2);
+            });
+          }
+          return;
+        }
+        var activityEl = e.target.closest("[data-activity-id]");
+        if (activityEl) {
+          var aid = parseInt(activityEl.getAttribute("data-activity-id") || "");
+          if (!isNaN(aid) && aid > 0) {
+            console.log("[NET] dblclick activity taskId=", aid);
+            dotNet.invokeMethodAsync("OpenTaskEditor", aid).catch(function(e2) {
+              console.warn("[NET] invokeMethodAsync error:", e2);
+            });
+          }
+          return;
+        }
+        var rect = svg.getBoundingClientRect();
+        var clickX = e.clientX - rect.left;
+        var dayOffset = Math.max(0, Math.round((clickX - 80) / dayWidth));
+        console.log("[NET] dblclick blank area, dayOffset=", dayOffset);
+        dotNet.invokeMethodAsync("ShowAddTaskModal", 0, dayOffset).catch(function(e2) {
+          console.warn("[NET] invokeMethodAsync error:", e2);
+        });
+      };
+    }
+    var rowRects = svg ? svg.querySelectorAll(".net-row-bg") : [];
+    rowRects.forEach(function(rect) {
+      rect.addEventListener("click", function(e) {
+        e.stopPropagation();
+        var hadSel = rect.classList.contains("net-row-sel");
+        rowRects.forEach(function(r) {
+          r.classList.remove("net-row-sel");
+        });
+        if (!hadSel)
+          rect.classList.add("net-row-sel");
+      });
+    });
+    window._netLayout = layout;
+    window._netActivities = tp.activities;
+    window._netSvg = svg;
+    window._netDayWidth = dayWidth;
+    var pendingOffsets = window._netPendingOffsets;
+    if (pendingOffsets) {
+      Object.keys(pendingOffsets).forEach(function(eid) {
+        var oldPos = pendingOffsets[eid];
+        var evt = layout.events[eid];
+        var eventOffsets2 = window._netEventOffsets || {};
+        if (evt && eventOffsets2[eid]) {
+          var deltaLayoutX = evt.x - oldPos.x;
+          var deltaLayoutY = evt.y - oldPos.y;
+          eventOffsets2[eid].x -= deltaLayoutX;
+          eventOffsets2[eid].y -= deltaLayoutY;
+        }
+      });
+      delete window._netPendingOffsets;
+    }
+    var eventOffsets = window._netEventOffsets || {};
+    Object.keys(eventOffsets).forEach(function(eid) {
+      var off = eventOffsets[eid];
+      var g = svg && svg.querySelector('[data-event-id="' + eid + '"]');
+      if (g && (off.x !== 0 || off.y !== 0)) {
+        g.setAttribute("transform", "translate(" + off.x + "," + off.y + ")");
+      }
+    });
+    var hasOffsets = false;
+    Object.keys(eventOffsets).forEach(function(eid) {
+      var off = eventOffsets[eid];
+      if (off.x !== 0 || off.y !== 0) {
+        updateArrowPaths(eid, off.x, off.y);
+        updateDummyPaths(eid, off.x, off.y);
+        hasOffsets = true;
+      }
+    });
+    if (hasOffsets)
+      updateCrossArcOverlays();
+    if (svg) {
+      svg.addEventListener("mousedown", function(e) {
+        if (e.target.tagName !== "circle")
+          return;
+        var g = e.target.closest(".net-event");
+        if (!g || !window._netLayout || !window._netLayout.events)
+          return;
+        var eid = g.getAttribute("data-event-id") || "";
+        var off = eventOffsets[eid] || { x: 0, y: 0 };
+        window._netNodeDrag = { eventId: eid, group: g, startX: e.clientX, startY: e.clientY, offX: off.x, offY: off.y, moved: false };
+        g.style.cursor = "grabbing";
+        e.stopPropagation();
+      });
+    }
+    if (showProgressLine) {
+      var plGroup = document.getElementById("net-progress-check");
+      if (plGroup && svg) {
+        plGroup.onmousedown = function(e) {
+          e.preventDefault();
+          var bodyEl2 = document.getElementById("network-body");
+          window._dragInfo = { startX: e.clientX, startLineX: window._progressX, startScrollLeft: bodyEl2 ? bodyEl2.scrollLeft : 0 };
+        };
+        plGroup.style.cursor = "ew-resize";
+      }
+    }
+    if (!window._netDragBound) {
+      window._netDragBound = true;
+      document.addEventListener("mousemove", function(e) {
+        var nd = window._netNodeDrag;
+        if (nd) {
+          var layerH = window._netLayerHeight || 60;
+          var dx = e.clientX - nd.startX + nd.offX;
+          var dy = nd.offY + Math.round((e.clientY - nd.startY) / layerH) * layerH;
+          if (Math.abs(e.clientX - nd.startX) > 3 || Math.abs(e.clientY - nd.startY) > 3) {
+            nd.moved = true;
+            nd.group.setAttribute("transform", "translate(" + dx + "," + dy + ")");
+          }
+          return;
+        }
+        var dragInfo = window._dragInfo;
+        if (!dragInfo)
+          return;
+        var pdx = e.clientX - dragInfo.startX;
+        var bodyEl2 = document.getElementById("network-body");
+        var scrollDelta = (bodyEl2 ? bodyEl2.scrollLeft : 0) - dragInfo.startScrollLeft;
+        var newX = dragInfo.startLineX + pdx + scrollDelta;
+        var minX = 80, maxX = parseFloat(svg.getAttribute("width") || "800") - 100;
+        newX = Math.max(minX, Math.min(newX, maxX));
+        var checkGroup = document.getElementById("net-progress-check");
+        var line = checkGroup ? checkGroup.querySelector("line") : null;
+        var handle = checkGroup ? checkGroup.querySelector("polygon") : null;
+        var label = checkGroup ? checkGroup.querySelector("text") : null;
+        if (line) {
+          line.setAttribute("x1", String(newX));
+          line.setAttribute("x2", String(newX));
+        }
+        if (handle)
+          handle.setAttribute("points", newX - 7 + ",0 " + (newX + 7) + ",0 " + newX + ",14");
+        if (label) {
+          label.setAttribute("x", String(newX + 4));
+        }
+        if (window._projStartDate) {
+          var dayOffset = Math.round((newX - 80) / dayWidth);
+          var pd = new Date(window._projStartDate);
+          pd.setDate(pd.getDate() + dayOffset);
+          window._progressCheckDate = pd;
+          window._progressDate = pd;
+          window._progressX = newX;
+          var cl = pd.getFullYear() + "-" + String(pd.getMonth() + 1).padStart(2, "0") + "-" + String(pd.getDate()).padStart(2, "0");
+          localStorage.setItem("netplan_progress_date", cl);
+          if (label)
+            label.textContent = cl;
+        }
+        if (typeof window.updateProgressColors === "function")
+          window.updateProgressColors();
+      });
+      document.addEventListener("mouseup", function(e) {
+        window._dragInfo = null;
+        var nd = window._netNodeDrag;
+        if (nd) {
+          if (nd.group)
+            nd.group.style.cursor = "";
+          var dx = e.clientX - nd.startX + nd.offX;
+          var dy = nd.offY;
+          if (nd.startY !== void 0) {
+            var layerH = window._netLayerHeight || 60;
+            dy = nd.offY + Math.round((e.clientY - nd.startY) / layerH) * layerH;
+          }
+          if (nd.moved && (dx !== 0 || dy !== 0)) {
+            var eid = nd.eventId;
+            var offsets = window._netEventOffsets || {};
+            var layout2 = window._netLayout;
+            var evt = layout2 && layout2.events ? layout2.events[eid] : null;
+            if (evt) {
+              var dayWidth2 = window._netDayWidth || 8;
+              var deltaDays = Math.round(dx / dayWidth2);
+              if (deltaDays !== 0 || dy !== 0) {
+                offsets[eid] = { x: deltaDays * dayWidth2, y: dy };
+                var pending = window._netPendingOffsets || {};
+                pending[eid] = { x: evt.x, y: evt.y };
+                window._netPendingOffsets = pending;
+                var existingOffXDays = Math.round((offsets[eid] ? offsets[eid].x : 0) / dayWidth2);
+                window._netLastPopupTime = Date.now();
+                showDayPopup(deltaDays, e.clientX, e.clientY, function(confirmedDays) {
+                  window._netLastPopupTime = Date.now();
+                  var finalX = confirmedDays * dayWidth2;
+                  if (confirmedDays === 0) {
+                    if (nd.group)
+                      nd.group.removeAttribute("transform");
+                    delete offsets[eid];
+                    delete pending[eid];
+                    return;
+                  }
+                  offsets[eid] = { x: finalX, y: dy };
+                  if (nd.group) {
+                    nd.group.setAttribute("transform", "translate(" + finalX + "," + dy + ")");
+                  }
+                  updateArrowPaths(eid, finalX, dy);
+                  updateDummyPaths(eid, finalX, dy);
+                  updateCrossArcOverlays();
+                  var netDelta = confirmedDays - existingOffXDays;
+                  if (netDelta !== 0) {
+                    var dotNet = window._netDotNet;
+                    if (dotNet && eid) {
+                      var tid = evt.taskId || parseInt(eid.replace("T", ""));
+                      if (tid && tid > 0) {
+                        dotNet.invokeMethodAsync("SyncNodeDrag", tid, netDelta, 0).catch(function(err) {
+                          console.warn("[NET] SyncNodeDrag error:", err);
+                        });
+                      }
+                    }
+                  }
+                  existingOffXDays = confirmedDays;
+                });
+              }
+            }
+          } else {
+            var eid = nd.eventId;
+            var offsets = window._netEventOffsets || {};
+            if (offsets[eid]) {
+              delete offsets[eid];
+              if (nd.group) {
+                nd.group.removeAttribute("transform");
+              }
+            }
+          }
+          delete window._netNodeDrag;
+        }
+      });
+    }
+    setTimeout(function() {
+      if (typeof window.updateProgressColors === "function")
+        window.updateProgressColors();
+    }, 200);
+    var hscroll = document.getElementById("network-hscroll");
+    var hscrollInner = document.getElementById("network-hscroll-inner");
+    var bodyEl = document.getElementById("network-body");
+    if (hscrollInner)
+      hscrollInner.style.width = cx + "px";
+    var _hSyncing = false;
+    if (hscroll && bodyEl) {
+      hscroll.onscroll = function() {
+        if (_hSyncing)
+          return;
+        _hSyncing = true;
+        bodyEl.scrollLeft = hscroll.scrollLeft;
+        _hSyncing = false;
+      };
+      bodyEl.onscroll = function() {
+        if (_hSyncing)
+          return;
+        _hSyncing = true;
+        hscroll.scrollLeft = bodyEl.scrollLeft;
+        _hSyncing = false;
+      };
+    }
+    window._netRendered = true;
+    window._networkData = { events: layout.events, activities: tp.activities, relations: tp.relations };
+    window._networkOpts = opts;
+    validateNetworkRender();
+    var netBody = document.getElementById("network-body");
+    if (netBody && !window._panBound) {
+      window._panBound = true;
+      var panState = null;
+      netBody.addEventListener("mousedown", function(e) {
+        if (e.target.closest(".net-event") || e.target.closest("[data-activity-id]"))
+          return;
+        if (e.target.closest("#net-progress-line") || e.target.closest("#net-progress-check"))
+          return;
+        panState = { x: e.clientX, y: e.clientY, sx: netBody.scrollLeft, sy: netBody.scrollTop };
+        netBody.style.cursor = "grabbing";
+      });
+      window.addEventListener("mousemove", function(e) {
+        if (!panState)
+          return;
+        netBody.scrollLeft = panState.sx - (e.clientX - panState.x);
+        netBody.scrollTop = panState.sy - (e.clientY - panState.y);
+      });
+      window.addEventListener("mouseup", function() {
+        if (!panState)
+          return;
+        netBody.style.cursor = "";
+        panState = null;
+      });
+    }
+  }
+  function validateNetworkRender() {
+    var errors = [];
+    var svg = document.getElementById("cy")?.querySelector("svg");
+    if (!svg) {
+      errors.push("SVG\u5143\u7D20\u4E0D\u5B58\u5728");
+    }
+    if (!window._netLayout || !window._netActivities)
+      errors.push("_netLayout/_netActivities \u4E3A\u7A7A");
+    if (!window._netDotNet)
+      errors.push("_netDotNet \u672A\u8BBE\u7F6E");
+    if (errors.length > 0) {
+      console.warn("[VALIDATE] " + errors.length + " issue(s):");
+      errors.forEach(function(e) {
+        console.warn("  [VALIDATE] " + e);
+      });
+    } else {
+      console.log("[VALIDATE] All checks passed");
+    }
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/utils/dom.js
+  function downloadSVGFile(svgEl2, filename) {
+    if (!svgEl2)
+      return;
+    const content = new XMLSerializer().serializeToString(svgEl2);
+    const blob = new Blob([content], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    triggerDownload(url, filename);
+    URL.revokeObjectURL(url);
+  }
+  function exportSvgAsPng(svgEl2, filename, scale = 2) {
+    if (!svgEl2)
+      return;
+    const svgData = new XMLSerializer().serializeToString(svgEl2);
+    const svgW = svgEl2.getAttribute("width") || "800";
+    const svgH = svgEl2.getAttribute("height") || "600";
+    const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const canvas = document.createElement("canvas");
+    canvas.width = parseFloat(String(svgW)) * scale;
+    canvas.height = parseFloat(String(svgH)) * scale;
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    img.onload = () => {
+      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((pngBlob) => {
+        if (pngBlob) {
+          const pngUrl = URL.createObjectURL(pngBlob);
+          triggerDownload(pngUrl, filename);
+          URL.revokeObjectURL(pngUrl);
+        }
+      }, "image/png");
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }
+  function triggerDownload(url, filename) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+  function getSvg(containerId) {
+    if (containerId) {
+      return document.querySelector(`#${containerId} svg`);
+    }
+    return document.querySelector("svg.network-svg");
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/render/progress.js
+  function updateProgressColors(events, progressCheckDate, _projectStartDate) {
+    if (!progressCheckDate)
+      return;
+    console.log("updateProgressColors called with", events.length, "events");
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/interaction/panzoom.js
+  var _syncLock = false;
+  function initGanttScroll() {
+    const tryInit = (attempt = 1) => {
+      if (attempt > 50)
+        return;
+      const rightDiv = document.querySelector(".gantt-timeline");
+      const leftBody = document.querySelector(".gantt-table-body");
+      if (!rightDiv || !leftBody) {
+        setTimeout(() => tryInit(attempt + 1), 100);
+        return;
+      }
+      rightDiv.addEventListener("scroll", () => {
+        if (_syncLock)
+          return;
+        _syncLock = true;
+        leftBody.scrollTop = rightDiv.scrollTop;
+        _syncLock = false;
+      });
+      leftBody.addEventListener("scroll", () => {
+        if (_syncLock)
+          return;
+        _syncLock = true;
+        rightDiv.scrollTop = leftBody.scrollTop;
+        _syncLock = false;
+      });
+    };
+    tryInit();
+  }
+  function networkFit(containerId = "network-body") {
+    const body = document.getElementById(containerId);
+    const svg = body?.querySelector("svg");
+    if (!body || !svg)
+      return;
+    const vw = body.clientWidth;
+    const sw = parseFloat(svg.getAttribute("width") || "800");
+    if (sw > 0) {
+      const scale = Math.min(vw / sw, 1);
+      body.style.zoom = String(scale * 100) + "%";
+    }
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/interaction/export.js
+  function downloadSvg(filename = "network.svg") {
+    const svg = getSvg();
+    downloadSVGFile(svg, filename);
+  }
+  function exportPng(filename = "network.png") {
+    const svg = getSvg();
+    exportSvgAsPng(svg, filename);
+  }
+  function printSvg(printZoomVal = "100%") {
+    const svg = getSvg();
+    if (!svg)
+      return;
+    const zoom = parseFloat(printZoomVal) / 100;
+    const origW = svg.getAttribute("width") || "";
+    const origH = svg.getAttribute("height") || "";
+    const w = parseFloat(origW) || 800;
+    const h = parseFloat(origH) || 600;
+    svg.setAttribute("width", String(w * zoom));
+    svg.setAttribute("height", String(h * zoom));
+    const content = new XMLSerializer().serializeToString(svg);
+    const pw = window.open("", "_blank");
+    if (pw) {
+      pw.document.write(`<html><head><title>\u6253\u5370</title>
+      <style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh}</style>
+      </head><body>${content}</body></html>`);
+      pw.document.close();
+      pw.focus();
+      setTimeout(() => {
+        pw.print();
+        svg.setAttribute("width", origW);
+        svg.setAttribute("height", origH);
+      }, 500);
+    }
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/gantt/binding.js
+  var _ganttDotNet = null;
+  function setGanttDotNet(ref) {
+    _ganttDotNet = ref;
+  }
+  function initPanelResize() {
+    const tryInit = (attempt = 1) => {
+      if (attempt > 50)
+        return;
+      const handle = document.querySelector(".panel-resize-handle");
+      const left = document.querySelector(".gantt-table-body-container");
+      if (!handle || !left) {
+        setTimeout(() => tryInit(attempt + 1), 100);
+        return;
+      }
+      setupResize(handle, left);
+    };
+    tryInit();
+  }
+  function setupResize(handle, leftPanel) {
+    let startX = 0;
+    let minWidth = 200;
+    let maxWidth = 800;
+    handle.addEventListener("mousedown", (e) => {
+      startX = e.clientX;
+      minWidth = 200;
+      maxWidth = window.innerWidth - 200;
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      const onMouseMove = (me) => {
+        const delta = me.clientX - startX;
+        let newWidth = leftPanel.offsetWidth + delta;
+        newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+        leftPanel.style.width = `${newWidth}px`;
+        startX = me.clientX;
+      };
+      const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    });
+  }
+  function loadDraft(key) {
+    try {
+      return localStorage.getItem(`gantt_draft_${key}`);
+    } catch {
+      return null;
+    }
+  }
+  function saveDraft(key, json) {
+    try {
+      localStorage.setItem(`gantt_draft_${key}`, json);
+    } catch {
+    }
+  }
+  function clearDraft(key) {
+    try {
+      localStorage.removeItem(`gantt_draft_${key}`);
+    } catch {
+    }
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/charts/resource.js
+  function initResourceChart(chartDataJson) {
+    const data = JSON.parse(chartDataJson);
+    const canvas = document.getElementById("resourceChart");
+    if (!canvas)
+      return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx)
+      return;
+    const chart = window.Chart ? new window.Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: data.labels || [],
+        datasets: (data.datasets || []).map((ds, i) => ({
+          label: ds.label || `\u8D44\u6E90 ${i + 1}`,
+          data: ds.data || [],
+          backgroundColor: ds.color || `hsl(${i * 60}, 60%, 70%)`,
+          borderColor: ds.color || `hsl(${i * 60}, 60%, 50%)`,
+          borderWidth: 1
+        }))
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, title: { display: true, text: "\u65F6\u95F4" } },
+          y: { stacked: true, beginAtZero: true, title: { display: true, text: "\u6295\u5165\u91CF" } }
+        },
+        plugins: {
+          legend: { position: "bottom" }
+        }
+      }
+    }) : null;
+    if (chart) {
+      window._resourceChart = chart;
+    }
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/charts/analysis.js
+  function renderAnalysisBarChart(canvasId, chartDataJson) {
+    const data = JSON.parse(chartDataJson);
+    const canvas = document.getElementById(canvasId);
+    if (!canvas)
+      return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx)
+      return;
+    const chart = window.Chart ? new window.Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: data.labels || [],
+        datasets: (data.datasets || []).map((ds, i) => ({
+          label: ds.label || `\u7CFB\u5217 ${i + 1}`,
+          data: ds.data || [],
+          backgroundColor: ds.backgroundColor || "#1890ff",
+          borderColor: ds.borderColor || "#1890ff",
+          borderWidth: 1,
+          ...ds
+        }))
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: { beginAtZero: true }
+        },
+        plugins: {
+          legend: { position: "bottom" }
+        }
+      }
+    }) : null;
+    if (chart) {
+      if (!window._analysisCharts)
+        window._analysisCharts = {};
+      window._analysisCharts[canvasId] = chart;
+    }
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/storage/project.js
+  var ACTIVE_PROJECT_KEY = "netplan_active_project";
+  var CHECKED_PROJECT_KEY = "netplan_checked_project";
+  function getActiveProject() {
+    try {
+      return localStorage.getItem(ACTIVE_PROJECT_KEY);
+    } catch {
+      return null;
+    }
+  }
+  function setActiveProject(id) {
+    try {
+      localStorage.setItem(ACTIVE_PROJECT_KEY, id);
+    } catch {
+    }
+  }
+  function navToProject(page, id) {
+    setActiveProject(id);
+    window.location.href = `/project/${page}?id=${id}`;
+  }
+  function getCheckedProject() {
+    try {
+      return localStorage.getItem(CHECKED_PROJECT_KEY);
+    } catch {
+      return null;
+    }
+  }
+  function setCheckedProject(id) {
+    try {
+      localStorage.setItem(CHECKED_PROJECT_KEY, id);
+    } catch {
+    }
+  }
+  function navToChecked(page) {
+    const id = getCheckedProject();
+    if (id) {
+      window.location.href = `/project/${page}?id=${id}`;
+    }
+  }
+
+  // src/NetPlan.Server/wwwroot/js/netplan/dist/index.js
+  var api = {
+    // 网络图
+    setNetworkDotNet(ref) {
+      window._netDotNet = ref;
+    },
+    setNetworkMode(mode) {
+      window._netMode = mode;
+    },
+    setNetTimeScaleMode(mode) {
+      window._netTimeScaleMode = mode;
+    },
+    clearNetworkOffsets() {
+      window._netEventOffsets = {};
+    },
+    renderNetwork,
+    // 直接使用 renderNetwork（从 render/network.ts 导入）
+    initProgressColors() {
+      updateProgressColors([], null, /* @__PURE__ */ new Date());
+    },
+    networkFit: () => networkFit(),
+    // 导出
+    downloadSVG: downloadSvg,
+    exportNetworkPNG: exportPng,
+    printNetwork: printSvg,
+    // 甘特图
+    setGanttDotNet,
+    initGanttScroll,
+    initPanelResize,
+    loadDraft,
+    saveDraft,
+    clearDraft,
+    // 图表
+    initResourceChart,
+    renderAnalysisBarChart,
+    // 全局项目
+    getActiveProject,
+    setActiveProject,
+    navToProject,
+    getCheckedProject,
+    setCheckedProject,
+    navToChecked,
+    // 内部
+    _netInsertBlankRow(_layerNum) {
+    },
+    _netDeleteBlankRow(_layerNum) {
+    }
+  };
+  for (const [key, fn] of Object.entries(api)) {
+    window[key] = fn;
+  }
+  return __toCommonJS(index_exports);
+})();
