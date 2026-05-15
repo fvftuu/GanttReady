@@ -34,3 +34,6 @@ packages/
 # Secrets
 appsettings.*.json
 !appsettings.json
+dist-netplan/  
+temp/  
+node_modules/ 
