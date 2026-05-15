@@ -8,11 +8,13 @@
  * 同时标双代号网络图 SVG 构建
  * 参数结构保持与 legacy 兼容
  */
+import { collectAllSegments, generateCrossArcs } from './crossarc.js';
+
 export function buildNetworkSvg(params: any): string {
     var p = params, parts: string[] = [], markers: string[] = [];
     var MARGIN_LEFT = 80, RULER_H = 52;
 
-    // findSegIntersection and cross: 暂未启用,后续交叉弧检测使用
+    // findSegIntersection and cross: 已迁移到 crossarc.ts
 
     // 时标尺
     var _prStartDate = p.projectStartDate || new Date().toISOString().slice(0, 10);
@@ -167,8 +169,17 @@ export function buildNetworkSvg(params: any): string {
 
     }
 
-    // ---- 过桥弧 ----
-    // 基于 legacy 的交叉检测算法
+    // ---- 过桥弧 (交叉检测与跨线符) ----
+    if (p.timeParams && p.timeParams.activities) {
+      var allSegs = collectAllSegments(
+        p.layout,
+        p.timeParams.activities,
+        p.timeParams.relations || [],
+        isTimeMode,
+        nr
+      );
+      generateCrossArcs(allSegs, parts, isTimeMode);
+    }
 
     // ---- 事件节点 ----
     var nr = p.nodeRadius || 11;

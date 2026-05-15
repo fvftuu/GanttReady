@@ -2,8 +2,7 @@
 // interaction/nodedrag.ts — 节点拖拽、偏移弹窗
 // ============================================================
 
-import type { EventNode, NetworkOpts } from '../types.js';
-import { renderCrossArcs } from '../render/crossarc.js';
+import type { EventNode } from '../types.js';
 
 let _dayPopup: HTMLDivElement | null = null;
 
@@ -81,13 +80,11 @@ export function getDragEventData(
 }
 
 export function updateCrossArcs(
-  svg: SVGSVGElement | null,
-  activities: any[],
-  events: EventNode[],
-  opts: NetworkOpts
+  svg: SVGSVGElement | null
 ): void {
   if (!svg) return;
   const oldGroup = svg.querySelector('g.cross-arcs');
   if (oldGroup) oldGroup.remove();
-  renderCrossArcs(svg, activities, events, opts);
+  // TODO: re-implement with generateCrossArcs
+  console.log('updateCrossArcs called');
 }
