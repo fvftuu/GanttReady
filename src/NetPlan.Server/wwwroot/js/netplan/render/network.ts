@@ -9,6 +9,7 @@ import { calculateVerticalLayout } from '../core/layout.js';
 import { buildNetworkSvg } from './generator.js';
 import { updateArrowPaths, updateDummyPaths } from './arrows.js';
 import { updateCrossArcOverlays } from './crossarc.js';
+import { showDayPopup } from '../interaction/nodedrag.js';
 
 // 全局状态（与 legacy 保持兼容）
 declare var _netMode: string;
@@ -287,12 +288,26 @@ export function renderNetwork(elementsJson: string, optsIn: any): void {
     (window as any)._netDragBound = true;
 
     document.addEventListener('mousemove', function(e) {
+      // ===== 节点拖拽预览 =====
+      var nd = (window as any)._netNodeDrag;
+      if (nd) {
+        var layerH = (window as any)._netLayerHeight || 60;
+        var dx = (e.clientX - nd.startX) + nd.offX;
+        var dy = nd.offY + Math.round((e.clientY - nd.startY) / layerH) * layerH;
+        if (Math.abs(e.clientX - nd.startX) > 3 || Math.abs(e.clientY - nd.startY) > 3) {
+          nd.moved = true;
+          nd.group.setAttribute('transform', 'translate(' + dx + ',' + dy + ')');
+        }
+        return;
+      }
+
+      // ===== 前锋线拖拽 =====
       var dragInfo = (window as any)._dragInfo;
       if (!dragInfo) return;
-      var dx = e.clientX - dragInfo.startX;
+      var pdx = e.clientX - dragInfo.startX;
       var bodyEl = document.getElementById('network-body');
       var scrollDelta = (bodyEl ? bodyEl.scrollLeft : 0) - dragInfo.startScrollLeft;
-      var newX = dragInfo.startLineX + dx + scrollDelta;
+      var newX = dragInfo.startLineX + pdx + scrollDelta;
       var minX = 80, maxX = parseFloat((svg as SVGSVGElement).getAttribute('width') || '800') - 100;
       newX = Math.max(minX, Math.min(newX, maxX));
 
@@ -320,8 +335,82 @@ export function renderNetwork(elementsJson: string, optsIn: any): void {
       if (typeof (window as any).updateProgressColors === 'function') (window as any).updateProgressColors();
     });
 
-    document.addEventListener('mouseup', function() {
+    document.addEventListener('mouseup', function(e) {
       (window as any)._dragInfo = null;
+
+      // ===== 节点拖拽 mouseup =====
+      var nd = (window as any)._netNodeDrag;
+      if (nd) {
+        if (nd.group) nd.group.style.cursor = '';
+
+        var dx = (e.clientX - nd.startX) + nd.offX;
+        var dy = nd.offY; // Y 偏移在 mousemove 中已吸附
+        if ((nd.startY !== undefined)) {
+          var layerH = (window as any)._netLayerHeight || 60;
+          dy = nd.offY + Math.round((e.clientY - nd.startY) / layerH) * layerH;
+        }
+
+        if (nd.moved && (dx !== 0 || dy !== 0)) {
+          var eid = nd.eventId;
+          var offsets = (window as any)._netEventOffsets || {};
+          var layout = (window as any)._netLayout;
+          var evt = layout && layout.events ? layout.events[eid] : null;
+          if (evt) {
+            var dayWidth = (window as any)._netDayWidth || 8;
+            var deltaDays = Math.round(dx / dayWidth);
+            if (deltaDays !== 0 || dy !== 0) {
+              // 记住最终偏移
+              offsets[eid] = { x: deltaDays * dayWidth, y: dy };
+
+              // 存储布局旧位置供 _netPendingOffsets 补偿
+              var pending = (window as any)._netPendingOffsets || {};
+              pending[eid] = { x: evt.x, y: evt.y };
+              (window as any)._netPendingOffsets = pending;
+
+              // 弹出天数对话框
+              (window as any)._netLastPopupTime = Date.now();
+              showDayPopup(deltaDays, e.clientX, e.clientY, function(confirmedDays: number) {
+                (window as any)._netLastPopupTime = Date.now();
+                if (confirmedDays === 0) {
+                  // 取消：清除偏移
+                  delete offsets[eid];
+                  delete pending[eid];
+                  // 重新渲染
+                  if (typeof (window as any)._triggerRerender === 'function') {
+                    (window as any)._triggerRerender();
+                  }
+                  return;
+                }
+                // 确认：保存偏移并通知 C#
+                var finalX = confirmedDays * dayWidth;
+                offsets[eid] = { x: finalX, y: dy };
+                var dotNet = (window as any)._netDotNet;
+                if (dotNet && eid) {
+                  var tid = evt!.taskId || parseInt(eid.replace('T', ''));
+                  if (tid && tid > 0) {
+                    dotNet.invokeMethodAsync('SyncNodeDrag', tid, confirmedDays, 0)
+                      .catch(function(err: any) { console.warn('[NET] SyncNodeDrag error:', err); });
+                  }
+                }
+                // 重新渲染
+                if (typeof (window as any)._triggerRerender === 'function') {
+                  (window as any)._triggerRerender();
+                }
+              });
+            }
+          }
+        } else {
+          // 没有移动，清除
+          var eid = nd.eventId;
+          var offsets = (window as any)._netEventOffsets || {};
+          if (offsets[eid]) {
+            delete offsets[eid];
+            if (nd.group) { nd.group.removeAttribute('transform'); }
+          }
+        }
+
+        delete (window as any)._netNodeDrag;
+      }
     });
   }
 
