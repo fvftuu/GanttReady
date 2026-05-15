@@ -1,3 +1,15 @@
+## 2026-05-15
+
+### TypeScript 重构 Phase 1 — 核心算法迁移
+
+- **新建 TypeScript 模块架构** — 17 模块分解，`tsc --noEmit` 零错误
+- **构建管线搭建** — TypeScript → esbuild → minified IIFE (`netplan.js`, ~10KB)
+- **core/cpm.ts** — `calculateTimeParams`, `applySingleStartEnd` 从 legacy 304 行 JS 精确迁移
+- **core/layout.ts** — `calculateVerticalLayout` 从 legacy 160 行精确迁移
+- **24 个单元测试全部通过** — 保持与 legacy 完全相同的返回结构和事件命名
+- `.gitignore` 排除 `dist/`, `temp/`, `node_modules/`
+- 架构设计文档同步到 `I:\My memory\NetPlan-TS重构架构设计.md`
+
 ## 2026-05-14
 
 ### Step 3: Experience Polish
