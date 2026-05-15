@@ -371,19 +371,28 @@ export function renderNetwork(elementsJson: string, optsIn: any): void {
               (window as any)._netLastPopupTime = Date.now();
               showDayPopup(deltaDays, e.clientX, e.clientY, function(confirmedDays: number) {
                 (window as any)._netLastPopupTime = Date.now();
+                var finalX = confirmedDays * dayWidth;
                 if (confirmedDays === 0) {
-                  // 取消：清除偏移
+                  // 取消：直接清除 SVG transform 回原位
+                  if (nd.group) nd.group.removeAttribute('transform');
                   delete offsets[eid];
                   delete pending[eid];
-                  // 重新渲染
-                  if (typeof (window as any)._triggerRerender === 'function') {
-                    (window as any)._triggerRerender();
-                  }
                   return;
                 }
-                // 确认：保存偏移并通知 C#
-                var finalX = confirmedDays * dayWidth;
+                // 确认：保存偏移到全局（renderNetwork 会在后续渲染中自动恢复偏移）
                 offsets[eid] = { x: finalX, y: dy };
+
+                // 立即应用偏移到 SVG，不等 C# 异步响应
+                if (nd.group) {
+                  nd.group.setAttribute('transform', 'translate(' + finalX + ',' + dy + ')');
+                }
+
+                // 同步更新事件的连线（不走重渲染）
+                updateArrowPaths(eid, finalX, dy);
+                updateDummyPaths(eid, finalX, dy);
+                updateCrossArcOverlays();
+
+                // 通知 C# 更新数据库
                 var dotNet = (window as any)._netDotNet;
                 if (dotNet && eid) {
                   var tid = evt!.taskId || parseInt(eid.replace('T', ''));
@@ -391,10 +400,6 @@ export function renderNetwork(elementsJson: string, optsIn: any): void {
                     dotNet.invokeMethodAsync('SyncNodeDrag', tid, confirmedDays, 0)
                       .catch(function(err: any) { console.warn('[NET] SyncNodeDrag error:', err); });
                   }
-                }
-                // 重新渲染
-                if (typeof (window as any)._triggerRerender === 'function') {
-                  (window as any)._triggerRerender();
                 }
               });
             }
