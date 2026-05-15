@@ -169,6 +169,9 @@ export function buildNetworkSvg(params: any): string {
 
     }
 
+    // ---- 事件节点半径 (需要在过桥弧之前声明,供 collectAllSegments 使用) ----
+    var nr = p.nodeRadius || 11;
+
     // ---- 过桥弧 (交叉检测与跨线符) ----
     if (p.timeParams && p.timeParams.activities) {
       var allSegs = collectAllSegments(
@@ -182,7 +185,6 @@ export function buildNetworkSvg(params: any): string {
     }
 
     // ---- 事件节点 ----
-    var nr = p.nodeRadius || 11;
     var nfs = Math.max(9, nr);
     var showFloat = p.showFloat !== false;
 

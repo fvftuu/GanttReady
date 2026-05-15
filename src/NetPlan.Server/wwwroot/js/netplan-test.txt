@@ -730,11 +730,11 @@ var NetPlan = (() => {
     });
     if (p.showDummyArrows !== false) {
     }
+    var nr = p.nodeRadius || 11;
     if (p.timeParams && p.timeParams.activities) {
       var allSegs = collectAllSegments(p.layout, p.timeParams.activities, p.timeParams.relations || [], isTimeMode, nr);
       generateCrossArcs(allSegs, parts, isTimeMode);
     }
-    var nr = p.nodeRadius || 11;
     var nfs = Math.max(9, nr);
     var showFloat = p.showFloat !== false;
     parts.push('<g class="net-events">');
