@@ -1,6 +1,14 @@
 ## 2026-05-15
 
-### TypeScript 重构 Phase 1 — 核心算法迁移
+### TypeScript 重构 Phase 2 — 渲染模块迁移
+
+- **render/network.ts** — renderNetwork 完整迁移（16KB），含节点拖拽、前锋线拖动、画布平移、横向滚动同步、自检函数
+- **render/generator.ts** — buildNetworkSvg 简化版实现（14KB），生成含时标尺、箭线、箭头、事件节点、行背景、底部标尺的完整 SVG
+- **index.ts** 改用真实 renderNetwork 替代 console.warn 占位
+- 三关验证全部通过（tsc → 测试 → dotnet build）
+- netplan.js 编译产出 25KB
+
+### Phase 1 — 核心算法迁移
 
 - **新建 TypeScript 模块架构** — 17 模块分解，`tsc --noEmit` 零错误
 - **构建管线搭建** — TypeScript → esbuild → minified IIFE (`netplan.js`, ~10KB)
