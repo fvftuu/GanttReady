@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { EventNode } from '../types.js';
+import { updateCrossArcOverlays } from '../render/crossarc.js';
 
 let _dayPopup: HTMLDivElement | null = null;
 
@@ -79,12 +80,9 @@ export function getDragEventData(
   return { evt, tid: 0 };
 }
 
-export function updateCrossArcs(
-  svg: SVGSVGElement | null
-): void {
-  if (!svg) return;
-  const oldGroup = svg.querySelector('g.cross-arcs');
-  if (oldGroup) oldGroup.remove();
-  // TODO: re-implement with generateCrossArcs
-  console.log('updateCrossArcs called');
+/**
+ * 更新过桥弧（节点拖拽后）
+ */
+export function updateCrossArcs(): void {
+  updateCrossArcOverlays();
 }

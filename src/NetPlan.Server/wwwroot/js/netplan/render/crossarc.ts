@@ -172,3 +172,115 @@ export function collectAllSegments(
 
   return allSegments;
 }
+
+/**
+ * 实时更新过桥弧（节点拖拽后重绘DOM中的跨线符）
+ */
+export function updateCrossArcOverlays(): void {
+  var svg = (window as any)._netSvg as SVGSVGElement | null;
+  if (!svg) return;
+
+  // 删除旧的跨线符
+  var old = svg.querySelectorAll('.net-cross-arc');
+  for (var i = 0; i < old.length; i++) { old[i].parentNode!.removeChild(old[i]); }
+
+  var layout = (window as any)._netLayout;
+  var activities = (window as any)._netActivities;
+  var offsets = (window as any)._netEventOffsets || {};
+  var nr = (window as any)._netNodeRadius || 11;
+
+  if (!layout || !layout.events || !activities) return;
+
+  // 获取当前有效偏移的活动布局坐标
+  var acts: any[] = [];
+  activities.forEach(function(act: any) {
+    if (!act.source || !act.target) return;
+    var s = layout.events[act.source];
+    var t = layout.events[act.target];
+    if (!s || !t) return;
+    var sx = s.x + (offsets[s.id] ? offsets[s.id].x : 0) + nr;
+    var sy = s.y + (offsets[s.id] ? offsets[s.id].y : 0);
+    var ex = t.x + (offsets[t.id] ? offsets[t.id].x : 0);
+    var ey = t.y + (offsets[t.id] ? offsets[t.id].y : 0);
+    acts.push({ id: act.id, isCritical: act.isCritical || false, sx: sx, sy: sy, ex: ex, ey: ey });
+  });
+
+  if (acts.length < 2) return;
+
+  // 构建线段
+  var allSegments: ActivitySegments[] = [];
+  acts.forEach(function(a: any) {
+    var segs: Segment[];
+    if (Math.abs(a.ey - a.sy) < 2) {
+      segs = [{ x1: a.sx, y1: a.sy, x2: a.ex, y2: a.ey }];
+    } else {
+      segs = [
+        { x1: a.sx, y1: a.sy, x2: a.ex - 2, y2: a.sy },
+        { x1: a.ex - 2, y1: a.sy, x2: a.ex - 2, y2: a.ey },
+        { x1: a.ex - 2, y1: a.ey, x2: a.ex, y2: a.ey }
+      ];
+    }
+    allSegments.push({ actId: a.id, isCritical: a.isCritical, segs: segs });
+  });
+
+  // DOM 交叉检测与绘制
+  function addArc(crossX: number, crossY: number, nx: number, ny: number, lineW: number): void {
+    var arcR = 5;
+    var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'net-cross-arc');
+
+    var arc1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    arc1.setAttribute('d', 'M' + (crossX - nx * 2) + ' ' + (crossY - ny * 2) +
+      ' A' + (arcR + 1) + ' ' + (arcR + 1) + ' 0 0 0 ' + (crossX + nx * 2) + ' ' + (crossY + ny * 2));
+    arc1.setAttribute('fill', 'none');
+    arc1.setAttribute('stroke', '#fff');
+    arc1.setAttribute('stroke-width', '' + (lineW + 2));
+    arc1.setAttribute('stroke-linecap', 'round');
+    g.appendChild(arc1);
+
+    var arc2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    arc2.setAttribute('d', 'M' + (crossX - nx * 2) + ' ' + (crossY - ny * 2) +
+      ' A' + (arcR + 1) + ' ' + (arcR + 1) + ' 0 0 0 ' + (crossX + nx * 2) + ' ' + (crossY + ny * 2));
+    arc2.setAttribute('fill', 'none');
+    arc2.setAttribute('stroke', '#999');
+    arc2.setAttribute('stroke-width', '1');
+    arc2.setAttribute('stroke-linecap', 'round');
+    g.appendChild(arc2);
+
+    svg!.appendChild(g);
+  }
+
+  // 两两检测
+  for (var i = 0; i < allSegments.length; i++) {
+    for (var j = i + 1; j < allSegments.length; j++) {
+      var a = allSegments[i], b = allSegments[j];
+      if (a.actId === b.actId) continue;
+      for (var ai = 0; ai < a.segs.length; ai++) {
+        for (var bi = 0; bi < b.segs.length; bi++) {
+          var s1 = a.segs[ai], s2 = b.segs[bi];
+          var cross = findSegIntersection(
+            s1.x1, s1.y1, s1.x2, s1.y2,
+            s2.x1, s2.y1, s2.x2, s2.y2
+          );
+          if (cross) {
+            var skipArc = false;
+            var arcOn: ActivitySegments | null = null;
+            if (!a.isCritical && b.isCritical) { arcOn = a; }
+            else if (a.isCritical && !b.isCritical) { arcOn = b; }
+            else if (!a.isCritical && !b.isCritical) { arcOn = a; }
+            else { skipArc = true; }
+
+            if (!skipArc && arcOn && cross) {
+              var bSeg = (arcOn === a) ? s2 : s1;
+              var bdx = bSeg.x2 - bSeg.x1, bdy = bSeg.y2 - bSeg.y1;
+              var blen = Math.sqrt(bdx * bdx + bdy * bdy) || 1;
+              var nx = -bdy / blen, ny = bdx / blen;
+              var lineW = arcOn.isCritical ? 3 : 1.5;
+              addArc(cross.x, cross.y, nx, ny, lineW);
+            }
+          }
+        }
+      }
+    }
+  }
+}

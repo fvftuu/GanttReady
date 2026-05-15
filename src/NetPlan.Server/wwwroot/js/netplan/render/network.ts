@@ -7,6 +7,8 @@
 import { calculateTimeParams, applySingleStartEnd } from '../core/cpm.js';
 import { calculateVerticalLayout } from '../core/layout.js';
 import { buildNetworkSvg } from './generator.js';
+import { updateArrowPaths, updateDummyPaths } from './arrows.js';
+import { updateCrossArcOverlays } from './crossarc.js';
 
 // 全局状态（与 legacy 保持兼容）
 declare var _netMode: string;
@@ -19,9 +21,6 @@ declare var _netEventOffsets: Record<string, { x: number; y: number }>;
 declare var _netPendingOffsets: any;
 declare var _netDotNet: any;
 declare var _netExtraSpacing: Record<string, number>;
-declare var _netUpdateArrows: (eid: string, dx: number, dy: number) => void;
-declare var _netUpdateDummys: (eid: string, dx: number, dy: number) => void;
-declare var _netUpdateCrossArcs: () => void;
 declare var _netNodeDrag: any;
 declare var _netLastPopupTime: number;
 declare var _networkOpts: any;
@@ -249,12 +248,12 @@ export function renderNetwork(elementsJson: string, optsIn: any): void {
   Object.keys(eventOffsets).forEach(function(eid: string) {
     var off = eventOffsets[eid];
     if (off.x !== 0 || off.y !== 0) {
-      if (typeof (window as any)._netUpdateArrows === 'function') (window as any)._netUpdateArrows(eid, off.x, off.y);
-      if (typeof (window as any)._netUpdateDummys === 'function') (window as any)._netUpdateDummys(eid, off.x, off.y);
+      updateArrowPaths(eid, off.x, off.y);
+      updateDummyPaths(eid, off.x, off.y);
       hasOffsets = true;
     }
   });
-  if (hasOffsets && typeof (window as any)._netUpdateCrossArcs === 'function') (window as any)._netUpdateCrossArcs();
+  if (hasOffsets) updateCrossArcOverlays();
 
   // 节点拖拽
   if (svg) {
