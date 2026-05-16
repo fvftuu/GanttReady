@@ -1,140 +1,217 @@
 // ============================================================
-// core/layout.ts — 拓扑分层与事件定位
-// 包含: calculateVerticalLayout 及内部辅助函数
+// core/layout.ts — 垂直布局 v4
+// 策略：顶层向下分配 + 同ES分散 + 活动同行约束
 // ============================================================
 
 /**
- * 垂直布局: 按 BFS 拓扑分层，事件同行合并，最终确定每个事件的 y 坐标
- * 规则(双代号):
- * 1. 每个活动的 source 和 target 事件必须在同一行
- * 2. 有共同前驱/后继的事件放在同一行
- * 3. 关键路径事件优先居中
+ * 垂直布局：
+ * 1. ES 相同的事件按顺序从上到下分配子行（不从中间开始）
+ * 2. 同一活动的 source 和 target 必须在同一行
+ * 3. 同源多目标的出度节点放到不同子行
  */
 export function calculateVerticalLayout(data: any): any {
   var events = data.events;
   var activities = data.activities;
-  var eventPred = data.eventPred;
-  var eventSucc = data.eventSucc;
-
   var LAYER_HEIGHT = 60;
   var MARGIN_TOP = 100;
 
-  // ===== 双代号同行算法 =====
-  // 每条活动的 source 和 target 事件必须在同一行
-  var sameRow: Record<string, string[]> = {};
+  // ===== 1. 收集事件 =====
+  var eids = Object.keys(events);
 
-  // 连通域标记: 通过活动连接的事件属于同一行
-  function union(rowKey: string, eid: string) {
-    if (!sameRow[rowKey]) sameRow[rowKey] = [];
-    if (sameRow[rowKey].indexOf(eid) === -1) sameRow[rowKey].push(eid);
-  }
-
-  // 事件按 ES 分组
-  var esGroup: Record<number, string[]> = {};
-  Object.keys(events).forEach(function(eid) {
-    var es = events[eid].es || 0;
-    if (!esGroup[es]) esGroup[es] = [];
-    esGroup[es].push(eid);
-  });
-
-  // 同 ES 的事件放同一行
-  Object.keys(esGroup).forEach(function(es) {
-    var rowKey = 'ES_' + es;
-    esGroup[Number(es)].forEach(function(eid) { union(rowKey, eid); });
-  });
-
-  // 同一活动的前后事件放同一行
+  // 活动绑定
+  var actPairs: Array<{ src: string; tgt: string }> = [];
   activities.forEach(function(act: any) {
-    var rowKey = 'act_' + act.source + '_' + act.target;
-    union(rowKey, act.source);
-    union(rowKey, act.target);
-  });
-
-  // ===== 计算分层 =====
-  // 基于拓扑顺序 + 父层
-  var layers: Record<string, number> = {};
-
-  // BFS 从起点开始
-  var visited: Record<string, boolean> = {};
-  var queue: string[] = [];
-  var degrees: Record<string, number> = {};
-  // 安全访问（测试数据可能不传 eventPred/eventSucc）
-  var pred = eventPred || {} as Record<string, string[]>;
-  var succ = eventSucc || {} as Record<string, string[]>;
-
-  Object.keys(events).forEach(function(eid) {
-    degrees[eid] = pred[eid] ? pred[eid].length : 0;
-  });
-
-  Object.keys(degrees).forEach(function(eid) {
-    if (degrees[eid] === 0) {
-      queue.push(eid);
-      layers[eid] = 0;
-      visited[eid] = true;
+    if (act.source && act.target && act.source !== act.target) {
+      actPairs.push({ src: act.source, tgt: act.target });
     }
   });
 
-  while (queue.length > 0) {
-    var cur = queue.shift()!;
-    var curLayer = layers[cur] || 0;
+  // ===== 2. 按 ES 收集唯一值 =====
+  var esValues: number[] = [];
+  eids.forEach(function(eid) {
+    var es = events[eid].es || 0;
+    if (esValues.indexOf(es) === -1) esValues.push(es);
+  });
+  esValues.sort(function(a, b) { return a - b; });
 
-    if (succ[cur]) {
-      succ[cur].forEach(function(next: string) {
-        if (!visited[next]) {
-          degrees[next]--;
-          if (degrees[next] === 0) {
-            // 找同行里最大的层数
-            var maxLayer = curLayer;
-            Object.keys(sameRow).forEach(function(rk) {
-              if (sameRow[rk].indexOf(next) !== -1) {
-                sameRow[rk].forEach(function(sib) {
-                  if (layers[sib] !== undefined && layers[sib] > maxLayer) maxLayer = layers[sib];
-                });
-              }
-            });
-            layers[next] = maxLayer + 1;
-            queue.push(next);
-            visited[next] = true;
+  // ES → baseLayer（小的在上，大的在下）
+  var esToBase: Record<number, number> = {};
+  esValues.forEach(function(es, idx) { esToBase[es] = idx; });
+
+  // 每层的事件
+  var layerEvents: Record<number, string[]> = {};
+  eids.forEach(function(eid) {
+    var bl = esToBase[events[eid].es || 0];
+    if (!layerEvents[bl]) layerEvents[bl] = [];
+    if (layerEvents[bl].indexOf(eid) === -1) layerEvents[bl].push(eid);
+  });
+
+  // ===== 3. 活动同行约束：仅当 src 和 tgt 在同一 ES 值时强制同行 =====
+  // 不同 ES 值的活动不会触发层合并（它们是真实的搭接关系）
+  var eventBase: Record<string, number> = {};
+  eids.forEach(function(eid) { eventBase[eid] = esToBase[events[eid].es || 0]; });
+
+  // 只对 src/tgt 在同一 ES 的活动做同行约束
+  actPairs.forEach(function(p) {
+    var srcEs = events[p.src] ? events[p.src].es || 0 : 0;
+    var tgtEs = events[p.tgt] ? events[p.tgt].es || 0 : 0;
+    if (srcEs !== tgtEs) return; // 不同 ES 不合并层
+    
+    var sb = eventBase[p.src], tb = eventBase[p.tgt];
+    if (sb !== tb) {
+      // 统一到较小的层
+      var minB = Math.min(sb, tb);
+      eventBase[p.src] = minB;
+      eventBase[p.tgt] = minB;
+      [sb, tb].forEach(function(b) {
+        if (b === minB) return;
+        var arr = layerEvents[b] || [];
+        var idx = arr.indexOf(p.src); if (idx !== -1) arr.splice(idx, 1);
+        idx = arr.indexOf(p.tgt); if (idx !== -1) arr.splice(idx, 1);
+      });
+      var tgtArr = layerEvents[minB] || [];
+      if (tgtArr.indexOf(p.src) === -1) tgtArr.push(p.src);
+      if (tgtArr.indexOf(p.tgt) === -1) tgtArr.push(p.tgt);
+      layerEvents[minB] = tgtArr;
+    }
+  });
+
+  // ===== 4. 每大层内分配子行（顶层开始，自上而下分配） =====
+  var eventSub: Record<string, number> = {};
+  var subCounts: Record<number, number> = {};
+
+  Object.keys(layerEvents).forEach(function(blKey) {
+    var bl = parseInt(blKey);
+    var evts = (layerEvents[bl] || []).slice();
+    var seen: Record<string, boolean> = {};
+    var uq: string[] = [];
+    evts.forEach(function(e) { if (!seen[e]) { seen[e] = true; uq.push(e); } });
+
+    // 并查集：同一活动的 src/tgt 必须在同一子行
+    var parent: Record<string, string> = {};
+    uq.forEach(function(e) { parent[e] = e; });
+    function find(x: string): string {
+      if (parent[x] !== x) parent[x] = find(parent[x]);
+      return parent[x];
+    }
+    function union(a: string, b: string): void {
+      var ra = find(a), rb = find(b);
+      if (ra !== rb) parent[rb] = ra;
+    }
+
+    actPairs.forEach(function(p) {
+      var srcEs = events[p.src] ? events[p.src].es || 0 : 0;
+      var tgtEs = events[p.tgt] ? events[p.tgt].es || 0 : 0;
+      if (srcEs === tgtEs && uq.indexOf(p.src) !== -1 && uq.indexOf(p.tgt) !== -1) {
+        union(p.src, p.tgt);
+      }
+    });
+
+    // 分组
+    var groups: Record<string, string[]> = {};
+    uq.forEach(function(e) {
+      var r = find(e);
+      if (!groups[r]) groups[r] = [];
+      groups[r].push(e);
+    });
+
+    var groupList = Object.keys(groups).map(function(r) {
+      return { root: r, events: groups[r] };
+    });
+
+    // 关键事件组优先排在顶层
+    groupList.sort(function(a, b) {
+      var aHasCrit = a.events.some(function(e: string) { return events[e].isCritical; });
+      var bHasCrit = b.events.some(function(e: string) { return events[e].isCritical; });
+      if (aHasCrit && !bHasCrit) return -1;
+      if (!aHasCrit && bHasCrit) return 1;
+      return 0;
+    });
+
+    // 分配子行：0,1,2,... 从顶层开始（关键组优先）
+    var subIdx = 0;
+    groupList.forEach(function(g) {
+      g.events.forEach(function(e) { eventSub[e] = subIdx; });
+      subIdx++;
+    });
+    subCounts[bl] = Math.max(1, subIdx);
+  });
+
+  // 确保所有事件都有值
+  eids.forEach(function(eid) {
+    if (eventSub[eid] === undefined) eventSub[eid] = 0;
+    if (eventBase[eid] === undefined) eventBase[eid] = 0;
+  });
+
+  // ===== 5. 出度分散：同源多目标强制分配到不同子行 =====
+  var srcOutTargets: Record<string, string[]> = {};
+  activities.forEach(function(act: any) {
+    var src = act.source;
+    if (!srcOutTargets[src]) srcOutTargets[src] = [];
+    if (srcOutTargets[src].indexOf(act.target) === -1)
+      srcOutTargets[src].push(act.target);
+  });
+
+  Object.keys(srcOutTargets).forEach(function(src) {
+    var targets = srcOutTargets[src];
+    if (targets.length < 2) return;
+    var firstSub = eventSub[targets[0]];
+    var allSame = targets.every(function(t) { return eventSub[t] === firstSub; });
+    if (!allSame) return;
+
+    var srcBL = eventBase[src];
+    var curSubCount = subCounts[srcBL] || 1;
+
+    targets.forEach(function(tgt, idx) {
+      if (idx === 0) { eventSub[tgt] = firstSub; return; }
+      var newSub = curSubCount + idx - 1;
+      eventSub[tgt] = newSub;
+      // 修正：仅对同一 ES 的 tgt 做同行约束
+      actPairs.forEach(function(p) {
+        if (p.src === tgt || p.tgt === tgt) {
+          var other = p.src === tgt ? p.tgt : p.src;
+          var oEs = events[other] ? events[other].es || 0 : 0;
+          var tEs = events[tgt] ? events[tgt].es || 0 : 0;
+          if (oEs === tEs) {
+            if (p.src === tgt && eventSub[p.tgt] !== newSub) eventSub[p.tgt] = newSub;
+            if (p.tgt === tgt && eventSub[p.src] !== newSub) eventSub[p.src] = newSub;
           }
         }
       });
-    }
-  }
-
-  // ===== 关键路径水平居中 =====
-  var maxLayer = 0;
-  Object.keys(layers).forEach(function(eid) {
-    if (layers[eid] > maxLayer) maxLayer = layers[eid];
+    });
+    subCounts[srcBL] = Math.max(subCounts[srcBL] || 1, curSubCount + targets.length - 1);
   });
 
-  // 找关键事件
-  var critEvents: string[] = [];
-  Object.keys(events).forEach(function(eid) {
-    if (events[eid].isCritical) critEvents.push(eid);
+  // 所有 baseLayer 确保 subCounts 至少为 1
+  Object.keys(layerEvents).forEach(function(blKey) {
+    var bl = parseInt(blKey);
+    if (!subCounts[bl]) subCounts[bl] = 1;
   });
 
-  // 关键路径事件尽量放在中间区域
-  var halfLayer = Math.floor(maxLayer / 2);
-  Object.keys(layers).forEach(function(eid) {
-    if (critEvents.indexOf(eid) !== -1) {
-      var mid = halfLayer;
-      if (layers[eid] < mid) layers[eid] = Math.min(mid, layers[eid] + Math.floor(mid / 2));
-    }
+  // ===== 6. 计算绝对层（累积偏移） =====
+  var sortedBL = Object.keys(subCounts).map(Number).sort(function(a, b) { return a - b; });
+  var cumoff: Record<number, number> = { 0: 0 };
+  var cumulative = 0;
+  sortedBL.forEach(function(bl) { cumoff[bl] = cumulative; cumulative += subCounts[bl] || 1; });
+
+  var maxLayer = cumulative;
+  var eventAbsLayer: Record<string, number> = {};
+
+  eids.forEach(function(eid) {
+    var bl = eventBase[eid] || 0;
+    var sl = eventSub[eid] || 0;
+    var abs = (cumoff[bl] || 0) + sl;
+    eventAbsLayer[eid] = abs;
+    events[eid].layer = abs;
+    events[eid].y = MARGIN_TOP + abs * LAYER_HEIGHT;
   });
 
-  // ===== 生成布局 =====
+  // ===== 7. 输出（不居中拉伸） =====
   var layout: Record<string, any> = {};
-  Object.keys(events).forEach(function(eid) {
-    var layer = layers[eid] || 0;
-    events[eid].layer = layer;
-    events[eid].y = MARGIN_TOP + layer * LAYER_HEIGHT;
-    layout[eid] = { layer: layer, y: MARGIN_TOP + layer * LAYER_HEIGHT, num: events[eid].num };
+  eids.forEach(function(eid) {
+    var ly = eventAbsLayer[eid] || 0;
+    layout[eid] = { layer: ly, y: MARGIN_TOP + ly * LAYER_HEIGHT, num: events[eid].num };
   });
 
-  return {
-    events: events,
-    activities: activities,
-    layout: layout,
-    maxLayer: maxLayer
-  };
+  return { events: events, activities: activities, layout: layout, maxLayer: maxLayer };
 }

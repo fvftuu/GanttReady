@@ -39,7 +39,23 @@
     </div>
 
     <!-- NetPlan scripts (must load before blazor to avoid JS interop race) -->
-    <script src="js/netplan.js?v=20260515b"></script>
+    <script src="js/netplan.js?v=20260516u"></script>
     <script src="_framework/blazor.server.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var els = document.querySelectorAll(".page-header, .gantt-container");
+  els.forEach(function(el) {
+    var walker = document.createTreeWalker(el, 4, null, false);
+    while (walker.nextNode()) {
+      var n = walker.currentNode;
+      if (n.textContent.trim() === String.fromCharCode(125)) {
+        var p = n.parentElement;
+        if (p && p.textContent.trim() === String.fromCharCode(125)) p.remove();
+      }
+    }
+  });
+});
+</script>
+
 </body>
 </html>

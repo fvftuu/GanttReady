@@ -12,7 +12,7 @@ import { updateProgressColors } from './render/progress.js';
 import { initGanttScroll, networkFit } from './interaction/panzoom.js';
 import { downloadSvg, exportPng, printSvg } from './interaction/export.js';
 
-import { setGanttDotNet, initPanelResize, loadDraft, saveDraft, clearDraft } from './gantt/binding.js';
+import { setGanttDotNet, initPanelResize, initColumnResize, syncGanttRowHeights, loadDraft, saveDraft, clearDraft } from './gantt/binding.js';
 
 import { initResourceChart } from './charts/resource.js';
 import { renderAnalysisBarChart } from './charts/analysis.js';
@@ -44,6 +44,8 @@ const api: WindowNetPlan = {
   setGanttDotNet,
   initGanttScroll,
   initPanelResize,
+  initColumnResize,
+  syncGanttRowHeights,
   loadDraft,
   saveDraft,
   clearDraft,

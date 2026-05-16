@@ -81,7 +81,7 @@
                             <td>@(p.PlanEndDate - p.PlanStartDate).Days 天</td>
                             <td @onclick:stopPropagation>
                                 <a href="/project/@p.Id/gantt" class="btn-link">📅 甘特图</a>
-                                <a href="/project/@p.Id/network" class="btn-link">🔗 网络图</a>
+                                <a href="/project/@p.Id/network" class="btn-link" style="opacity:0.4;cursor:not-allowed;pointer-events:none;">🔗 网络图</a>
                                 <a href="/project/@p.Id/resources" class="btn-link">👥 资源</a>
                                 <a href="/project/@p.Id/analysis" class="btn-link">📊 分析</a>
                             </td>

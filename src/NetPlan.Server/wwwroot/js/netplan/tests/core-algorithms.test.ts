@@ -229,8 +229,10 @@ describe('calculateVerticalLayout', () => {
     expect(data.events['T0'].y).toBeDefined();
     expect(data.events['T5'].y).toBeDefined();
     expect(data.events['T10'].y).toBeDefined();
-    expect(data.events['T0'].y).toBe(data.events['T5'].y);
-    expect(data.events['T0'].y).toBe(data.events['T10'].y);
+    // 不同 ES 的事件在不同层（ES=0,5,10 分别对应不同 baseLayer）
+    expect(data.events['T0'].y).not.toBe(data.events['T5'].y);
+    expect(data.events['T0'].y).not.toBe(data.events['T10'].y);
+    expect(data.events['T5'].y).not.toBe(data.events['T10'].y);
   });
 
   test('分支结构 — 所有节点有坐标', () => {

@@ -5,25 +5,49 @@
 /**
  * 初始化资源投入量柱状图
  */
-export function initResourceChart(chartDataJson: string): void {
-  const data = JSON.parse(chartDataJson);
-  const canvas = document.getElementById('resourceChart') as HTMLCanvasElement;
+export function initResourceChart(chartData: any): void {
+  // 注意: Blazor JS interop 传递的是已解析的对象，不是 JSON 字符串
+  const canvas = document.getElementById('resource-chart') as HTMLCanvasElement;
   if (!canvas) return;
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  const chart: any = (window as any).Chart ? new ((window as any).Chart)(ctx, {
+  // 销毁旧图表
+  const oldChart: any = (window as any)._resourceChart;
+  if (oldChart) {
+    oldChart.destroy();
+  }
+
+  const ChartCtor: any = (window as any).Chart;
+  if (!ChartCtor) {
+    console.warn('[ResourceChart] Chart.js not loaded');
+    return;
+  }
+
+  // 兼容两种数据格式：legacy {labels, lines} 和 Blazor 直传 {labels, datasets}
+  var labels = chartData.labels || [];
+  var lines: any[] = chartData.lines || [];
+  var datasets: any[] = chartData.datasets || [];
+
+  if (datasets.length === 0 && lines.length > 0) {
+    // 兼容 legacy 格式（{labels, lines} → 转换为 datasets）
+    datasets = lines.map(function(line: any, i: number) {
+      return {
+        label: line.name || `资源 ${i + 1}`,
+        data: line.data || line.points || [],
+        backgroundColor: line.color || `hsl(${i * 60}, 60%, 70%)`,
+        borderColor: line.color || `hsl(${i * 60}, 60%, 50%)`,
+        borderWidth: 1
+      };
+    });
+  }
+
+  const chart: any = new ChartCtor(ctx, {
     type: 'bar',
     data: {
-      labels: data.labels || [],
-      datasets: (data.datasets || []).map((ds: any, i: number) => ({
-        label: ds.label || `资源 ${i + 1}`,
-        data: ds.data || [],
-        backgroundColor: ds.color || `hsl(${i * 60}, 60%, 70%)`,
-        borderColor: ds.color || `hsl(${i * 60}, 60%, 50%)`,
-        borderWidth: 1
-      }))
+      labels: labels,
+      datasets: datasets
     },
     options: {
       responsive: true,
@@ -36,10 +60,8 @@ export function initResourceChart(chartDataJson: string): void {
         legend: { position: 'bottom' }
       }
     }
-  }) : null;
+  });
 
   // 保存引用以便后续更新
-  if (chart) {
-    (window as any)._resourceChart = chart;
-  }
+  (window as any)._resourceChart = chart;
 }

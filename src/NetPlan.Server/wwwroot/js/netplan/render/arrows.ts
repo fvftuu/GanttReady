@@ -15,6 +15,21 @@ export function findConnectedEvents(eventId: string): number[] {
 }
 
 /**
+ * 计算入度偏移
+ */
+function calcInOff(actId: number, tid: string): number {
+  var acts: any[] = (window as any)._netActivities || [];
+  var tgts = acts.filter(function(a: any) { return a.target === tid; });
+  tgts.sort(function(a: any, b: any) { return a.id - b.id; });
+  var cnt = tgts.length;
+  if (cnt <= 1) return 0;
+  var idx = 0;
+  tgts.forEach(function(a: any, i: number) { if (a.id === actId) idx = i; });
+  var gap = 6;
+  return -((cnt - 1) * gap) / 2 + idx * gap;
+}
+
+/**
  * 更新箭线路径（节点拖拽后实时刷新）
  */
 export function updateArrowPaths(eventId: string, dx: number, dy: number): void {
@@ -34,16 +49,20 @@ export function updateArrowPaths(eventId: string, dx: number, dy: number): void 
     var t = layout.events[tid];
     if (!s || !t) return;
     var nr = 11;
-    var sx = s.x + (sid === eventId ? dx : (offsets[sid] ? offsets[sid].x : 0)) + nr;
+    var sx = s.x + (sid === eventId ? dx : (offsets[sid] ? offsets[sid].x : 0));
     var sy = s.y + (sid === eventId ? dy : (offsets[sid] ? offsets[sid].y : 0));
     var ex = t.x + (tid === eventId ? dx : (offsets[tid] ? offsets[tid].x : 0));
     var ey = t.y + (tid === eventId ? dy : (offsets[tid] ? offsets[tid].y : 0));
 
+    // 入度偏移
+    ey += calcInOff(actId, tid);
+
     var pd: string;
     if (Math.abs(ey - sy) < 5) {
-      pd = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + ey;
+      pd = 'M' + sx + ' ' + sy + ' L' + (ex + nr) + ' ' + ey;
     } else {
-      pd = 'M' + sx + ' ' + sy + ' L' + (ex - 2) + ' ' + sy + ' L' + (ex - 2) + ' ' + ey + ' L' + ex + ' ' + ey;
+      var midX = Math.max(sx + nr + 4, ex - nr - 4);
+      pd = 'M' + sx + ' ' + sy + ' L' + midX + ' ' + sy + ' L' + midX + ' ' + ey + ' L' + (ex + nr) + ' ' + ey;
     }
 
     var p = g.querySelector('.act-arrow');
@@ -78,8 +97,8 @@ export function updateDummyPaths(eventId: string, dx: number, dy: number): void 
 
     var nr = (window as any)._netNodeRadius || 11;
     var sx = (sid === eventId)
-      ? (s.x + dx + nr)
-      : (s.x + (offsets[sid] ? offsets[sid].x : 0) + nr);
+      ? (s.x + dx)
+      : (s.x + (offsets[sid] ? offsets[sid].x : 0));
     var sy = (sid === eventId)
       ? (s.y + dy)
       : (s.y + (offsets[sid] ? offsets[sid].y : 0));
@@ -92,10 +111,10 @@ export function updateDummyPaths(eventId: string, dx: number, dy: number): void 
 
     var pd: string;
     if (Math.abs(ey - sy) < 2) {
-      pd = 'M' + sx + ' ' + sy + ' L' + ex + ' ' + ey;
+      pd = 'M' + sx + ' ' + sy + ' L' + (ex + nr) + ' ' + ey;
     } else {
-      var mx = (sx + ex) / 2;
-      pd = 'M' + sx + ' ' + sy + ' L' + mx + ' ' + sy + ' L' + mx + ' ' + ey + ' L' + ex + ' ' + ey;
+      var midX = Math.max(sx + nr + 4, ex - nr - 4);
+      pd = 'M' + sx + ' ' + sy + ' L' + midX + ' ' + sy + ' L' + midX + ' ' + ey + ' L' + (ex + nr) + ' ' + ey;
     }
 
     var p = g.querySelector('path');
