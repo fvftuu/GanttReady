@@ -3,6 +3,7 @@
 @inject IAnalysisService AnalysisService
 @inject IProjectService ProjectService
 @inject IResourceService ResourceService
+@inject IAiService AiService
 @inject IJSRuntime JS
 
 <PageTitle>计划分析 - NetPlan</PageTitle>
@@ -17,6 +18,16 @@
             }
         </select>
         <span class="page-title">计划分析仪表板</span>
+        <button class="btn btn-default btn-sm" style="margin-left:12px;" @onclick="ShowAiSettings">🤖 AI 设置</button>
+        @if (!string.IsNullOrEmpty(_aiEndpoint))
+        {
+            <button class="btn @(_aiMode ? "btn-primary" : "btn-default") btn-sm" style="margin-left:6px;" @onclick="ToggleAiMode">
+                @(_aiMode ? "🔵 AI 分析" : "⚪ 标准分析")
+            </button>
+        }
+    </div>
+    <div class="header-right">
+        <button class="btn btn-default btn-sm" onclick="window.print()">🖨 打印</button>
     </div>
 </div>
 
@@ -351,8 +362,156 @@
     </div>
 </div>
 
+@* ========== AI 设置弹窗 ========== *@
+@if (_showAiSettings)
+{
+    <div class="modal-overlay">
+        <div class="modal-content" style="width:540px;">
+            <h3>🤖 AI 服务设置</h3>
+            <div class="form-group">
+                <label>API 地址</label>
+                <input type="text" class="form-control" @bind="_aiEndpoint" placeholder="https://api.openai.com/v1" />
+                <small style="color:#999;">支持 OpenAI / Azure OpenAI / Ollama (http://localhost:11434/v1)</small>
+            </div>
+            <div class="form-group">
+                <label>API Key</label>
+                <input type="text" class="form-control" @bind="_aiKey" placeholder="sk-..." style="font-family:monospace;" />
+            </div>
+            <div class="form-group">
+                <label>模型</label>
+                <input type="text" class="form-control" @bind="_aiModel" placeholder="gpt-4o-mini / qwen2.5" />
+            </div>
+            <div class="dialog-actions">
+                <button class="btn btn-default" @onclick="() => _showAiSettings = false">取消</button>
+                <button class="btn btn-primary" @onclick="SaveAiSettings">保存</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public int? ProjectId { get; set; }
+
+    private Dictionary<string, string> _aiReports = new();
+    private bool _aiLoading = false;
+    private string _aiLoadingTab = "";
+    private bool _aiMode = false;
+    private bool _showAiSettings = false;
+    private string _aiEndpoint = "";
+    private string _aiKey = "";
+    private string _aiModel = "gpt-4o-mini";
+
+    // ===== AI 设置 =====
+    private async Task LoadAiSettings()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string>("localStorage.getItem", "ai_settings");
+            if (!string.IsNullOrEmpty(json))
+            {
+                var s = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                if (s != null)
+                {
+                    _aiEndpoint = s.GetValueOrDefault("endpoint", "");
+                    _aiKey = s.GetValueOrDefault("key", "");
+                    _aiModel = s.GetValueOrDefault("model", "gpt-4o-mini");
+                }
+            }
+        }
+        catch { }
+    }
+
+    private async Task SaveAiSettings()
+    {
+        var dict = new Dictionary<string, string>
+        {
+            ["endpoint"] = _aiEndpoint,
+            ["key"] = _aiKey,
+            ["model"] = _aiModel
+        };
+        var json = System.Text.Json.JsonSerializer.Serialize(dict);
+        await JS.InvokeVoidAsync("localStorage.setItem", "ai_settings", json);
+        _showAiSettings = false;
+    }
+
+    private void ShowAiSettings() { _showAiSettings = true; }
+
+    private void ToggleAiMode()
+    {
+        _aiMode = !_aiMode;
+        if (_aiMode) _ = GenerateAiReportForTab("overview");
+    }
+
+    private AiOptions BuildAiOptions()
+    {
+        return new AiOptions
+        {
+            Endpoint = string.IsNullOrEmpty(_aiEndpoint) ? "https://api.openai.com/v1" : _aiEndpoint,
+            ApiKey = _aiKey,
+            Model = string.IsNullOrEmpty(_aiModel) ? "gpt-4o-mini" : _aiModel
+        };
+    }
+
+    private async Task GenerateAiReportForTab(string tabName)
+    {
+        if (analysisResult == null) return;
+        _aiLoading = true;
+        _aiLoadingTab = tabName;
+        StateHasChanged();
+
+        var data = BuildAiReportData();
+        var systemPrompt = tabName switch
+        {
+            "overview" => "你是一个专业的项目管理分析师。根据提供的项目数据，生成一份简洁的项目总览分析。用中文，300字以内。包含：项目整体状态、进度绩效、关键指标。不要使用markdown格式。",
+            "implementation" => "你是一个专业的项目管理分析师。根据提供的项目数据，生成一份实施阶段分析。用中文，400字以内。包含：进度执行情况、资源使用状况、偏差分析、改进建议。不要使用markdown格式。",
+            "monthly" => "你是一个专业的项目管理分析师。根据提供的项目数据，生成一份月度分析报告。用中文，300字以内。包含：本月执行概况、进度偏差、关键风险、下月建议。不要使用markdown格式。",
+            "annual" => "你是一个专业的项目管理分析师。根据提供的项目数据，生成一份年度总结报告。用中文，500字以内。包含：年度执行概况、核心指标、里程碑回顾、存在问题、下阶段建议。不要使用markdown格式。",
+            _ => "你是一个专业的项目管理分析师。根据提供的项目数据，生成一份简洁的项目分析报告。用中文，300字以内。"
+        };
+
+        var result = await AiService.ChatAsync(systemPrompt, data, overrideOptions: BuildAiOptions());
+        _aiReports[tabName] = result;
+        _aiLoading = false;
+        _aiLoadingTab = "";
+        await SaveAiReportsToStorage();
+        StateHasChanged();
+    }
+
+    private async Task SaveAiReportsToStorage()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(_aiReports);
+        await JS.InvokeVoidAsync("localStorage.setItem", "ai_reports", json);
+    }
+
+    private async Task LoadAiReportsFromStorage()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string>("localStorage.getItem", "ai_reports");
+            if (!string.IsNullOrEmpty(json))
+            {
+                var r = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                if (r != null) _aiReports = r;
+            }
+        }
+        catch { }
+    }
+
+    private string BuildAiReportData()
+    {
+        if (analysisResult == null) return "无数据";
+        var lateCount = analysisResult.LateStartTasks.Count;
+        var earlyCount = analysisResult.EarlyStartTasks.Count;
+
+        return $"项目工期：{analysisResult.ProjectDurationDays}天；" +
+               $"总任务数：{analysisResult.TotalTasks}；" +
+               $"关键路径任务：{analysisResult.CriticalPathTasks.Count}个；" +
+               $"里程碑：{analysisResult.Milestones.Count}个；" +
+               $"按时完成：{analysisResult.OnTimeTasks.Count}个；" +
+               $"提前完成：{earlyCount}个；" +
+               $"延后任务：{lateCount}个；" +
+               $"资源冲突：{resourceConflicts.Count}项。";
+    }
 
     private List<Models.Project> projects = new();
     private string selectedScope = "all";  // "all" 或 "p-{id}"
@@ -375,6 +534,8 @@
     protected override async Task OnInitializedAsync()
     {
         projects = await ProjectService.GetAllProjectsAsync();
+        await LoadAiSettings();
+        await LoadAiReportsFromStorage();
         // 如果 URL 中有 ProjectId，则选中对应项目
         if (ProjectId.HasValue)
             selectedScope = "p-" + ProjectId.Value;

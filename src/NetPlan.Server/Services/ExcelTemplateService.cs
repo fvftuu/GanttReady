@@ -161,6 +161,7 @@ public class ExcelTemplateService
             {
                 ResourceType.Material => "Material",
                 ResourceType.Equipment => "Equipment",
+                ResourceType.Measure => "Measure",
                 _ => "Labor"
             };
 
@@ -538,6 +539,7 @@ public class ExcelTemplateService
         {
             "Material" => ResourceType.Material,
             "Equipment" => ResourceType.Equipment,
+            "Measure" => ResourceType.Measure,
             _ => ResourceType.Labor
         };
     }

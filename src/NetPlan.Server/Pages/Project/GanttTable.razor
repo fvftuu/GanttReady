@@ -6,7 +6,7 @@
         <div class="col-idx"><button class="icon-btn" @onclick="() => OnIndent.InvokeAsync()" title="降级(→)"><span class="oi oi-arrow-right"></span></button><button class="icon-btn" @onclick="() => OnOutdent.InvokeAsync()" title="升级(←)"><span class="oi oi-arrow-left"></span></button></div>
         @if (IsColumnVisible("status")) { <div class="col-status">状态</div> }
         @if (IsColumnVisible("code")) { <div class="col-code">任务代码</div> }
-        @if (IsColumnVisible("name")) { <div class="col-name">任务名称</div> }
+        @if (IsColumnVisible("name")) { <div class="col-name" style="position:relative;">任务名称<span class="col-resize-handle" data-col="name"></span></div> }
         @if (IsColumnVisible("person")) { <div class="col-person">负责人</div> }
         @if (IsColumnVisible("planStart")) { <div class="col-date">计划开始</div> }
         @if (IsColumnVisible("planEnd")) { <div class="col-date">计划完成</div> }
@@ -14,6 +14,8 @@
         @if (IsColumnVisible("actStart")) { <div class="col-date">实际开始</div> }
         @if (IsColumnVisible("actEnd")) { <div class="col-date">实际完成</div> }
         @if (IsColumnVisible("actDur")) { <div class="col-num" style="flex-direction:column;display:flex;line-height:1.1;text-align:center;"><span>实际</span><span>工期</span></div> }
+        @if (IsColumnVisible("budget")) { <div class="col-money">预算金额</div> }
+        @if (IsColumnVisible("actual")) { <div class="col-money">实际金额</div> }
         @if (IsColumnVisible("pred")) { <div class="col-pred">前置任务</div> }
         @if (IsColumnVisible("succ")) { <div class="col-pred">后置任务</div> }
         @if (IsColumnVisible("pct")) { <div class="col-num">完成率</div> }
@@ -31,7 +33,8 @@
             @foreach (var task in Tasks)
             {
                 int taskIdx = Tasks.IndexOf(task) + 1;
-                <div class="gantt-left-row @(SelectedTaskId == task.Id ? "selected" : "") @(task.OutlineLevel > 1 ? "child" : "")"
+                <div class="gantt-left-row @(taskIdx % 2 == 0 ? "zebra" : "") l@(task.OutlineLevel) @(SelectedTaskId == task.Id ? "selected" : "") @(task.OutlineLevel > 1 ? "child" : "") @(IsParentTask(task) ? "parent" : "")"
+                     data-task-id="@task.Id"
                      @ondblclick="() => OnTaskEdit.InvokeAsync(task)"
                      @onclick="() => OnTaskSelected.InvokeAsync(task.Id)">
                     @if (IsColumnVisible("sel")) { <div class="col-sel"><input type="checkbox" checked="@SelectedTaskIds.Contains(task.Id)" @onchange="(ChangeEventArgs e) => OnTaskCheckChanged.InvokeAsync((task.Id, (bool)(e.Value ?? false)))" @onclick:stopPropagation="true" /></div> }
@@ -46,12 +49,14 @@
                     @if (IsColumnVisible("actStart")) { <div class="col-date">@(task.ActualStartDate?.ToString("yyyy-MM-dd") ?? "")</div> }
                     @if (IsColumnVisible("actEnd")) { <div class="col-date">@(task.ActualEndDate?.ToString("yyyy-MM-dd") ?? "")</div> }
                     @if (IsColumnVisible("actDur")) { <div class="col-num">@(task.ActualDuration?.ToString() ?? "")</div> }
+                    @if (IsColumnVisible("budget")) { <div class="col-money">@task.BudgetCost.ToString("C2")</div> }
+                    @if (IsColumnVisible("actual")) { <div class="col-money @(task.ActualCost > task.BudgetCost ? "cost-over" : "")">@((task.ActualCost ?? 0).ToString("C2"))</div> }
                     @if (IsColumnVisible("pred")) { <div class="col-pred" title="@PredecessorSummary(task)">@PredecessorSummary(task)</div> }
                     @if (IsColumnVisible("succ")) { <div class="col-pred" title="@SuccessorSummary(task)">@SuccessorSummary(task)</div> }
                     @if (IsColumnVisible("pct")) { <div class="col-num">@if (task.CompletionPercentage > 0) { <span>@task.CompletionPercentage%</span> }</div> }
                     @if (IsColumnVisible("float")) { <div class="col-num" style="@GetFloatColorStyle(task.TotalFloat)">@(task.TotalFloat?.ToString()??"-")</div> }
                     @if (IsColumnVisible("freeFloat")) { <div class="col-num" style="@GetFloatColorStyle(task.FreeFloat)">@(task.FreeFloat?.ToString()??"-")</div> }
-                    @if (IsColumnVisible("res")) { <div class="col-resource" title="@ResourceSummary(task)">@ResourceSummary(task)</div> }
+                    @if (IsColumnVisible("res")) { <div class="col-resource" style="color:#666;white-space:nowrap;" title="@ResourceSummary(task)">@ResourceSummary(task)</div> }
                 </div>
             }
         }
@@ -88,6 +93,9 @@
         builder.CloseElement();
     };
 
+    private bool IsParentTask(TaskItem task) =>
+        Tasks.Any(t => t.ParentTaskId == task.Id);
+
     private string GetFloatColorStyle(int? v) =>
         v switch { null => "", <= 0 => "color:#dc3545;font-weight:bold;", <= 5 => "color:#fd7e14;font-weight:bold;", <= 10 => "color:#f0ad4e;", _ => "" };
 
@@ -116,8 +124,16 @@
 
     private string ResourceSummary(TaskItem t)
     {
+        // 优先用任务自身的 ResourceAssignments 导航属性（由 GetTasksByProjectIdAsync Include 加载）
+        if (t.ResourceAssignments != null && t.ResourceAssignments.Count > 0)
+        {
+            return string.Join(",", t.ResourceAssignments
+                .Where(a => a.Resource != null)
+                .Select(a => a.Resource.Name));
+        }
+        // 回退：用全局 ResourceAssignments 列表查找
         var assigns = ResourceAssignments.Where(a => a.TaskId == t.Id).ToList();
         if (!assigns.Any()) return "";
-        return string.Join(",", assigns.Select(a => ProjectResources.FirstOrDefault(r => r.Id == a.ResourceId)?.Name ?? $"R{a.ResourceId}"));
+        return string.Join(",", assigns.Select(a => a.Resource?.Name ?? ProjectResources.FirstOrDefault(r => r.Id == a.ResourceId)?.Name ?? $"R{a.ResourceId}"));
     }
 }

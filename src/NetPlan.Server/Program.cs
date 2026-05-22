@@ -10,7 +10,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services
 builder.Services.AddRazorPages();
-builder.Services.AddServerSideBlazor();
+builder.Services.AddServerSideBlazor(o =>
+{
+    o.DetailedErrors = builder.Environment.IsDevelopment();
+});
 
 // EF Core + SQLite
 builder.Services.AddDbContext<NetPlanDbContext>(options =>
@@ -25,6 +28,8 @@ builder.Services.AddScoped<IResourceService, ResourceService>();
 builder.Services.AddScoped<IAnalysisService, AnalysisService>();
 builder.Services.AddScoped<ExcelTemplateService>();
 builder.Services.AddScoped<ProjectXmlImportService>();
+builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
+builder.Services.AddScoped<IAiService, AiService>();
 builder.Services.AddHttpClient();
 
 var app = builder.Build();
@@ -160,6 +165,21 @@ app.UseEndpoints(endpoints =>
         {
             var fileData = await resourceService.ExportResourcesToExcelAsync(null);
             var fileName = $"NetPlan_全部资源_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+            return Results.File(fileData, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new { error = ex.Message });
+        }
+    });
+
+    // 导出分析报告Excel API
+    endpoints.MapGet("/api/export-analysis/{projectId}", async (int projectId, IAnalysisService analysisService) =>
+    {
+        try
+        {
+            var fileData = await analysisService.ExportAnalysisReportAsync(projectId);
+            var fileName = $"NetPlan_分析报告_{projectId}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
             return Results.File(fileData, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
         catch (Exception ex)

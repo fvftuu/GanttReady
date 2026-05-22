@@ -1,27 +1,58 @@
 @inherits LayoutComponentBase
 
-<div class="page-header">
-    <h1>📊 NetPlan 进度计划</h1>
-    <div class="nav-links">
-        <a href="/">🏠 首页</a>
-        <a href="javascript:navToChecked('gantt')">📅 甘特图</a>
-        <a href="javascript:navToChecked('network')" style="opacity:0.4;cursor:not-allowed;pointer-events:none;">🔗 网络图</a>
-        <a href="javascript:navToChecked('progress-slope')">📈 斜率图</a>
-        <a href="javascript:navToChecked('management-curve')">📉 曲线图</a>
-        <a href="javascript:navToChecked('resources')">👥 资源</a>
-        <a href="javascript:navToChecked('analysis')">📊 分析</a>
-    </div>
-</div>
-
 <div class="page-body">
+    <div class="page-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
+        <div class="sidebar-header">
+            <span class="sidebar-logo">📊</span>
+            <span class="sidebar-title">NetPlan</span>
+        </div>
+        <div class="sidebar-nav">
+            <a href="/" class="nav-item">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">首页</span>
+            </a>
+            <a href="javascript:navToChecked('gantt')" class="nav-item">
+                <span class="nav-icon">📅</span>
+                <span class="nav-label">甘特图</span>
+            </a>
+            <a href="javascript:navToChecked('network')" class="nav-item disabled">
+                <span class="nav-icon">🔗</span>
+                <span class="nav-label">网络图</span>
+            </a>
+            <a href="javascript:navToChecked('progress-slope')" class="nav-item">
+                <span class="nav-icon">📈</span>
+                <span class="nav-label">斜率图</span>
+            </a>
+            <a href="javascript:navToChecked('management-curve')" class="nav-item">
+                <span class="nav-icon">📉</span>
+                <span class="nav-label">曲线图</span>
+            </a>
+            <a href="javascript:navToChecked('resources')" class="nav-item">
+                <span class="nav-icon">👥</span>
+                <span class="nav-label">资源</span>
+            </a>
+            <a href="javascript:navToChecked('analysis')" class="nav-item">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">分析</span>
+            </a>
+        </div>
+        <div class="sidebar-footer">
+            <a href="javascript:void(0)" class="nav-item collapse-btn" @onclick="ToggleSidebar">
+                <span class="nav-icon">◀</span>
+                <span class="nav-label">折叠</span>
+            </a>
+        </div>
+    </div>
     <div class="page-main">
         @Body
     </div>
 </div>
 
-<style>
-    .nav-links { display: flex; gap: 16px; }
-    .nav-links a { color: rgba(255,255,255,0.65); font-size: 14px; text-decoration: none; padding: 4px 8px; border-radius: 4px; }
-    .nav-links a:hover { color: white; background: rgba(255,255,255,0.1); }
-    .nav-links a.active { color: white; background: rgba(255,255,255,0.15); }
-</style>
+@code {
+    private bool _sidebarCollapsed = false;
+
+    private void ToggleSidebar()
+    {
+        _sidebarCollapsed = !_sidebarCollapsed;
+    }
+}

@@ -250,6 +250,9 @@ public class ProjectService : IProjectService
             }
         }
 
+        // 重新计算父任务日期：父任务的 PlanStartDate = 子任务最早开始, PlanEndDate = 子任务最晚完成
+        RecalculateParentTaskDates(tasks);
+
         // 更新项目结束日期
         project.PlanEndDate = project.PlanStartDate.AddDays(projectDuration);
         project.UpdatedAt = DateTime.UtcNow;
@@ -261,6 +264,113 @@ public class ProjectService : IProjectService
 
     public async Task SaveChangesAsync()
     {
+        await _db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// 递归向上汇总父任务日期：父任务的 PlanStartDate = 所有直接子任务最早的 PlanStartDate，
+    /// PlanEndDate = 所有直接子任务最晚的 PlanEndDate，PlanDuration 自动重算。
+    /// 支持多层嵌套（父→子→孙），逐层向上冒泡。
+    /// </summary>
+    private static void RecalculateParentTaskDates(List<TaskItem> tasks)
+    {
+        var parentTasks = tasks.Where(t => tasks.Any(c => c.ParentTaskId == t.Id)).ToList();
+        if (!parentTasks.Any()) return;
+
+        // 按 OutlineLevel 降序排列，确保子级先于父级处理（最深层优先）
+        parentTasks = parentTasks.OrderByDescending(t => t.OutlineLevel).ToList();
+
+        foreach (var parent in parentTasks)
+        {
+            var children = tasks.Where(t => t.ParentTaskId == parent.Id).ToList();
+            if (!children.Any()) continue;
+
+            var minStart = children.Min(t => t.PlanStartDate);
+            var maxEnd = children.Max(t => t.PlanEndDate);
+
+            parent.PlanStartDate = minStart;
+            parent.PlanEndDate = maxEnd;
+            parent.PlanDuration = (maxEnd - minStart).Days + 1;
+        }
+    }
+
+    /// <summary>
+    /// 根据资源分配重新计算任务的预算金额。
+    /// 公式：人工/设备 = Σ(分配数量 × 每小时成本 × 计划工期 × 8小时)，
+    ///       材料 = Σ(分配数量 × 单价)。
+    /// </summary>
+    public async Task RecalculateTaskBudgetCostAsync(int taskId)
+    {
+        var task = await _db.Tasks
+            .Include(t => t.ResourceAssignments)
+                .ThenInclude(a => a.Resource)
+            .FirstOrDefaultAsync(t => t.Id == taskId);
+
+        if (task == null) return;
+
+        decimal totalCost = 0;
+        foreach (var assignment in task.ResourceAssignments)
+        {
+            var resource = assignment.Resource;
+            if (resource == null) continue;
+
+            if (resource.Type == ResourceType.Material)
+            {
+                // 材料：数量 × 单价
+                totalCost += assignment.Quantity * resource.UnitPrice;
+            }
+            else if (resource.Type == ResourceType.Measure)
+            {
+                // 措施：数量 × 日成本 × 工期(天)
+                var dailyCost = resource.HourlyCost ?? resource.UnitPrice;
+                totalCost += assignment.Quantity * dailyCost * task.PlanDuration;
+            }
+            else
+            {
+                // 人工/设备：数量 × 每小时成本 × 计划工期(天) × 8小时/天
+                var hourlyCost = resource.HourlyCost ?? resource.UnitPrice;
+                totalCost += assignment.Quantity * hourlyCost * task.PlanDuration * 8;
+            }
+        }
+
+        task.BudgetCost = totalCost;
+        await _db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// 批量重算项目下所有任务的预算金额
+    /// </summary>
+    public async Task RecalculateAllTaskBudgetsAsync(int projectId)
+    {
+        var tasks = await _db.Tasks
+            .Include(t => t.ResourceAssignments)
+                .ThenInclude(a => a.Resource)
+            .Where(t => t.ProjectId == projectId)
+            .ToListAsync();
+
+        foreach (var task in tasks)
+        {
+            decimal totalCost = 0;
+            foreach (var assignment in task.ResourceAssignments)
+            {
+                var resource = assignment.Resource;
+                if (resource == null) continue;
+
+                if (resource.Type == ResourceType.Material)
+                    totalCost += assignment.Quantity * resource.UnitPrice;
+                else if (resource.Type == ResourceType.Measure)
+                {
+                    var dailyCost = resource.HourlyCost ?? resource.UnitPrice;
+                    totalCost += assignment.Quantity * dailyCost * task.PlanDuration;
+                }
+                else
+                {
+                    var hourlyCost = resource.HourlyCost ?? resource.UnitPrice;
+                    totalCost += assignment.Quantity * hourlyCost * task.PlanDuration * 8;
+                }
+            }
+            task.BudgetCost = totalCost;
+        }
         await _db.SaveChangesAsync();
     }
 

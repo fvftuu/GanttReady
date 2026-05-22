@@ -57,6 +57,9 @@
                 <button class="category-tab equipment @(activeCategory == ResourceType.Equipment ? "active" : "")" @onclick="() => SetCategory(ResourceType.Equipment)">
                     🔧 设备 (@ResourceList.Count(r => r.Type == ResourceType.Equipment))
                 </button>
+                <button class="category-tab @(activeCategory == ResourceType.Measure ? "active" : "")" @onclick="() => SetCategory(ResourceType.Measure)" style="border-color:#8c8c8c;color:#8c8c8c;">
+                    🏷 措施 (@ResourceList.Count(r => r.Type == ResourceType.Measure))
+                </button>
             </div>
 
             @if (filteredResources.Count == 0)
@@ -163,6 +166,7 @@
                         <option value="@ResourceType.Labor">👤 人工</option>
                         <option value="@ResourceType.Equipment">🔧 设备</option>
                         <option value="@ResourceType.Material">📦 材料</option>
+                        <option value="@ResourceType.Measure">🏷 措施</option>
                     </select>
                 </div>
                 <div class="form-group" style="flex:1;">
@@ -315,6 +319,7 @@
         ResourceType.Labor => "人",
         ResourceType.Material => "m³",
         ResourceType.Equipment => "台",
+        ResourceType.Measure => "项",
         _ => "个"
     };
 
@@ -498,6 +503,7 @@
         ResourceType.Labor => "👤 人工",
         ResourceType.Equipment => "🔧 设备",
         ResourceType.Material => "📦 材料",
+        ResourceType.Measure => "🏷 措施",
         _ => type.ToString()
     };
 }
