@@ -27,6 +27,10 @@ public interface IProjectService
     // 调度计算
     Task<int> CalculateScheduleAsync(int projectId);
 
+    // 预算计算
+    Task RecalculateTaskBudgetCostAsync(int taskId);
+    Task RecalculateAllTaskBudgetsAsync(int projectId);
+
     // 保存所有变更
     Task SaveChangesAsync();
 

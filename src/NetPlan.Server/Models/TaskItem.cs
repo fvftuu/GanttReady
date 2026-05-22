@@ -41,6 +41,12 @@ public class TaskItem
 
     public int CompletionPercentage { get; set; }               // 完成率(%)
 
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal BudgetCost { get; set; }                     // 预算成本（从资源分配汇总或手动填入）
+
+    [Column(TypeName = "decimal(18,2)")]
+    public decimal? ActualCost { get; set; }                    // 实际成本（手动填入，null=未录入）
+
     public bool IsMilestone { get; set; }                        // 是否里程碑任务
     public bool IsManualSchedule { get; set; }                    // 是否手动排程（拖拽调整后标记）
 

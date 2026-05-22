@@ -2,12 +2,19 @@
 // interaction/panzoom.ts — 缩放、平移、滚动同步
 // ============================================================
 let _syncLock = false;
+export function syncGanttScrollById() {
+    const rightDiv = document.getElementById('gantt-right');
+    const leftBody = document.getElementById('gantt-left-body');
+    if (rightDiv && leftBody) {
+        leftBody.scrollTop = rightDiv.scrollTop;
+    }
+}
 export function initGanttScroll() {
     const tryInit = (attempt = 1) => {
         if (attempt > 50)
             return;
-        const rightDiv = document.querySelector('.gantt-timeline');
-        const leftBody = document.querySelector('.gantt-table-body');
+        const rightDiv = document.getElementById('gantt-right');
+        const leftBody = document.getElementById('gantt-left-body');
         if (!rightDiv || !leftBody) {
             setTimeout(() => tryInit(attempt + 1), 100);
             return;

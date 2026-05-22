@@ -117,22 +117,7 @@
     </div>
 </div>
 
-@if (taskFloatWarnings.Any())
-{
-    var redCount = taskFloatWarnings.Count(w => w.Value > 365);
-    var orangeCount = taskFloatWarnings.Count(w => w.Value > 200 && w.Value <= 365);
-    var yellowCount = taskFloatWarnings.Count(w => w.Value > 100 && w.Value <= 200);
-    <text>
-    <div class="float-warning-bar">
-        <span class="float-warn-icon">⚠️</span>
-        <span>时差异常：</span>
-        @if (redCount > 0) { <span class="float-badge float-red">@redCount 个严重(&gt;365天)</span> }
-        @if (orangeCount > 0) { <span class="float-badge float-orange">@orangeCount 个警告(&gt;200天)</span> }
-        @if (yellowCount > 0) { <span class="float-badge float-yellow">@yellowCount 个可疑(&gt;100天)</span> }
-        <span style="font-size:11px;color:var(--text-secondary);margin-left:8px;">— 请检查并手动调整对应任务</span>
-    </div>
-    </text>
-}
+
 
 <div class="gantt-container">
     <div class="gantt-main">

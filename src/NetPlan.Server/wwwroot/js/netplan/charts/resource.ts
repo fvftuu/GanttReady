@@ -3,7 +3,7 @@
 // ============================================================
 
 /**
- * 初始化资源投入量柱状图
+ * 初始化资源投入量面积图（曲线+填充）
  */
 export function initResourceChart(chartData: any): void {
   // 注意: Blazor JS interop 传递的是已解析的对象，不是 JSON 字符串
@@ -36,15 +36,17 @@ export function initResourceChart(chartData: any): void {
       return {
         label: line.name || `资源 ${i + 1}`,
         data: line.data || line.points || [],
-        backgroundColor: line.color || `hsl(${i * 60}, 60%, 70%)`,
+        backgroundColor: line.color || `hsla(${i * 60}, 60%, 70%, 0.2)`,
         borderColor: line.color || `hsl(${i * 60}, 60%, 50%)`,
-        borderWidth: 1
+        borderWidth: 2,
+        fill: true,
+        tension: 0.3
       };
     });
   }
 
   const chart: any = new ChartCtor(ctx, {
-    type: 'bar',
+    type: 'line',
     data: {
       labels: labels,
       datasets: datasets
@@ -53,8 +55,8 @@ export function initResourceChart(chartData: any): void {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        x: { stacked: true, title: { display: true, text: '时间' } },
-        y: { stacked: true, beginAtZero: true, title: { display: true, text: '投入量' } }
+        x: { stacked: false, title: { display: true, text: '时间' } },
+        y: { stacked: false, beginAtZero: true, title: { display: true, text: '投入量' } }
       },
       plugins: {
         legend: { position: 'bottom' }

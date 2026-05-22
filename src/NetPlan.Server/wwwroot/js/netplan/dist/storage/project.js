@@ -48,6 +48,9 @@ export function setCheckedProject(id) {
 export function navToChecked(page) {
     const id = getCheckedProject();
     if (id) {
-        window.location.href = `/project/${page}?id=${id}`;
+        window.location.href = `/project/${id}/${page}`;
+    }
+    else {
+        console.warn('[navToChecked] no checked project');
     }
 }

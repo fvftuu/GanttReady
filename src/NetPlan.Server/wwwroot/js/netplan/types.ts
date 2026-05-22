@@ -95,10 +95,12 @@ export interface WindowNetPlan {
   printNetwork(printZoomVal: string): void;
   setGanttDotNet(ref: any): void;
   initGanttScroll(): void;
+  syncGanttScrollById(): void;
   initPanelResize(): void;
   loadDraft(key: string): string | null;
   saveDraft(key: string, json: string): void;
   clearDraft(key: string): void;
+  syncGanttRowHeights(): void;
   initResourceChart(chartData: string): void;
   renderAnalysisBarChart(canvasId: string, chartData: string): void;
   getActiveProject(): string | null;

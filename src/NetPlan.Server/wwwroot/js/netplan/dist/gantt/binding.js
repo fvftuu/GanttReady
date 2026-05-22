@@ -21,38 +21,77 @@ export function initPanelResize() {
     const tryInit = (attempt = 1) => {
         if (attempt > 50)
             return;
-        const handle = document.querySelector('.panel-resize-handle');
-        const left = document.querySelector('.gantt-table-body-container');
+        const handle = document.getElementById('gantt-resize-handle');
+        const left = document.querySelector('.gantt-left');
         if (!handle || !left) {
             setTimeout(() => tryInit(attempt + 1), 100);
             return;
         }
         setupResize(handle, left);
+        // 同时初始化列宽拖拽
+        initColumnResizeInternal();
     };
     tryInit();
 }
+function initColumnResizeInternal() {
+    document.querySelectorAll('.col-resize-handle').forEach(function (h) {
+        if (h.getAttribute('data-inited'))
+            return;
+        h.setAttribute('data-inited', '1');
+        var headerCell = h.parentElement;
+        var startX = 0, startW = 0;
+        h.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            startX = e.clientX;
+            startW = headerCell.offsetWidth;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            var onMouseMove = function (me) {
+                var delta = me.clientX - startX;
+                var newW = Math.max(40, startW + delta);
+                headerCell.style.width = newW + 'px';
+                // 同步所有行同名字段
+                var cls = headerCell.className.split(' ').filter(function (c) { return c.indexOf('col-') === 0; })[0];
+                if (cls) {
+                    document.querySelectorAll('.gantt-left-row .' + cls).forEach(function (cell) {
+                        cell.style.width = newW + 'px';
+                    });
+                }
+            };
+            var onMouseUp = function () {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            };
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+    });
+}
 function setupResize(handle, leftPanel) {
-    let startX = 0;
-    let minWidth = 200;
-    let maxWidth = 800;
+    let startX = 0, startW = 0;
     handle.addEventListener('mousedown', (e) => {
         startX = e.clientX;
-        minWidth = 200;
-        maxWidth = window.innerWidth - 200;
+        startW = leftPanel.offsetWidth;
         document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
+        handle.classList.add('active');
         const onMouseMove = (me) => {
             const delta = me.clientX - startX;
-            let newWidth = leftPanel.offsetWidth + delta;
+            let newWidth = startW + delta;
+            const minWidth = 280;
+            const maxWidth = Math.max(minWidth + 100, window.innerWidth * 0.6);
             newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
             leftPanel.style.width = `${newWidth}px`;
-            startX = me.clientX;
         };
         const onMouseUp = () => {
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
+            handle.classList.remove('active');
         };
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);

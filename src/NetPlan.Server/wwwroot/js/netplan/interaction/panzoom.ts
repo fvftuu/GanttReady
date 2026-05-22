@@ -4,11 +4,19 @@
 
 let _syncLock = false;
 
+export function syncGanttScrollById(): void {
+  const rightDiv = document.getElementById('gantt-right');
+  const leftBody = document.getElementById('gantt-left-body');
+  if (rightDiv && leftBody) {
+    leftBody.scrollTop = rightDiv.scrollTop;
+  }
+}
+
 export function initGanttScroll(): void {
   const tryInit = (attempt = 1): void => {
     if (attempt > 50) return;
-    const rightDiv = document.querySelector('.gantt-timeline') as HTMLElement;
-    const leftBody = document.querySelector('.gantt-table-body') as HTMLElement;
+    const rightDiv = document.getElementById('gantt-right') as HTMLElement;
+    const leftBody = document.getElementById('gantt-left-body') as HTMLElement;
     if (!rightDiv || !leftBody) {
       setTimeout(() => tryInit(attempt + 1), 100);
       return;

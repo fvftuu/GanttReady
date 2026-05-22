@@ -153,6 +153,14 @@ export function calculateTimeParams(tasks, relations) {
                 queue.push(neighbor);
         });
     }
+    // 补充：BFS 未覆盖的事件按 ES 排序分号
+    var remaining = Object.keys(events).filter(function (eid) { return events[eid].num === 0; });
+    remaining.sort(function (a, b) { return (events[a].es || 0) - (events[b].es || 0); });
+    remaining.forEach(function (eid) {
+        events[eid].num = nextNum;
+        nextNum++;
+        sortedEvents.push(eid);
+    });
     return {
         events: events,
         activities: activities,

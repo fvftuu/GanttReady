@@ -84,7 +84,7 @@ export function renderNetwork(elementsJson, optsIn) {
         layout.eventIn[eid] = (tp.eventPred[eid] || []).length;
         layout.eventOut[eid] = (tp.eventSucc[eid] || []).length;
     });
-    var ML = 80;
+    var ML = 12;
     // 逻辑模式 vs 时标模式
     var cx;
     if (mode === 'logic') {
@@ -110,8 +110,11 @@ export function renderNetwork(elementsJson, optsIn) {
     // 自适应高度
     var layerKeys = Object.keys(layout.layerEvents || {}).map(Number);
     var maxLayerNum = layerKeys.length > 0 ? Math.max.apply(null, layerKeys) : 1;
+    // 需要为底部标尺(57px) + 图例(68px) + 间距(10px)留出空间
     var cySize = Math.max(100 + maxLayerNum * netLayerHeight + 60, 400);
-    console.log('[NET] SVG size:', cx, 'x', cySize);
+    // 底部标尺(57) + 图例(85) + 间距(30) = 172，加余量到 300
+    cySize += 300;
+    console.log('[NET] SVG initial size:', cx, 'x', cySize);
     var layerScale = netLayerHeight / 60;
     if (Math.abs(layerScale - 1) > 0.01) {
         Object.keys(layout.events).forEach(function (eid) {
@@ -148,6 +151,11 @@ export function renderNetwork(elementsJson, optsIn) {
         showProgressLine: showProgressLine,
         showDummyArrows: opts.showDummyArrows,
         showProgressCurve: opts.showProgressCurve === true,
+        showGridH: opts.showGridH === true,
+        showGridV: opts.showGridV === true,
+        _maxLayer: typeof layout.maxLayer === 'number' ? layout.maxLayer : 10,
+        _marginTop: 100,
+        _pendingOffsets: window._netPendingOffsets || null,
         projectName: pn,
         nodeRadius: netNodeRadius,
         layerHeight: netLayerHeight,
@@ -158,7 +166,12 @@ export function renderNetwork(elementsJson, optsIn) {
         canvasW: cx,
         canvasH: cySize
     });
-    console.log('[NET] SVG rendered.');
+    // 自适应高度
+    var actualH = window._netSvgHeight || cySize;
+    if (actualH > cySize) {
+        ce.style.height = actualH + 'px';
+    }
+    console.log('[NET] SVG rendered. height:', actualH);
     var svg = ce.querySelector('svg');
     // 双击事件
     if (svg) {
@@ -191,7 +204,7 @@ export function renderNetwork(elementsJson, optsIn) {
             // 双击空白区
             var rect = svg.getBoundingClientRect();
             var clickX = e.clientX - rect.left;
-            var dayOffset = Math.max(0, Math.round((clickX - 80) / dayWidth));
+            var dayOffset = Math.max(0, Math.round((clickX - 12) / dayWidth));
             console.log('[NET] dblclick blank area, dayOffset=', dayOffset);
             dotNet.invokeMethodAsync('ShowAddTaskModal', 0, dayOffset).catch(function (e) { console.warn('[NET] invokeMethodAsync error:', e); });
         };
@@ -249,19 +262,72 @@ export function renderNetwork(elementsJson, optsIn) {
     });
     if (hasOffsets)
         updateCrossArcOverlays();
-    // 节点拖拽
+    // 节点拖拽 + 箭线拖拽
     if (svg) {
         svg.addEventListener('mousedown', function (e) {
-            if (e.target.tagName !== 'circle')
+            var target = e.target;
+            console.log('[NetDrag] mousedown tag=' + target.tagName + ' class=' + target.className);
+            // 点击圆形节点 → 节点拖拽
+            if (target.tagName === 'circle') {
+                var g = target.closest('.net-event');
+                if (!g || !window._netLayout || !window._netLayout.events)
+                    return;
+                var eid = g.getAttribute('data-event-id') || '';
+                var off = eventOffsets[eid] || { x: 0, y: 0 };
+                window._netNodeDrag = { eventId: eid, group: g, startX: e.clientX, startY: e.clientY, offX: off.x, offY: off.y, moved: false };
+                g.style.cursor = 'grabbing';
+                e.stopPropagation();
                 return;
-            var g = e.target.closest('.net-event');
-            if (!g || !window._netLayout || !window._netLayout.events)
+            }
+            // 点击活动路径 → 箭线拖拽
+            var activityPath = target.closest('[data-activity-id]');
+            console.log('[NetDrag] activityPath=' + (activityPath ? activityPath.getAttribute('data-activity-id') : 'null'));
+            if (activityPath) {
+                var actId = activityPath.getAttribute('data-activity-id') || '';
+                if (!actId)
+                    return;
+                // 从路径数据判断是水平 → 行移动，还是竖直 → 水平移动
+                var sid = activityPath.getAttribute('data-src') || '';
+                var tid = activityPath.getAttribute('data-tgt') || '';
+                if (!sid || !tid)
+                    return;
+                var layout = window._netLayout;
+                if (!layout || !layout.events)
+                    return;
+                var s = layout.events[sid], t = layout.events[tid];
+                if (!s || !t)
+                    return;
+                var sameLayer = Math.abs((t.y || 0) - (s.y || 0)) < 2;
+                if (sameLayer) {
+                    // 水平箭线 → 行拖拽
+                    var eY = s.y || 0;
+                    var layerH = window._netLayerHeight || 60;
+                    var marginTop = 100;
+                    var layerIdx = Math.round((eY - marginTop) / layerH);
+                    var events = layout.events;
+                    var eids = Object.keys(events).filter(function (eid) {
+                        var evt = events[eid];
+                        var l = Math.round(((evt.y || 0) - marginTop) / layerH);
+                        return l === layerIdx && !evt.isVirtual;
+                    });
+                    if (eids.length > 0) {
+                        window._netRowDrag = {
+                            startY: e.clientY, eids: eids, moved: false,
+                            startOffsets: JSON.parse(JSON.stringify(eventOffsets))
+                        };
+                    }
+                }
+                else {
+                    // 竖直箭线 → 水平位置拖拽
+                    window._netVertDrag = {
+                        startX: e.clientX, startY: e.clientY,
+                        srcId: sid, tgtId: tid, actId: actId,
+                        sX: s.x || 0, tX: t.x || 0, moved: false
+                    };
+                }
+                e.stopPropagation();
                 return;
-            var eid = g.getAttribute('data-event-id') || '';
-            var off = eventOffsets[eid] || { x: 0, y: 0 };
-            window._netNodeDrag = { eventId: eid, group: g, startX: e.clientX, startY: e.clientY, offX: off.x, offY: off.y, moved: false };
-            g.style.cursor = 'grabbing';
-            e.stopPropagation();
+            }
         });
     }
     // 前锋线拖动
@@ -280,6 +346,32 @@ export function renderNetwork(elementsJson, optsIn) {
     if (!window._netDragBound) {
         window._netDragBound = true;
         document.addEventListener('mousemove', function (e) {
+            // ===== 竖直箭线拖拽预览 =====
+            var vd = window._netVertDrag;
+            if (vd) {
+                if (Math.abs(e.clientX - vd.startX) > 3)
+                    vd.moved = true;
+                return;
+            }
+            // ===== 行拖拽预览 =====
+            var rd = window._netRowDrag;
+            if (rd) {
+                var layerH = window._netLayerHeight || 60;
+                var rdDy = Math.round((e.clientY - rd.startY) / layerH) * layerH;
+                if (Math.abs(e.clientY - rd.startY) > 3)
+                    rd.moved = true;
+                if (rd.moved) {
+                    var svgEl = document.querySelector('#network-svg');
+                    rd.eids.forEach(function (eid) {
+                        var g = svgEl ? svgEl.querySelector('[data-event-id="' + eid + '"]') : null;
+                        if (g) {
+                            var origOff = rd.startOffsets[eid] || { x: 0, y: 0 };
+                            g.setAttribute('transform', 'translate(' + origOff.x + ',' + (origOff.y + rdDy) + ')');
+                        }
+                    });
+                }
+                return;
+            }
             // ===== 节点拖拽预览 =====
             var nd = window._netNodeDrag;
             if (nd) {
@@ -300,7 +392,7 @@ export function renderNetwork(elementsJson, optsIn) {
             var bodyEl = document.getElementById('network-body');
             var scrollDelta = (bodyEl ? bodyEl.scrollLeft : 0) - dragInfo.startScrollLeft;
             var newX = dragInfo.startLineX + pdx + scrollDelta;
-            var minX = 80, maxX = parseFloat(svg.getAttribute('width') || '800') - 100;
+            var minX = 12, maxX = parseFloat(svg.getAttribute('width') || '800') - 100;
             newX = Math.max(minX, Math.min(newX, maxX));
             var checkGroup = document.getElementById('net-progress-check');
             var line = checkGroup ? checkGroup.querySelector('line') : null;
@@ -333,6 +425,47 @@ export function renderNetwork(elementsJson, optsIn) {
         });
         document.addEventListener('mouseup', function (e) {
             window._dragInfo = null;
+            // ===== 竖直箭线拖拽 mouseup =====
+            var vd = window._netVertDrag;
+            if (vd) {
+                delete window._netVertDrag;
+                if (vd.moved) {
+                    var dayWidth = window._netDayWidth || 8;
+                    var vdx = e.clientX - vd.startX;
+                    var deltaDays = Math.round(vdx / dayWidth);
+                    if (deltaDays !== 0) {
+                        var offsets = window._netEventOffsets || {};
+                        var srcOff = offsets[vd.srcId] || { x: 0, y: 0 };
+                        offsets[vd.srcId] = { x: srcOff.x + deltaDays * dayWidth, y: srcOff.y || 0 };
+                        updateArrowPaths(vd.srcId, offsets[vd.srcId].x, offsets[vd.srcId].y);
+                        updateDummyPaths(vd.srcId, offsets[vd.srcId].x, offsets[vd.srcId].y);
+                        updateCrossArcOverlays();
+                    }
+                }
+                return;
+            }
+            // ===== 行拖拽 mouseup =====
+            var rd = window._netRowDrag;
+            if (rd) {
+                delete window._netRowDrag;
+                if (rd.moved) {
+                    var layerH = window._netLayerHeight || 60;
+                    var rdDy = Math.round((e.clientY - rd.startY) / layerH) * layerH;
+                    if (rdDy !== 0) {
+                        var offsets = window._netEventOffsets || {};
+                        var layout = window._netLayout;
+                        rd.eids.forEach(function (eid) {
+                            var origOff = rd.startOffsets[eid] || { x: 0, y: 0 };
+                            offsets[eid] = { x: origOff.x || 0, y: (origOff.y || 0) + rdDy };
+                            // 更新箭线
+                            updateArrowPaths(eid, offsets[eid].x, offsets[eid].y);
+                            updateDummyPaths(eid, offsets[eid].x, offsets[eid].y);
+                        });
+                        updateCrossArcOverlays();
+                    }
+                }
+                return;
+            }
             // ===== 节点拖拽 mouseup =====
             var nd = window._netNodeDrag;
             if (nd) {

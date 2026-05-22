@@ -229,6 +229,14 @@ partial class NetPlanDbContextModelSnapshot : ModelSnapshot
             b.Property<int>("CompletionPercentage")
                 .HasColumnType("INTEGER");
 
+            b.Property<string>("BudgetCost")
+                .IsRequired()
+                .HasColumnType("TEXT")
+                .HasDefaultValue("0");
+
+            b.Property<string>("ActualCost")
+                .HasColumnType("TEXT");
+
             b.Property<string>("CreatedAt")
                 .IsRequired()
                 .HasColumnType("TEXT");
