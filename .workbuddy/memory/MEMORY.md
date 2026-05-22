@@ -94,6 +94,11 @@
 - **重要教训**：Blazor Server `<script>` 标签内绝对不能包含 `@变量` 绑定（会被DOM diff解析出错，SyntaxError: appendChild）。解决方案：用 hidden input 传数据，用 JS 轮询检测变化。
 - **重要教训**：OnAfterRenderAsync(firstRender=true) 在预渲染时也会执行（服务器端，无浏览器），JS Interop 会抛异常，需要 try/catch 包裹。
 
+## 最新更新 (2026-05-17)
+- [x] 样例数据填充：DataSeeder.cs 完整30任务（5阶段A-E）、22资源（人工/设备/材料）、75+资源分配、32前置关系
+- [x] 甘特图资源列修复：`LoadTasks()` 新增 `ResourceService.GetAssignmentsByProjectAsync(currentProjectId)` 调用，解决初始渲染资源列为空问题
+- [x] 分析仪表板第7Tab「⚖ 资源平衡」：调用已有 `LevelResourcesAsync`（AnalysisService.cs:207），展示冲突检测数/推迟建议数卡片 + 调整建议表格（任务代号/名称/资源/原计划开始/建议推迟至/推迟天数/原因）
+
 ## 已知问题清单 (2026-05-05 审计·修正版)
 
 > 经内部复查 + 外部审计交叉验证，12+4=16 项。**2026-05-06 修复完成 14/16 项**，2 项留待后续

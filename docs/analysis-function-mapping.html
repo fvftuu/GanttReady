@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetPlan 分析功能对照表 - GB/T 13400.3-2009</title>
+<style>
+:root {
+  --bg: #f5f7fa;
+  --card-bg: #fff;
+  --border: #e8e8e8;
+  --text: #333;
+  --text-secondary: #666;
+  --primary: #1890ff;
+  --success: #52c41a;
+  --warning: #faad14;
+  --danger: #ff4d4f;
+  --purple: #722ed1;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 24px; }
+h1 { font-size: 1.8rem; margin-bottom: 8px; }
+.subtitle { color: var(--text-secondary); margin-bottom: 24px; font-size: 0.9rem; }
+.legend { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+.dot-done { background: var(--success); }
+.dot-partial { background: var(--warning); }
+.dot-todo { background: #d9d9d9; }
+.dot-n-a { background: var(--text-secondary); }
+
+/* Section card */
+.section-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.section-header {
+  padding: 14px 20px;
+  background: #fafafa;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-header h2 { font-size: 1.1rem; flex: 1; }
+.section-badge {
+  font-size: 0.75rem;
+  padding: 2px 10px;
+  border-radius: 10px;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-gbt { background: var(--primary); }
+.badge-builtin { background: var(--purple); }
+.badge-shared { background: var(--success); }
+
+/* Mapping table */
+.mapping-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.mapping-table th, .mapping-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.mapping-table th {
+  background: #fafafa;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.mapping-table tr:last-child td { border-bottom: none; }
+.col-no { width: 40px; text-align: center; }
+.col-cat { width: 110px; }
+.col-analysis { width: 150px; }
+.col-standard { width: 100px; }
+.col-service { width: 200px; }
+.col-page { width: 200px; }
+.col-js { width: 160px; }
+.col-data { width: 140px; }
+.col-todo { width: 200px; }
+.col-status { width: 60px; }
+
+/* Status badges */
+.status-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+.dot-green { background: var(--success); }
+.dot-yellow { background: var(--warning); }
+.dot-gray { background: #d9d9d9; }
+.dot-blue { background: var(--primary); }
+
+.status-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tag-done { background: #f6ffed; color: var(--success); border: 1px solid #b7eb8f; }
+.tag-partial { background: #fffbe6; color: #d48806; border: 1px solid #ffe58f; }
+.tag-todo { background: #fafafa; color: #999; border: 1px solid #d9d9d9; }
+.tag-n-a { background: #fafafa; color: var(--text-secondary); border: 1px solid #d9d9d9; }
+
+/* Data source list */
+.data-sources {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.data-sources code {
+  background: #f5f5f5;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.8rem;
+}
+
+/* Summary section */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+.summary-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.summary-card h3 { font-size: 1rem; margin-bottom: 10px; }
+.summary-card ul { padding-left: 18px; font-size: 0.88rem; color: var(--text-secondary); }
+.summary-card li { margin-bottom: 6px; }
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .section-card { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+
+<h1>NetPlan 分析功能对照表</h1>
+<p class="subtitle">基于 GB/T 13400.3-2009《网络计划技术 第3部分：在项目管理中应用的一般程序》 | 更新于 2026-05-17</p>
+
+<div class="legend">
+  <div class="legend-item"><span class="legend-dot dot-done"></span> 已完成</div>
+  <div class="legend-item"><span class="legend-dot dot-partial"></span> 部分完成</div>
+  <div class="legend-item"><span class="legend-dot dot-todo"></span> 待开发</div>
+  <div class="legend-item"><span class="legend-dot dot-n-a"></span> 不适用</div>
+</div>
+
+<!-- ==================== 1. 概况 / 关键路径 ==================== -->
+<div class="section-card">
+  <div class="section-header">
+    <h2>1. 项目总体概况 & 关键路径分析</h2>
+    <span class="section-badge badge-builtin">内置核心</span>
+  </div>
+  <table class="mapping-table">
+    <thead>
+      <tr>
+        <th class="col-no">#</th>
+        <th class="col-cat">分析项</th>
+        <th class="col-analysis">分析内容</th>
+        <th class="col-standard">国标引用</th>
+        <th class="col-service">后端服务 (Service)</th>
+        <th class="col-page">前端页面 (Razor)</th>
+        <th class="col-js">JS 图表</th>
+        <th class="col-data">数据来源</th>
+        <th class="col-status">状态</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-no">1.1</td>
+        <td class="col-cat">仪表板卡片</td>
+        <td>项目工期、总任务数、关键任务数、最早完成日期、SPI、进度偏差天数</td>
+        <td>—</td>
+        <td>
+          <div><code>AnalysisService.GetProjectOverviewAsync</code></div>
+          <div><code>AnalysisService.AnalyzeProject</code></div>
+        </td>
+        <td>
+          <div><code>Analysis.razor</code> dashboard-cards (7张卡片)</div>
+          <div>@code: <code>LoadSingleProjectAnalysis</code></div>
+        </td>
+        <td><span class="status-tag tag-n-a">—</span></td>
+        <td class="data-sources"><code>Project</code> + <code>TaskItem</code> (EF Core)</td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">1.2</td>
+        <td class="col-cat">关键路径</td>
+        <td>列出所有 TF=0 的关键任务，红色高亮行显示</td>
+        <td>—</td>
+        <td><code>AnalysisService.AnalyzeProject</code> → <code>CriticalPathTasks</code></td>
+        <td><code>Analysis.razor</code> 概况Tab：关键路径任务表格</td>
+        <td><span class="status-tag tag-n-a">—</span></td>
+        <td class="data-sources"><code>TaskItem.IsCritical</code> (CPM引擎计算)</td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">1.3</td>
+        <td class="col-cat">时差分析</td>
+        <td>按 TF 排序的水平柱状图，颜色区分关键/预警/正常</td>
+        <td>—</td>
+        <td><code>AnalysisService.AnalyzeProject</code> → <code>OnTimeTasks</code>/<code>EarlyStartTasks</code>/<code>LateStartTasks</code></td>
+        <td><code>Analysis.razor</code> 概况Tab：float-chart 时差柱状图</td>
+        <td><span class="status-tag tag-n-a">内联CSS</span></td>
+        <td class="data-sources"><code>TaskItem.TotalFloat</code> (CPM引擎计算)</td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">1.4</td>
+        <td class="col-cat">里程碑</td>
+        <td>时间轴形式展示所有里程碑节点</td>
+        <td>—</td>
+        <td><code>AnalysisService.AnalyzeProject</code> → <code>Milestones</code></td>
+        <td><code>Analysis.razor</code> 概况Tab：milestone-timeline</td>
+        <td><span class="status-tag tag-n-a">CSS布局</span></td>
+        <td class="data-sources"><code>TaskItem.IsMilestone</code></td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">1.5</td>
+        <td class="col-cat">资源冲突检测</td>
+        <td>逐资源按月统计峰值使用 vs 容量，标记超额项</td>
+        <td>—</td>
+        <td><code>CalculateResourceUsages</code> (Razor @code 内联)</td>
+        <td><code>Analysis.razor</code> 概况Tab：资源容量 vs 峰值图表 + 冲突表格</td>
+        <td><code>renderAnalysisBarChart</code> (容量/峰值 柱状图)</td>
+        <td class="data-sources"><code>ResourceAssignment</code> + <code>Resource</code></td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">1.6</td>
+        <td class="col-cat">资源平衡</td>
+        <td>检测超分配，按TF推迟低优先级任务，生成调整建议</td>
+        <td>—</td>
+        <td><code>AnalysisService.LevelResourcesAsync</code></td>
+        <td><span class="status-tag tag-todo">未接入UI</span></td>
+        <td><span class="status-tag tag-todo">未接入UI</span></td>
+        <td class="data-sources"><code>ResourceAssignment</code> + <code>TaskItem</code></td>
+        <td><span class="status-tag tag-partial">服务已有 / UI未接入</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== 2. 挣值分析 (EVM) ==================== -->
+<div class="section-card">
+  <div class="section-header">
+    <h2>2. 挣值分析 (EVM)</h2>
+    <span class="section-badge badge-gbt">GB/T 13400.3 §11.2.3</span>
+  </div>
+  <table class="mapping-table">
+    <thead>
+      <tr>
+        <th class="col-no">#</th>
+        <th class="col-cat">分析项</th>
+        <th class="col-analysis">分析内容</th>
+        <th class="col-standard">国标引用</th>
+        <th class="col-service">后端服务</th>
+        <th class="col-page">前端页面</th>
+        <th class="col-js">JS 图表</th>
+        <th class="col-data">数据来源</th>
+        <th class="col-status">状态</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-no">2.1</td>
+        <td class="col-cat">挣值指标卡</td>
+        <td>PV(计划价值)、EV(挣值)、SPI(进度绩效指数)、SV(进度偏差)</td>
+        <td>§11.2.3</td>
+        <td><code>IAnalysisService.GetEarnedValueAsync</code><br>→ <code>EarnedValueResult</code></td>
+        <td><code>Analysis.razor</code> 挣值Tab：4张指标卡片</td>
+        <td><span class="status-tag tag-n-a">—</span></td>
+        <td class="data-sources">
+          <code>TaskItem.CompletionPercentage</code><br>
+          <code>ResourceAssignment.Quantity × Resource.UnitPrice</code>
+        </td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">2.2</td>
+        <td class="col-cat">挣值 S 曲线</td>
+        <td>月度 PV(蓝虚线) vs EV(绿实线) 折线图</td>
+        <td>§11.2.3</td>
+        <td>同上 → <code>MonthlyTrend</code> 列表</td>
+        <td><code>Analysis.razor</code> 挣值Tab：<code>#evm-chart</code> canvas</td>
+        <td><code>renderEVMChart</code><br>(Chart.js line, 2条线)</td>
+        <td class="data-sources"><code>MonthlyEVM.PV / .EV</code></td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">2.3</td>
+        <td class="col-cat">SPI 趋势图</td>
+        <td>月度SPI趋势线 + y=1.0 基准线参考 + 散点颜色</td>
+        <td>§11.2.3</td>
+        <td>同上 → <code>MonthlyTrend</code></td>
+        <td><code>Analysis.razor</code> 挣值Tab：<code>#spi-trend-chart</code> canvas</td>
+        <td><code>renderSPITrendChart</code><br>(afterDraw参考线, pointBackgroundColor按值)</td>
+        <td class="data-sources"><code>MonthlyEVM.SPI</code></td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">2.4</td>
+        <td class="col-cat">月度SPI表</td>
+        <td>表格展示每月PV/EV/SPI + 状态标签</td>
+        <td>§11.2.3</td>
+        <td>同上</td>
+        <td><code>Analysis.razor</code> 挣值Tab：月度数据表格</td>
+        <td><span class="status-tag tag-n-a">—</span></td>
+        <td class="data-sources"><code>MonthlyEVM</code></td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">2.5</td>
+        <td class="col-cat">⚠ 需完善</td>
+        <td colspan="7" style="background:#fffbe6;font-size:0.85rem;">
+          <strong>当前为简化版EVM</strong>——缺少实际成本(AC)，无法计算CPI(Cost Performance Index)。SPI 使用「实际完成% × 预算」代替 EV，使用「计划应完成% × 预算」代替 PV。如需完整EVM需增加：① 任务实际成本字段 <code>ActualCost</code>；② 资源实际消耗记录；③ CPI/CSI 计算；④ EAC 不同算法选择(SPI×CPI组合)
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== 3. 前锋线进度曲线 ==================== -->
+<div class="section-card">
+  <div class="section-header">
+    <h2>3. 前锋线累计进度曲线</h2>
+    <span class="section-badge badge-gbt">GB/T 13400.3 §11.2.3</span>
+  </div>
+  <table class="mapping-table">
+    <thead>
+      <tr>
+        <th class="col-no">#</th>
+        <th class="col-cat">分析项</th>
+        <th class="col-analysis">分析内容</th>
+        <th class="col-standard">国标引用</th>
+        <th class="col-service">后端服务</th>
+        <th class="col-page">前端页面</th>
+        <th class="col-js">JS 图表</th>
+        <th class="col-data">数据来源</th>
+        <th class="col-status">状态</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-no">3.1</td>
+        <td class="col-cat">进度指标卡</td>
+        <td>计划完成%、实际完成%、偏差天数、前锋线日期</td>
+        <td>§11.2.3</td>
+        <td><code>IAnalysisService.GetProgressCurveAsync</code><br>→ <code>ProgressCurveResult</code></td>
+        <td><code>Analysis.razor</code> 进度曲线Tab：4张卡片</td>
+        <td><span class="status-tag tag-n-a">—</span></td>
+        <td class="data-sources">
+          <code>TaskItem.PlanStartDate</code>/<code>PlanEndDate</code><br>
+          <code>TaskItem.ActualStartDate</code>/<code>ActualEndDate</code><br>
+          <code>TaskItem.CompletionPercentage</code>
+        </td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">3.2</td>
+        <td class="col-cat">S 曲线图</td>
+        <td>计划累计完成曲线 vs 实际累计完成曲线 + 前锋线竖线</td>
+        <td>§11.2.3</td>
+        <td>同上 → <code>PlannedCurve</code> + <code>ActualCurve</code></td>
+        <td><code>Analysis.razor</code> 进度曲线Tab：<code>#progress-curve-chart</code></td>
+        <td><code>renderProgressCurveChart</code><br>(afterDraw前锋线, 计划/实际双线)</td>
+        <td class="data-sources"><code>ProgressCurvePoint.CumulativePct</code> 逐日</td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">3.3</td>
+        <td class="col-cat">⚠ 需完善</td>
+        <td colspan="7" style="background:#fffbe6;font-size:0.85rem;">
+          <strong>前锋线数据依赖CompletionPercentage</strong>——当前该字段由用户手动填入，不是从实际日期自动计算。建议：① 在甘特图中增加「实际进度填报」交互，自动更新 CompletionPercentage；② 前锋线日期检测逻辑简化（取 Max(ActualEndDate, Today)），可能不准确
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== 4. 工期偏差分析 ==================== -->
+<div class="section-card">
+  <div class="section-header">
+    <h2>4. 工期偏差分析</h2>
+    <span class="section-badge badge-gbt">GB/T 13400.3 §9.1</span>
+  </div>
+  <table class="mapping-table">
+    <thead>
+      <tr>
+        <th class="col-no">#</th>
+        <th class="col-cat">分析项</th>
+        <th class="col-analysis">分析内容</th>
+        <th class="col-standard">国标引用</th>
+        <th class="col-service">后端服务</th>
+        <th class="col-page">前端页面</th>
+        <th class="col-js">JS 图表</th>
+        <th class="col-data">数据来源</th>
+        <th class="col-status">状态</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-no">4.1</td>
+        <td class="col-cat">偏差统计卡</td>
+        <td>提前/按时/延后完成数量统计</td>
+        <td>§9.1</td>
+        <td><code>IAnalysisService.GetScheduleVarianceAsync</code><br>→ <code>ScheduleVarianceResult</code></td>
+        <td><code>Analysis.razor</code> 工期偏差Tab：3张统计卡片</td>
+        <td><span class="status-tag tag-n-a">—</span></td>
+        <td class="data-sources">
+          <code>TaskItem.PlanEndDate</code> vs <code>ActualEndDate</code><br>（未完成则用 DateTime.Today 对比）
+        </td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">4.2</td>
+        <td class="col-cat">偏差明细表</td>
+        <td>每任务：代号/名称/计划完成/实际完成/偏差天数/状态/关键标记</td>
+        <td>§9.1</td>
+        <td>同上 → <code>Items</code></td>
+        <td><code>Analysis.razor</code> 工期偏差Tab：明细表格</td>
+        <td><span class="status-tag tag-n-a">—</span></td>
+        <td class="data-sources"><code>ScheduleVarianceItem</code></td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">4.3</td>
+        <td class="col-cat">偏差柱状图</td>
+        <td>水平柱状图（横轴=偏差天数），绿=提前、红=延后、灰=0</td>
+        <td>§9.1</td>
+        <td>同上</td>
+        <td><code>Analysis.razor</code> 工期偏差Tab：<code>#variance-chart</code></td>
+        <td><code>renderVarianceChart</code><br>(indexAxis:'y', 按值着色)</td>
+        <td class="data-sources"><code>ScheduleVarianceItem.VarianceDays</code></td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== 5. 阶段完成率 ==================== -->
+<div class="section-card">
+  <div class="section-header">
+    <h2>5. 阶段完成率分析</h2>
+    <span class="section-badge badge-gbt">GB/T 13400.3 §12.1</span>
+  </div>
+  <table class="mapping-table">
+    <thead>
+      <tr>
+        <th class="col-no">#</th>
+        <th class="col-cat">分析项</th>
+        <th class="col-analysis">分析内容</th>
+        <th class="col-standard">国标引用</th>
+        <th class="col-service">后端服务</th>
+        <th class="col-page">前端页面</th>
+        <th class="col-js">JS 图表</th>
+        <th class="col-data">数据来源</th>
+        <th class="col-status">状态</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-no">5.1</td>
+        <td class="col-cat">完成率总览</td>
+        <td>大数字显示 X/7 阶段完成 + 进度条 + 百分比</td>
+        <td>§12.1</td>
+        <td><code>IAnalysisService.GetStageCompletionAsync</code><br>→ <code>StageCompletionResult</code></td>
+        <td><code>Analysis.razor</code> 阶段完成率Tab：总览卡片</td>
+        <td><span class="status-tag tag-n-a">Blazor内联</span></td>
+        <td class="data-sources"><code>StageCompletionResult.CompletedStages</code>/<code>OverallPct</code></td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">5.2</td>
+        <td class="col-cat">环形图</td>
+        <td>Donut图：已完成/总阶段数 + 中心文字 + 各阶段状态堆积</td>
+        <td>§12.1</td>
+        <td>同上 → <code>Stages</code></td>
+        <td><code>Analysis.razor</code> 阶段完成率Tab：<code>#stage-chart</code></td>
+        <td><code>renderStageChart</code><br>(doughnut, cutout:65%, centerText plugin)</td>
+        <td class="data-sources"><code>StageInfo.Status</code> (completed/in_progress/pending)</td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">5.3</td>
+        <td class="col-cat">阶段详情卡片</td>
+        <td>7阶段的彩色卡片（✅已完成 / 🔄进行中 / ⏳待开始）</td>
+        <td>§12.1</td>
+        <td>同上</td>
+        <td><code>Analysis.razor</code> 阶段完成率Tab：阶段卡片列表</td>
+        <td><span class="status-tag tag-n-a">Blazor内联</span></td>
+        <td class="data-sources"><code>StageInfo</code> 7条记录</td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">5.4</td>
+        <td class="col-cat">⚠ 需完善</td>
+        <td colspan="7" style="background:#fffbe6;font-size:0.85rem;">
+          <strong>阶段判定依赖关键词匹配</strong>——当前通过里程碑名称关键字（"准备"→阶段1, "验收"→阶段7）进行匹配，缺乏准确度。建议：① 任务增加 <code>StageNo</code> 字段实现精确绑定；② 支持用户手动配置阶段-里程碑映射
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== 6. 资源月度负荷 ==================== -->
+<div class="section-card">
+  <div class="section-header">
+    <h2>6. 资源月度负荷矩阵</h2>
+    <span class="section-badge badge-gbt">GB/T 13400.3 §10.1.1</span>
+  </div>
+  <table class="mapping-table">
+    <thead>
+      <tr>
+        <th class="col-no">#</th>
+        <th class="col-cat">分析项</th>
+        <th class="col-analysis">分析内容</th>
+        <th class="col-standard">国标引用</th>
+        <th class="col-service">后端服务</th>
+        <th class="col-page">前端页面</th>
+        <th class="col-js">JS 图表</th>
+        <th class="col-data">数据来源</th>
+        <th class="col-status">状态</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-no">6.1</td>
+        <td class="col-cat">负荷矩阵表</td>
+        <td>资源×月份二维矩阵，颜色编码负荷等级（绿/黄/橙/红）</td>
+        <td>§10.1.1</td>
+        <td><code>IAnalysisService.GetResourceLoadAsync</code><br>→ <code>ResourceLoadResult</code></td>
+        <td><code>Analysis.razor</code> 资源负荷Tab：冻结首列表格 + 图例</td>
+        <td><span class="status-tag tag-n-a">Blazor内联</span></td>
+        <td class="data-sources">
+          <code>ResourceAssignment</code> 按时段分摊<br>
+          <code>Resource.Quantity</code> (容量)<br>
+          月度重叠天数加权计算
+        </td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">6.2</td>
+        <td class="col-cat">负荷堆叠图</td>
+        <td>Stacked bar chart：各资源按月堆叠 + y=1.0 容量线</td>
+        <td>§10.1.1</td>
+        <td>同上 → <code>LoadMatrix</code> + <code>ResourceNames</code></td>
+        <td><code>Analysis.razor</code> 资源负荷Tab：<code>#resource-load-chart</code></td>
+        <td><code>renderResourceLoadChart</code><br>(stacked bar, afterDraw容量线)</td>
+        <td class="data-sources"><code>LoadMatrix[i][j]</code> (使用量/容量比)</td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== 7. 跨项目共享资源 ==================== -->
+<div class="section-card">
+  <div class="section-header">
+    <h2>7. 跨项目共享资源分析</h2>
+    <span class="section-badge badge-shared">全局分析</span>
+  </div>
+  <table class="mapping-table">
+    <thead>
+      <tr>
+        <th class="col-no">#</th>
+        <th class="col-cat">分析项</th>
+        <th class="col-analysis">分析内容</th>
+        <th class="col-standard">国标引用</th>
+        <th class="col-service">后端服务</th>
+        <th class="col-page">前端页面</th>
+        <th class="col-js">JS 图表</th>
+        <th class="col-data">数据来源</th>
+        <th class="col-status">状态</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-no">7.1</td>
+        <td class="col-cat">全局仪表板</td>
+        <td>项目总数、共享资源数、有冲突项目数</td>
+        <td>—</td>
+        <td>Razor @code 内联 (<code>LoadAllProjectsAnalysis</code>)</td>
+        <td><code>Analysis.razor</code> 全局视图：3张卡片</td>
+        <td><span class="status-tag tag-n-a">—</span></td>
+        <td class="data-sources">所有 <code>Project</code> + <code>Resource</code> (ProjectId==null)</td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">7.2</td>
+        <td class="col-cat">冲突概览图</td>
+        <td>各项目「任务数 vs 冲突数」柱状图</td>
+        <td>—</td>
+        <td>Razor @code 内联</td>
+        <td><code>Analysis.razor</code> 全局视图：<code>#all-projects-chart</code></td>
+        <td><code>renderAnalysisBarChart</code> (柱状图)</td>
+        <td class="data-sources"><code>ProjectResourceSummary</code></td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">7.3</td>
+        <td class="col-cat">项目汇总表</td>
+        <td>各项目：任务数/资源数/冲突数/详情链接</td>
+        <td>—</td>
+        <td>同上</td>
+        <td><code>Analysis.razor</code> 全局视图：汇总表格</td>
+        <td><span class="status-tag tag-n-a">—</span></td>
+        <td class="data-sources"><code>ProjectResourceSummary</code></td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+      <tr>
+        <td class="col-no">7.4</td>
+        <td class="col-cat">共享资源详情</td>
+        <td>列出所有共享资源及使用项目列表</td>
+        <td>—</td>
+        <td>同上</td>
+        <td><code>Analysis.razor</code> 全局视图：共享资源表格</td>
+        <td><span class="status-tag tag-n-a">—</span></td>
+        <td class="data-sources"><code>AllProjectResourceItem</code></td>
+        <td><span class="status-tag tag-done">已完成</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ==================== 8. 整体架构总结 ==================== -->
+<div class="summary-grid">
+  <div class="summary-card">
+    <h3>🔧 技术栈总览</h3>
+    <ul>
+      <li><strong>后端框架</strong>：.NET 8 Blazor Server</li>
+      <li><strong>数据库</strong>：SQLite (EF Core)</li>
+      <li><strong>图表库</strong>：Chart.js 4.4.4 (CDN)</li>
+      <li><strong>JS 互操作</strong>：Blazor JSInvokable ↔ netplan.js</li>
+      <li><strong>分析引擎</strong>：CPM调度引擎 (ScheduleEngine)</li>
+    </ul>
+  </div>
+
+  <div class="summary-card">
+    <h3>📊 已实现分析项统计</h3>
+    <ul>
+      <li><strong>分析模块</strong>：7 大模块（概况+EVM+进度曲线+偏差+阶段+资源负荷+跨项目）</li>
+      <li><strong>指标卡片</strong>：24 张</li>
+      <li><strong>Chart.js 图表</strong>：9 个（3通用+6专项）</li>
+      <li><strong>数据表格</strong>：10 张</li>
+      <li><strong>后端方法</strong>：11 个（IAnalysisService）</li>
+      <li><strong>Razor 页面</strong>：1 个（Analysis.razor, 1410行）</li>
+    </ul>
+  </div>
+
+  <div class="summary-card">
+    <h3>⚠ 待完成 / 需完善</h3>
+    <ul>
+      <li><strong>EVM 完整化</strong>：增加 ActualCost 字段，支持 CPI/CSI 计算</li>
+      <li><strong>资源平衡 UI</strong>：<code>LevelResourcesAsync</code> 已有后端，未接入前端界面</li>
+      <li><strong>CompletionPercentage 联动</strong>：甘特图中自动根据实际进度日期计算完成率</li>
+      <li><strong>阶段判定精确化</strong>：关键词匹配 → 显式 StageNo 字段绑定</li>
+      <li><strong>甘特图前锋线</strong>：前台渲染已有 <code>renderProgressLine</code>，分页未集成</li>
+      <li><strong>数据导出</strong>：分析报告导出 Excel/PDF</li>
+    </ul>
+  </div>
+
+  <div class="summary-card">
+    <h3>📐 国标覆盖情况</h3>
+    <ul>
+      <li><strong>§9.1 工期偏差</strong> — ✅ 完整实现</li>
+      <li><strong>§10.1.1 资源负荷矩阵</strong> — ✅ 完整实现</li>
+      <li><strong>§11.2.3 挣值分析</strong> — ⚠ 简化版（缺 AC/CPI）</li>
+      <li><strong>§11.2.3 前锋线进度</strong> — ✅ 完整实现</li>
+      <li><strong>§12.1 阶段完成率</strong> — ⚠ 基于关键词匹配</li>
+      <li><strong>关键路径 + 时差</strong> — ✅ 基于 CPM 引擎</li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>
