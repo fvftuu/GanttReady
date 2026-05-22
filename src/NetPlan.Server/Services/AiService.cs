@@ -13,6 +13,7 @@ public class AiOptions
     public string Endpoint { get; set; } = "https://api.openai.com/v1";
     public string ApiKey { get; set; } = "";
     public string Model { get; set; } = "gpt-4o-mini";
+    public string ApiFormat { get; set; } = "openai";  // "openai" | "anthropic"
 }
 
 public class AiService : IAiService
@@ -45,23 +46,46 @@ public class AiService : IAiService
         if (string.IsNullOrEmpty(opts.ApiKey) && opts.Provider != "Ollama")
             return "⚠️ AI 服务未配置。请点击「AI 设置」填写 API 地址和密钥。";
 
-        var requestBody = new
+        HttpRequestMessage request;
+        var format = opts.ApiFormat?.ToLower() ?? "openai";
+
+        if (format == "anthropic")
         {
-            model = opts.Model,
-            messages = messages.Select(m => new { role = m.Role, content = m.Content }),
-            temperature
-        };
-
-        var json = JsonSerializer.Serialize(requestBody, _json);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var request = new HttpRequestMessage(HttpMethod.Post, $"{opts.Endpoint.TrimEnd('/')}/chat/completions")
+            // Anthropic API 格式
+            var anthropicBody = new
+            {
+                model = opts.Model,
+                messages = messages.Select(m => new { role = m.Role, content = m.Content }),
+                max_tokens = 2048
+            };
+            var json = JsonSerializer.Serialize(anthropicBody, _json);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            request = new HttpRequestMessage(HttpMethod.Post, $"{opts.Endpoint.TrimEnd('/')}/messages")
+            {
+                Content = content
+            };
+            if (!string.IsNullOrEmpty(opts.ApiKey))
+                request.Headers.Add("x-api-key", opts.ApiKey);
+            request.Headers.Add("anthropic-version", "2023-06-01");
+        }
+        else
         {
-            Content = content
-        };
-
-        if (!string.IsNullOrEmpty(opts.ApiKey))
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", opts.ApiKey);
+            // OpenAI 兼容格式（默认）
+            var openaiBody = new
+            {
+                model = opts.Model,
+                messages = messages.Select(m => new { role = m.Role, content = m.Content }),
+                temperature
+            };
+            var json = JsonSerializer.Serialize(openaiBody, _json);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            request = new HttpRequestMessage(HttpMethod.Post, $"{opts.Endpoint.TrimEnd('/')}/chat/completions")
+            {
+                Content = content
+            };
+            if (!string.IsNullOrEmpty(opts.ApiKey))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", opts.ApiKey);
+        }
 
         try
         {

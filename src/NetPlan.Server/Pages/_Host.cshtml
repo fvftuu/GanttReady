@@ -12,7 +12,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NetPlan - 进度计划管理系统</title>
     <base href="~/" />
-    <link href="css/site.css" rel="stylesheet" />
+    <link href="css/site.css?v=2" rel="stylesheet" />
     <link href="css/open-iconic/font/css/open-iconic-bootstrap.min.css" rel="stylesheet" />
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -24,7 +24,7 @@
         window.navToChecked = function(page) {
             var checked = localStorage.getItem('netplan_checked');
             if (checked > 0) { window.location.href = '/project/' + checked + '/' + page; }
-            else { window.location.href = '/'; }
+            else { window.location.href = '/#select-project'; }
         };
     </script>
 </head>
@@ -39,7 +39,7 @@
     </div>
 
     <!-- NetPlan scripts (must load before blazor to avoid JS interop race) -->
-    <script src="js/netplan.js?v=20260516u"></script>
+    <script src="js/netplan.js?v=20260518a"></script>
     <script src="_framework/blazor.server.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function() {
@@ -56,6 +56,9 @@ document.addEventListener("DOMContentLoaded", function() {
   });
 });
 </script>
+
+<!-- Chart.js for resource histogram -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
 </body>
 </html>

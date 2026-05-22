@@ -19,7 +19,7 @@
         </select>
         <span class="page-title">计划分析仪表板</span>
         <button class="btn btn-default btn-sm" style="margin-left:12px;" @onclick="ShowAiSettings">🤖 AI 设置</button>
-        @if (!string.IsNullOrEmpty(_aiEndpoint))
+        @if (GetActiveConnection() != null)
         {
             <button class="btn @(_aiMode ? "btn-primary" : "btn-default") btn-sm" style="margin-left:6px;" @onclick="ToggleAiMode">
                 @(_aiMode ? "🔵 AI 分析" : "⚪ 标准分析")
@@ -35,320 +35,30 @@
     <div class="page-main" style="padding:20px;">
         @if (isLoading)
         {
-            <div class="loading">加载中，正在分析资源数据...</div>
+            <div class="loading">加载中...</div>
         }
         else if (isAllProjects)
         {
-            @* ========== 所有项目共享资源分析 ========== *@
-            <div class="dashboard-cards">
-                <div class="card">
-                    <div class="card-title">项目总数</div>
-                    <div class="card-value">@projectSummaries.Count 个</div>
-                </div>
-                <div class="card">
-                    <div class="card-title">共享资源数</div>
-                    <div class="card-value">@allProjectResources.Count 个</div>
-                </div>
-                <div class="card">
-                    <div class="card-title">有冲突项目</div>
-                    <div class="card-value @(projectSummaries.Any(p => p.ConflictCount > 0) ? "highlight" : "")">
-                        @projectSummaries.Count(p => p.ConflictCount > 0) 个
-                    </div>
-                </div>
-            </div>
-
-            @* 图表：各项目任务数与冲突数 *@
             <div class="section">
-                <h3>📊 各项目资源冲突概览</h3>
-                <div style="height:300px;">
-                    <canvas id="all-projects-chart"></canvas>
-                </div>
-            </div>
-
-            @* 各项目汇总表格 *@
-            <div class="section">
-                <h3>📋 各项目汇总</h3>
-                @if (!projectSummaries.Any())
-                {
-                    <div class="empty-state">库中没有项目，请先创建项目。</div>
-                }
-                else
-                {
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>项目名称</th>
-                                <th>任务数</th>
-                                <th>资源数</th>
-                                <th>冲突数</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var ps in projectSummaries)
-                            {
-                                <tr class="@(ps.ConflictCount > 0 ? "conflict-row" : "")">
-                                    <td>@ps.ProjectName</td>
-                                    <td>@ps.TaskCount</td>
-                                    <td>@ps.ResourceCount</td>
-                                    <td>
-                                        @if (ps.ConflictCount > 0)
-                                        {
-                                            <span class="badge danger">@ps.ConflictCount 项</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge success">✓ 正常</span>
-                                        }
-                                    </td>
-                                    <td>
-                                        <a href="/project/@ps.ProjectId/analysis" class="btn btn-sm btn-outline">查看详情</a>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-            </div>
-
-            @* 共享资源使用详情 *@
-            <div class="section">
-                <h3>🌐 共享资源跨项目使用情况</h3>
-                @if (!allProjectResources.Any())
-                {
-                    <div class="empty-state">当前没有共享资源（所有资源均绑定到具体项目）。</div>
-                }
-                else
-                {
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>资源名称</th>
-                                <th>类型</th>
-                                <th>总容量</th>
-                                <th>使用单位</th>
-                                <th>使用项目</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in allProjectResources)
-                            {
-                                <tr>
-                                    <td>@item.ResourceName</td>
-                                    <td><span class="badge @GetResourceTypeBadgeClass(item.ResourceType)">@GetResourceTypeLabel(item.ResourceType)</span></td>
-                                    <td>@item.TotalCapacity @item.Unit</td>
-                                    <td>@item.Unit</td>
-                                    <td>@string.Join("、", item.UsedByProjects)</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
+                <h3>🌐 所有项目分析</h3>
+                <p style="color:var(--text-secondary);">请选择具体项目后使用 AI 分析。</p>
             </div>
         }
         else if (analysisResult != null)
         {
-            @* ========== 单个项目分析（原有逻辑 + 图表）========== *@
-            <div class="dashboard-cards">
-                <div class="card">
-                    <div class="card-title">项目工期</div>
-                    <div class="card-value">@analysisResult.ProjectDurationDays 天</div>
-                </div>
-                <div class="card">
-                    <div class="card-title">总任务数</div>
-                    <div class="card-value">@analysisResult.TotalTasks 个</div>
-                </div>
-                <div class="card">
-                    <div class="card-title">关键路径任务</div>
-                    <div class="card-value highlight">@analysisResult.CriticalPathTasks.Count 个</div>
-                </div>
-                <div class="card">
-                    <div class="card-title">最早完成</div>
-                    <div class="card-value">@analysisResult.EarliestFinish.ToString("yyyy-MM-dd")</div>
-                </div>
-                @if (resourceConflicts.Any())
+            <div class="section">
+                <h3>AI 项目分析报告</h3>
+                @if (_aiLoading)
                 {
-                    <div class="card" style="border-left:4px solid #ff4d4f;">
-                        <div class="card-title" style="color:#ff4d4f;">⚠ 资源冲突</div>
-                        <div class="card-value" style="color:#ff4d4f;">@resourceConflicts.Count 项</div>
-                    </div>
+                    <div class="loading">⏳ AI 正在分析项目数据...</div>
                 }
-            </div>
-
-            @* 资源容量 vs 峰值使用图表 *@
-            @if (resourceUsages.Any())
-            {
-                <div class="section">
-                    <h3>📊 资源容量 vs 峰值使用</h3>
-                    <div style="height:300px;">
-                        <canvas id="single-project-chart"></canvas>
-                    </div>
-                </div>
-            }
-
-            <div class="section">
-                <h3>📊 项目统计</h3>
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <span class="stat-label">按时任务:</span>
-                        <span class="stat-value">@analysisResult.OnTimeTasks.Count</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">提前任务:</span>
-                        <span class="stat-value text-success">@analysisResult.EarlyStartTasks.Count</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">延后任务:</span>
-                        <span class="stat-value text-warning">@analysisResult.LateStartTasks.Count</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">里程碑节点:</span>
-                        <span class="stat-value">@analysisResult.Milestones.Count</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">资源分配项:</span>
-                        <span class="stat-value">@totalAssignments</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="section">
-                <h3>🔴 关键路径任务</h3>
-                @if (analysisResult.CriticalPathTasks.Count == 0)
+                else if (_aiReports.TryGetValue("analysis", out var report))
                 {
-                    <div class="empty-state">未检测到关键路径（请先在甘特图中点击「重算计划」）</div>
+                    <div style="background:#fafafa;border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;line-height:1.8;white-space:pre-wrap;font-size:13px;">@report</div>
                 }
                 else
                 {
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>代号</th>
-                                <th>任务名称</th>
-                                <th>计划开始</th>
-                                <th>计划完成</th>
-                                <th>工期(天)</th>
-                                <th>总时差</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var task in analysisResult.CriticalPathTasks)
-                            {
-                                <tr class="critical-row">
-                                    <td>@task.Code</td>
-                                    <td>@task.Name</td>
-                                    <td>@task.PlanStartDate.ToString("yyyy-MM-dd")</td>
-                                    <td>@task.PlanEndDate.ToString("yyyy-MM-dd")</td>
-                                    <td>@task.PlanDuration</td>
-                                    <td>
-                                        <span class="badge danger">
-                                            @(task.TotalFloat?.ToString() ?? "0") 天
-                                        </span>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-            </div>
-
-            <div class="section">
-                <h3>📋 时差分析</h3>
-                <div class="float-chart">
-                    @foreach (var task in analysisResult.Tasks.OrderBy(t => t.TotalFloat ?? 0).Take(20))
-                    {
-                        var floatVal = task.TotalFloat ?? 0;
-                        var barWidth = Math.Min(100, Math.Max(1, Math.Abs(floatVal) * 5));
-                        <div class="float-bar-row">
-                            <div class="float-bar-label" title="@task.Name">
-                                @(task.Name.Length > 15 ? task.Name.Substring(0, 15) + "..." : task.Name)
-                            </div>
-                            <div class="float-bar-container">
-                                <div class="float-bar @(floatVal == 0 ? "critical" : floatVal <= 3 ? "warning" : "normal")"
-                                     style="width: @barWidth%"></div>
-                            </div>
-                            <div class="float-bar-value">@floatVal 天</div>
-                        </div>
-                    }
-                </div>
-            </div>
-
-            @if (analysisResult.Milestones.Count > 0)
-            {
-                <div class="section">
-                    <h3>🎯 里程碑节点</h3>
-                    <div class="milestone-timeline">
-                        @foreach (var milestone in analysisResult.Milestones.OrderBy(m => m.Date))
-                        {
-                            <div class="milestone-item">
-                                <div class="milestone-dot"></div>
-                                <div class="milestone-content">
-                                    <div class="milestone-name">@milestone.Name</div>
-                                    <div class="milestone-date">@milestone.Date.ToString("yyyy-MM-dd")</div>
-                                </div>
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
-
-            @* 资源冲突检测 *@
-            <div class="section">
-                <h3>⚙️ 资源冲突检测</h3>
-                @if (!resourceUsages.Any())
-                {
-                    <div class="empty-state">本项目暂无资源分配数据，请先在甘特图中为任务分配资源。</div>
-                }
-                else
-                {
-                    @if (!resourceConflicts.Any())
-                    {
-                        <div style="color:#52c41a;padding:8px 0;">✅ 未发现资源过度分配，所有资源在容量范围内。</div>
-                    }
-                    else
-                    {
-                        <div style="color:#ff4d4f;margin-bottom:12px;">发现 <strong>@resourceConflicts.Count</strong> 项资源过度分配，请调整任务排期或增加资源容量。</div>
-                    }
-
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>资源名称</th>
-                                <th>类型</th>
-                                <th>总容量</th>
-                                <th>峰值使用</th>
-                                <th>峰值时段</th>
-                                <th>状态</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var usage in resourceUsages)
-                            {
-                                var isConflict = usage.PeakUsage > usage.Capacity;
-                                var pct = usage.Capacity > 0 ? (int)(usage.PeakUsage / usage.Capacity * 100) : 0;
-                                <tr class="@(isConflict ? "conflict-row" : "")">
-                                    <td>@usage.ResourceName</td>
-                                    <td><span class="badge @GetResourceTypeBadgeClass(usage.ResourceType)">@GetResourceTypeLabel(usage.ResourceType)</span></td>
-                                    <td>@usage.Capacity @usage.Unit</td>
-                                    <td style="color:@(isConflict ? "#ff4d4f" : "#52c41a"); font-weight:bold;">
-                                        @usage.PeakUsage @usage.Unit
-                                        <small>(@pct%)</small>
-                                    </td>
-                                    <td>@usage.PeakPeriod</td>
-                                    <td>
-                                        @if (isConflict)
-                                        {
-                                            <span class="badge danger">⚠ 超额 @((usage.PeakUsage - usage.Capacity).ToString("0.#")) @usage.Unit</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge success">✓ 正常</span>
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
+                    <div style="color:var(--text-secondary);padding:12px 0;">配置好 API Key 后，点击「AI分析」开关生成分析报告。</div>
                 }
             </div>
         }
@@ -362,26 +72,55 @@
     </div>
 </div>
 
-@* ========== AI 设置弹窗 ========== *@
+@* ========== AI 服务设置弹窗 ========== *@
 @if (_showAiSettings)
 {
     <div class="modal-overlay">
-        <div class="modal-content" style="width:540px;">
+        <div class="modal-content" style="width:720px;height:620px;display:flex;flex-direction:column;">
             <h3>🤖 AI 服务设置</h3>
-            <div class="form-group">
-                <label>API 地址</label>
-                <input type="text" class="form-control" @bind="_aiEndpoint" placeholder="https://api.openai.com/v1" />
-                <small style="color:#999;">支持 OpenAI / Azure OpenAI / Ollama (http://localhost:11434/v1)</small>
+            <div style="display:flex;flex:1;gap:0;overflow:hidden;margin-top:10px;">
+                <div style="width:190px;border-right:1px solid var(--border);padding-right:10px;overflow-y:auto;display:flex;flex-direction:column;flex-shrink:0;">
+                    @for (int ci = 0; ci < _aiConnections.Count; ci++)
+                    {
+                        var c = _aiConnections[ci]; var idx = ci;
+                        <div @onclick="() => _aiSelectedIdx = idx"
+                             style="padding:7px 10px;border-radius:6px;cursor:pointer;margin-bottom:4px;display:flex;align-items:center;gap:6px;font-size:13px;
+                                    @(idx == _aiSelectedIdx ? "background:#e6f7ff;border:1px solid #91d5ff;" : "background:transparent;border:1px solid transparent;")">
+                            <span style="font-size:16px;line-height:1;">@GetProviderLogo(c.Name)</span>
+                            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@c.Name</span>
+                            @if (c.IsActive) { <span style="color:#faad14;font-size:11px;margin-left:2px;">⭐</span> }
+                            @if (c.Status == "ok") { <span style="color:#52c41a;font-size:10px;">🟢</span> }
+                            else if (c.Status == "fail") { <span style="color:#ff4d4f;font-size:10px;">🔴</span> }
+                        </div>
+                    }
+                    <button class="btn btn-default btn-sm" @onclick="AddAiConnection" style="margin-top:8px;">＋ 添加连接</button>
+                </div>
+                <div style="flex:1;padding-left:16px;overflow-y:auto;">
+                    @{ var selectedConn = _aiSelectedIdx >= 0 && _aiSelectedIdx < _aiConnections.Count ? _aiConnections[_aiSelectedIdx] : null; }
+                    @if (selectedConn != null)
+                    {
+                        var conn = selectedConn; var idx = _aiSelectedIdx;
+                        <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px;">
+                            <button class="btn btn-default btn-sm" @onclick="() => TestAiConnection(idx)">@(conn.Testing ? "⏳" : "🔌") 检测连接</button>
+                            @if (conn.Status == "ok") { <span style="color:#52c41a;">🟢 连接正常</span> }
+                            else if (conn.Status == "fail") { <span style="color:#ff4d4f;">🔴 @conn.StatusMessage</span> }
+                            <div style="flex:1;"></div>
+                            <button class="btn btn-default btn-sm" @onclick="() => SelectAiConnection(idx)">⭐ 设为当前</button>
+                            @if (_aiConnections.Count > 1) { <button class="btn btn-danger btn-sm" @onclick="() => RemoveAiConnection(idx)">✕ 删除</button> }
+                        </div>
+                        <div class="form-group"><label>名称</label><input type="text" class="form-control" @bind="conn.Name" placeholder="连接名称" /></div>
+                        <div class="form-group"><label>API 地址</label><input type="text" class="form-control" @bind="conn.Endpoint" placeholder="https://api.deepseek.com/v1" /></div>
+                        <div class="form-group"><label>API 格式</label><select class="form-control" @bind="conn.ApiFormat"><option value="openai">OpenAI 格式</option><option value="anthropic">Anthropic 格式</option></select></div>
+                        <div class="form-group">
+                            <label>模型</label>
+                            <input type="text" class="form-control" @bind="conn.Model" placeholder="deepseek-v4-flash" />
+                        </div>
+                        <div class="form-group"><label>API Key</label><input type="text" class="form-control" @bind="conn.ApiKey" placeholder="sk-..." style="font-family:monospace;" /></div>
+                    }
+                    else { <div style="color:var(--text-secondary);padding:40px 0;text-align:center;">选择一个连接或添加新连接</div> }
+                </div>
             </div>
-            <div class="form-group">
-                <label>API Key</label>
-                <input type="text" class="form-control" @bind="_aiKey" placeholder="sk-..." style="font-family:monospace;" />
-            </div>
-            <div class="form-group">
-                <label>模型</label>
-                <input type="text" class="form-control" @bind="_aiModel" placeholder="gpt-4o-mini / qwen2.5" />
-            </div>
-            <div class="dialog-actions">
+            <div class="dialog-actions" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
                 <button class="btn btn-default" @onclick="() => _showAiSettings = false">取消</button>
                 <button class="btn btn-primary" @onclick="SaveAiSettings">保存</button>
             </div>
@@ -397,60 +136,163 @@
     private string _aiLoadingTab = "";
     private bool _aiMode = false;
     private bool _showAiSettings = false;
-    private string _aiEndpoint = "";
-    private string _aiKey = "";
-    private string _aiModel = "gpt-4o-mini";
+    private int _aiSelectedIdx = 0;
+    private List<AiConnection> _aiConnections = new();
+
+    private string GetProviderLogo(string name) => name.ToLower() switch
+    {
+        "deepseek" => "🧊",
+        "moonshot" => "🌙",
+        "qwen" => "🐉",
+        "zhipu" => "🧠",
+        "minimax" => "🎯",
+        "volcengine" => "🌋",
+        "youdao" => "📖",
+        "qianfan" => "☁️",
+        "stepfun" => "⚡",
+        "xiaomi" => "📱",
+        "ollama" => "🦙",
+        "openai" => "🟢",
+        "anthropic" => "🏔️",
+        "gemini" => "♊",
+        "github-copilot" => "🐙",
+        "openrouter" => "🌐",
+        _ => "🔌"
+    };
+
+    private void InitDefaultConnections()
+    {
+        if (_aiConnections.Count > 0) return;
+        _aiConnections = new()
+        {
+            new() { Name = "deepseek", Endpoint = "https://api.deepseek.com/v1", ApiFormat = "openai", Model = "deepseek-v4-flash", IsActive = true, Models = new() { "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-reasoner" } },
+            new() { Name = "moonshot", Endpoint = "https://api.moonshot.cn/v1", ApiFormat = "openai", Model = "kimi-k2.6", Models = new() { "kimi-k2.6", "kimi-k2.5" } },
+            new() { Name = "qwen", Endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1", ApiFormat = "openai", Model = "qwen3.6-plus", Models = new() { "qwen3.6-plus", "qwen3.5-plus", "qwen3-coder-plus" } },
+            new() { Name = "zhipu", Endpoint = "https://open.bigmodel.cn/api/paas/v4", ApiFormat = "openai", Model = "glm-5", Models = new() { "glm-5", "glm-4.7", "glm-4.7-flash", "GLM-4.7-Flash" } },
+            new() { Name = "minimax", Endpoint = "https://api.minimaxi.com/v1", ApiFormat = "openai", Model = "MiniMax-M2.7", Models = new() { "MiniMax-M2.7", "MiniMax-M2.5" } },
+            new() { Name = "volcengine", Endpoint = "https://ark.cn-beijing.volces.com/api/v3", ApiFormat = "openai", Model = "doubao-seed-2-0-pro-260215", Models = new() { "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-lite-260215", "doubao-seed-2-0-mini-260215" } },
+            new() { Name = "youdao", Endpoint = "https://openapi.youdao.com/llmgateway/api/v1/chat/completions", ApiFormat = "openai", Model = "deepseek-chat", Models = new() { "deepseek-chat", "deepseek-reasoner" } },
+            new() { Name = "qianfan", Endpoint = "https://qianfan.baidubce.com/v2", ApiFormat = "openai", Model = "deepseek-v3.2", Models = new() { "deepseek-v3.2", "deepseek-r1", "ernie-4.5-8k" } },
+            new() { Name = "stepfun", Endpoint = "https://api.stepfun.com/v1", ApiFormat = "openai", Model = "step-3.5-flash", Models = new() { "step-3.5-flash" } },
+            new() { Name = "xiaomi", Endpoint = "https://api.xiaomimimo.com/v1", ApiFormat = "openai", Model = "mimo-v2.5-pro", Models = new() { "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-flash" } },
+            new() { Name = "ollama", Endpoint = "http://localhost:11434/v1", ApiFormat = "openai", Model = "llama3", Models = new() { "qwen3-coder-next", "glm-4.7-flash" } },
+            new() { Name = "openai", Endpoint = "https://api.openai.com/v1", ApiFormat = "openai", Model = "gpt-5.4", Models = new() { "gpt-5.4", "gpt-5.2", "gpt-5.3-codex" } },
+            new() { Name = "anthropic", Endpoint = "https://api.anthropic.com", ApiFormat = "anthropic", Model = "claude-sonnet-4-5-20250929", Models = new() { "claude-sonnet-4-5-20250929", "claude-opus-4-6" } },
+            new() { Name = "gemini", Endpoint = "https://generativelanguage.googleapis.com/v1beta", ApiFormat = "openai", Model = "gemini-3-pro-preview", Models = new() { "gemini-3-pro-preview", "gemini-3-flash-preview" } },
+            new() { Name = "github-copilot", Endpoint = "https://api.individual.githubcopilot.com", ApiFormat = "openai", Model = "gpt-5-mini", Models = new() { "gpt-5-mini", "claude-haiku-4.5", "gpt-4.1", "gpt-4o" } },
+            new() { Name = "openrouter", Endpoint = "https://openrouter.ai/api/v1", ApiFormat = "openai", Model = "anthropic/claude-sonnet-4.5", Models = new() { "anthropic/claude-sonnet-4.5", "openai/gpt-5.2-codex", "google/gemini-3-pro-preview" } },
+        };
+    }
+
+    private class AiConnection
+    {
+        public string Name { get; set; } = "";
+        public string Endpoint { get; set; } = "https://api.deepseek.com/v1";
+        public string ApiKey { get; set; } = "";
+        public string Model { get; set; } = "deepseek-v4-flash";
+        public string ApiFormat { get; set; } = "openai";
+        public List<string> Models { get; set; } = new();
+        public bool IsActive { get; set; } = false;
+        public bool Testing { get; set; } = false;
+        public string Status { get; set; } = "";
+        public string StatusMessage { get; set; } = "";
+    }
 
     // ===== AI 设置 =====
     private async Task LoadAiSettings()
     {
+        var version = await JS.InvokeAsync<string>("localStorage.getItem", "ai_connections_v");
+        if (version != "2")
+        {
+            await JS.InvokeVoidAsync("localStorage.removeItem", "ai_connections");
+            await JS.InvokeVoidAsync("localStorage.setItem", "ai_connections_v", "2");
+            InitDefaultConnections();
+            return;
+        }
         try
         {
-            var json = await JS.InvokeAsync<string>("localStorage.getItem", "ai_settings");
+            var json = await JS.InvokeAsync<string>("localStorage.getItem", "ai_connections");
             if (!string.IsNullOrEmpty(json))
             {
-                var s = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-                if (s != null)
+                var list = System.Text.Json.JsonSerializer.Deserialize<List<AiConnection>>(json);
+                if (list != null && list.Count > 0)
                 {
-                    _aiEndpoint = s.GetValueOrDefault("endpoint", "");
-                    _aiKey = s.GetValueOrDefault("key", "");
-                    _aiModel = s.GetValueOrDefault("model", "gpt-4o-mini");
+                    _aiConnections = list;
+                    return;
                 }
             }
         }
         catch { }
+        InitDefaultConnections();
     }
 
     private async Task SaveAiSettings()
     {
-        var dict = new Dictionary<string, string>
-        {
-            ["endpoint"] = _aiEndpoint,
-            ["key"] = _aiKey,
-            ["model"] = _aiModel
-        };
-        var json = System.Text.Json.JsonSerializer.Serialize(dict);
-        await JS.InvokeVoidAsync("localStorage.setItem", "ai_settings", json);
+        var json = System.Text.Json.JsonSerializer.Serialize(_aiConnections);
+        await JS.InvokeVoidAsync("localStorage.setItem", "ai_connections", json);
         _showAiSettings = false;
     }
 
-    private void ShowAiSettings() { _showAiSettings = true; }
+    private void ShowAiSettings()
+    {
+        _showAiSettings = true;
+        InitDefaultConnections();
+    }
+    private void AddAiConnection() => _aiConnections.Add(new AiConnection { Name = "新连接", Endpoint = "https://api.deepseek.com/v1", Model = "deepseek-v4-flash", ApiFormat = "openai" });
+    private void RemoveAiConnection(int idx) { if (idx >= 0 && idx < _aiConnections.Count) _aiConnections.RemoveAt(idx); }
+    private void SelectAiConnection(int idx) { foreach (var c in _aiConnections) c.IsActive = false; if (idx >= 0 && idx < _aiConnections.Count) _aiConnections[idx].IsActive = true; }
+
+    private async Task TestAiConnection(int idx)
+    {
+        if (idx < 0 || idx >= _aiConnections.Count) return;
+        var conn = _aiConnections[idx];
+        conn.Testing = true; conn.Status = "testing"; conn.StatusMessage = ""; StateHasChanged();
+        try
+        {
+            using var http = new HttpClient();
+            http.Timeout = TimeSpan.FromSeconds(10);
+            HttpRequestMessage request;
+            if ((conn.ApiFormat ?? "openai").ToLower() == "anthropic")
+            {
+                request = new HttpRequestMessage(HttpMethod.Post, $"{conn.Endpoint.TrimEnd('/')}/messages");
+                request.Content = new StringContent("{\"model\":\"" + conn.Model + "\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":1}", System.Text.Encoding.UTF8, "application/json");
+                if (!string.IsNullOrEmpty(conn.ApiKey)) request.Headers.Add("x-api-key", conn.ApiKey);
+                request.Headers.Add("anthropic-version", "2023-06-01");
+            }
+            else
+            {
+                request = new HttpRequestMessage(HttpMethod.Post, $"{conn.Endpoint.TrimEnd('/')}/chat/completions");
+                request.Content = new StringContent("{\"model\":\"" + conn.Model + "\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":1}", System.Text.Encoding.UTF8, "application/json");
+                if (!string.IsNullOrEmpty(conn.ApiKey)) request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", conn.ApiKey);
+            }
+            var response = await http.SendAsync(request);
+            conn.Status = response.IsSuccessStatusCode ? "ok" : "fail";
+            conn.StatusMessage = response.IsSuccessStatusCode ? "" : $"HTTP {(int)response.StatusCode}";
+        }
+        catch (Exception ex) { conn.Status = "fail"; conn.StatusMessage = ex.Message; }
+        conn.Testing = false; StateHasChanged();
+    }
 
     private void ToggleAiMode()
     {
         _aiMode = !_aiMode;
-        if (_aiMode) _ = GenerateAiReportForTab("overview");
+        if (_aiMode) _ = GenerateAiReportForTab("analysis");
     }
 
-    private AiOptions BuildAiOptions()
+    private AiOptions? BuildAiOptions()
     {
+        var conn = GetActiveConnection();
+        if (conn == null || string.IsNullOrEmpty(conn.Endpoint)) return null;
         return new AiOptions
         {
-            Endpoint = string.IsNullOrEmpty(_aiEndpoint) ? "https://api.openai.com/v1" : _aiEndpoint,
-            ApiKey = _aiKey,
-            Model = string.IsNullOrEmpty(_aiModel) ? "gpt-4o-mini" : _aiModel
+            Endpoint = conn.Endpoint,
+            ApiKey = conn.ApiKey,
+            Model = string.IsNullOrEmpty(conn.Model) ? "deepseek-v4-flash" : conn.Model,
+            ApiFormat = string.IsNullOrEmpty(conn.ApiFormat) ? "openai" : conn.ApiFormat
         };
     }
+
+    private AiConnection? GetActiveConnection() => _aiConnections.FirstOrDefault(c => c.IsActive) ?? _aiConnections.FirstOrDefault();
 
     private async Task GenerateAiReportForTab(string tabName)
     {
@@ -469,7 +311,9 @@
             _ => "你是一个专业的项目管理分析师。根据提供的项目数据，生成一份简洁的项目分析报告。用中文，300字以内。"
         };
 
-        var result = await AiService.ChatAsync(systemPrompt, data, overrideOptions: BuildAiOptions());
+        var opts = BuildAiOptions();
+        if (opts == null) { _aiLoading = false; _aiLoadingTab = ""; StateHasChanged(); return; }
+        var result = await AiService.ChatAsync(systemPrompt, data, overrideOptions: opts);
         _aiReports[tabName] = result;
         _aiLoading = false;
         _aiLoadingTab = "";
