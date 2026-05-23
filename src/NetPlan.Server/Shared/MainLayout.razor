@@ -1,4 +1,9 @@
 @inherits LayoutComponentBase
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject IProjectService ProjectService
+@inject IAnalysisService AnalysisService
+@inject IAiService AiService
 
 <div class="page-body">
     <div class="page-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
@@ -48,11 +53,159 @@
     </div>
 </div>
 
+@* ===== AI 聊天气泡 ===== *@
+<div style="position:fixed;bottom:24px;right:24px;z-index:9999;">
+    @if (_chatVisible)
+    {
+        <div style="position:absolute;bottom:0;right:0;width:380px;height:520px;background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.15);display:flex;flex-direction:column;overflow:hidden;margin-bottom:56px;">
+            @* 标题栏 *@
+            <div style="padding:14px 16px;background:#4f6ef7;color:#fff;display:flex;align-items:center;gap:8px;">
+                <span style="font-size:18px;">🤖</span>
+                <span style="font-weight:600;flex:1;">AI 助手</span>
+                <button class="btn btn-sm" style="color:#fff;border:none;background:transparent;font-size:18px;cursor:pointer;" @onclick="CloseChat">✕</button>
+            </div>
+            @* 消息列表 *@
+            <div style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;">
+                @foreach (var msg in _chatMessages)
+                {
+                    var isUser = msg.Role == "user";
+                    <div style="display:flex;@(isUser ? "justify-content:flex-end;" : "")">
+                        <div style="max-width:85%;padding:8px 12px;border-radius:10px;@(isUser ? "background:#4f6ef7;color:#fff;border-radius:10px 10px 2px 10px;" : "background:#f0f2f5;border-radius:10px 10px 10px 2px;")">
+                            <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;">@msg.Content</div>
+                        </div>
+                    </div>
+                }
+                @if (_chatLoading)
+                {
+                    <div style="display:flex;gap:6px;padding:12px;">
+                        <span style="width:8px;height:8px;background:#999;border-radius:50%;animation:pulse 1s infinite;"> </span>
+                        <span style="width:8px;height:8px;background:#999;border-radius:50%;animation:pulse 1s infinite 0.2s;"> </span>
+                        <span style="width:8px;height:8px;background:#999;border-radius:50%;animation:pulse 1s infinite 0.4s;"> </span>
+                    </div>
+                }
+            </div>
+            @* 输入区 *@
+            <div style="padding:10px 12px;border-top:1px solid #e8e8e8;display:flex;gap:8px;">
+                <input type="text" class="form-control" @bind="_chatInput" @onkeydown="OnChatKeyDown" placeholder="问点项目相关的问题..." style="flex:1;font-size:13px;" />
+                <button class="btn btn-primary btn-sm" @onclick="SendChatMessage" disabled="@(_chatLoading || string.IsNullOrWhiteSpace(_chatInput))" style="white-space:nowrap;">发送</button>
+            </div>
+        </div>
+    }
+    <button class="btn btn-primary" @onclick="ToggleChat" style="width:52px;height:52px;border-radius:50%;font-size:24px;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(79,110,247,0.4);">
+        @(_chatVisible ? "✕" : "💬")
+    </button>
+</div>
+
+<style>
+    @@keyframes pulse { 0%,100% { opacity:0.4; } 50% { opacity:1; } }
+</style>
+
 @code {
     private bool _sidebarCollapsed = false;
+    private bool _chatVisible = false;
+    private string _chatInput = "";
+    private bool _chatLoading = false;
+    private List<AiMessage> _chatMessages = new() { new() { Role = "assistant", Content = "你好！我是 AI 助手，可以问我关于项目进度、资源、任务等方面的问题。" } };
 
-    private void ToggleSidebar()
+    private void ToggleSidebar() => _sidebarCollapsed = !_sidebarCollapsed;
+    private void ToggleChat() => _chatVisible = !_chatVisible;
+    private void CloseChat() => _chatVisible = false;
+
+    private async Task OnChatKeyDown(KeyboardEventArgs e)
     {
-        _sidebarCollapsed = !_sidebarCollapsed;
+        if (e.Key == "Enter") await SendChatMessage();
+    }
+
+    private async Task<AiOptions?> GetChatAiOptions()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string>("localStorage.getItem", "ai_connections");
+            if (string.IsNullOrEmpty(json)) return null;
+            var list = System.Text.Json.JsonSerializer.Deserialize<List<AiConnection>>(json);
+            var active = list?.FirstOrDefault(c => c.IsActive) ?? list?.FirstOrDefault();
+            if (active == null || string.IsNullOrEmpty(active.Endpoint)) return null;
+            return new AiOptions
+            {
+                Endpoint = active.Endpoint,
+                ApiKey = active.ApiKey,
+                Model = string.IsNullOrEmpty(active.Model) ? "deepseek-v4-flash" : active.Model,
+                ApiFormat = string.IsNullOrEmpty(active.ApiFormat) ? "openai" : active.ApiFormat
+            };
+        }
+        catch { return null; }
+    }
+
+    private async Task<string> BuildProjectContext()
+    {
+        try
+        {
+            var uri = new Uri(Nav.Uri);
+            var segments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length >= 2 && segments[0] == "project" && int.TryParse(segments[1], out var pid))
+            {
+                var project = await ProjectService.GetProjectByIdAsync(pid);
+                if (project == null) return "";
+                var tasks = await ProjectService.GetTasksByProjectIdAsync(pid);
+                var result = AnalysisService.AnalyzeProject(project, tasks);
+                if (result == null) return $"当前项目：{project.Name}\n";
+
+                var ctx = $"当前项目：{project.Name}\n";
+                ctx += $"项目工期：{result.ProjectDurationDays}天，总任务：{result.TotalTasks}个\n";
+                ctx += $"按时：{result.OnTimeTasks.Count}，提前：{result.EarlyStartTasks.Count}，延后：{result.LateStartTasks.Count}\n";
+                ctx += $"关键路径：{result.CriticalPathTasks.Count}个任务\n";
+                ctx += $"里程碑：{result.Milestones.Count}个\n";
+                if (result.CriticalPathTasks.Any())
+                    ctx += $"关键路径：{string.Join(" → ", result.CriticalPathTasks.Take(5).Select(t => t.Name))}\n";
+                return ctx;
+            }
+        }
+        catch { }
+        return "";
+    }
+
+    private async Task SendChatMessage()
+    {
+        if (string.IsNullOrWhiteSpace(_chatInput) || _chatLoading) return;
+        var userMsg = _chatInput.Trim();
+        _chatInput = "";
+        _chatMessages.Add(new AiMessage { Role = "user", Content = userMsg });
+        _chatLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var opts = await GetChatAiOptions();
+            if (opts == null)
+            {
+                _chatMessages.Add(new AiMessage { Role = "assistant", Content = "⚠️ 请先在分析页面的「AI 设置」中配置并保存 API 连接。" });
+                _chatLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            var context = await BuildProjectContext();
+            var projectInfo = string.IsNullOrEmpty(context) ? "" : $"以下为当前项目背景信息，供回答参考：\n{context}\n";
+            var sysPrompt = $"你是一个项目管理助手，回答关于项目进度、任务、资源等问题。{projectInfo}回答简洁，用中文，列出关键数据。";
+
+            var result = await AiService.ChatAsync(sysPrompt, userMsg, temperature: 0.3, overrideOptions: opts);
+            _chatMessages.Add(new AiMessage { Role = "assistant", Content = result });
+        }
+        catch (Exception ex)
+        {
+            _chatMessages.Add(new AiMessage { Role = "assistant", Content = $"❌ 出错了：{ex.Message}" });
+        }
+        _chatLoading = false;
+        StateHasChanged();
+    }
+
+    private class AiConnection
+    {
+        public string Name { get; set; } = "";
+        public string Endpoint { get; set; } = "";
+        public string ApiKey { get; set; } = "";
+        public string Model { get; set; } = "deepseek-v4-flash";
+        public string ApiFormat { get; set; } = "openai";
+        public bool IsActive { get; set; } = false;
     }
 }
