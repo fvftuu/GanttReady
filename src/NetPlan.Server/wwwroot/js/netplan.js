@@ -2575,11 +2575,29 @@ var NetPlan = (() => {
           dot.setAttribute("cy", (rowTops[i] + rowHeights[i] / 2).toFixed(1));
         }
       });
+      // 先更新条形位置（确保关系线坐标正确）
+      bars.forEach((bar) => {
+        const taskId = bar.getAttribute("data-task-id");
+        if (taskId === null) return;
+        const leftRow = document.querySelector(`#gantt-left-body .gantt-left-row[data-task-id="${taskId}"]`);
+        if (!leftRow) return;
+        const rowEls = Array.from(leftRows);
+        const idx = rowEls.indexOf(leftRow);
+        if (idx < 0 || idx >= rowTops.length) return;
+        bar.style.top = rowTops[idx] + "px";
+        bar.style.height = rowHeights[idx] + "px";
+      });
+
+      // 再更新关系线 X/Y（条形已在正确位置）
       const relationGroups = relationSvg.querySelectorAll("[data-relation-pred][data-relation-succ]");
       relationGroups.forEach((group) => {
         const predId = group.getAttribute("data-relation-pred");
         const succId = group.getAttribute("data-relation-succ");
         if (!predId || !succId) return;
+
+        const predBar = document.querySelector(`#gantt-right .gantt-bar-frame[data-task-id="${predId}"]`);
+        const succBar = document.querySelector(`#gantt-right .gantt-bar-frame[data-task-id="${succId}"]`);
+
         const predRow = document.querySelector(`#gantt-left-body .gantt-left-row[data-task-id="${predId}"]`);
         const succRow = document.querySelector(`#gantt-left-body .gantt-left-row[data-task-id="${succId}"]`);
         if (!predRow || !succRow) return;
@@ -2589,35 +2607,35 @@ var NetPlan = (() => {
         if (predIdx < 0 || succIdx < 0) return;
         const predMid = rowTops[predIdx] + rowHeights[predIdx] / 2;
         const succMid = rowTops[succIdx] + rowHeights[succIdx] / 2;
+
+        // 从条形 DOM 计算 X 端点
+        let barEdgeX = 0, endX = 0;
+        if (predBar && succBar) {
+          const predLeft = parseFloat(predBar.style.left) || 0;
+          const predW = parseFloat(predBar.style.width) || 0;
+          const succLeft = parseFloat(succBar.style.left) || 0;
+          barEdgeX = predLeft + predW;
+          endX = succLeft;
+        }
+
         const lineEl = group.querySelector("line");
         if (lineEl) {
+          lineEl.setAttribute("x1", barEdgeX.toFixed(1));
           lineEl.setAttribute("y1", predMid.toFixed(1));
+          lineEl.setAttribute("x2", endX.toFixed(1));
           lineEl.setAttribute("y2", succMid.toFixed(1));
+          lineEl.setAttribute("stroke-width", "0.5");
+          lineEl.setAttribute("stroke-dasharray", "3,3");
         }
         const pathEl = group.querySelector("path");
         if (pathEl) {
-          const d = pathEl.getAttribute("d") || "";
-          const parts = d.match(/M\s+([\d.]+)\s+[\d.]+\s+L\s+([\d.]+)\s+[\d.]+\s+L\s+([\d.]+)\s+[\d.]+\s+L\s+([\d.]+)\s+[\d.]+/);
-          if (parts) {
-            const newD = `M ${parts[1]} ${predMid.toFixed(1)} L ${parts[2]} ${predMid.toFixed(1)} L ${parts[3]} ${succMid.toFixed(1)} L ${parts[4]} ${succMid.toFixed(1)}`;
-            pathEl.setAttribute("d", newD);
-          }
+          const newD = `M ${barEdgeX.toFixed(1)} ${predMid.toFixed(1)} L ${barEdgeX.toFixed(1)} ${succMid.toFixed(1)} L ${endX.toFixed(1)} ${succMid.toFixed(1)}`;
+          pathEl.setAttribute("d", newD);
+          pathEl.setAttribute("stroke-width", "0.5");
+          pathEl.setAttribute("stroke-dasharray", "3,3");
         }
       });
     }
-    bars.forEach((bar) => {
-      const taskId = bar.getAttribute("data-task-id");
-      if (taskId === null) return;
-      const leftRow = document.querySelector(`#gantt-left-body .gantt-left-row[data-task-id="${taskId}"]`);
-      if (!leftRow) return;
-      const rowEls = Array.from(leftRows);
-      const idx = rowEls.indexOf(leftRow);
-      if (idx < 0 || idx >= rowTops.length) return;
-      const top = rowTops[idx];
-      const h = rowHeights[idx];
-      bar.style.top = top + "px";
-      bar.style.height = h + "px";
-    });
   }
 
   // 延迟版同步：等待浏览器 layout 完成后再执行（解决 Blazor 渲染后 DOM 未稳定的问题）
@@ -3454,6 +3472,24 @@ var NetPlan = (() => {
     syncGanttRowHeights,
     syncGanttRowHeightsDeferred,
     initBarActResize,
+    toggleGanttGrid(type, show) {
+      if (type === 'horizontal') {
+        const el = document.querySelector('#gantt-right .gantt-hlines');
+        if (el) el.style.display = show ? '' : 'none';
+      }
+      if (type === 'vertical') {
+        const el = document.querySelector('#gantt-right .gantt-grid-lines');
+        if (el) el.style.display = show ? '' : 'none';
+      }
+    },
+    setGanttRowHeight(height) {
+      document.documentElement.style.setProperty('--gantt-row-min-height', height + 'px');
+      const leftRows = document.querySelectorAll('#gantt-left-body .gantt-left-row');
+      leftRows.forEach((row) => {
+        (row).style.minHeight = height + 'px';
+      });
+      setTimeout(() => syncGanttRowHeights(), 50);
+    },
     // 图表
     initResourceChart,
     renderAnalysisBarChart,

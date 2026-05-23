@@ -21,7 +21,7 @@ public static class DataSeeder
             Name = "综合基础设施建设项目",
             Description = "大型综合基础设施工程，涵盖土建、机电、装修等全周期施工",
             PlanStartDate = new DateTime(2026, 1, 1),
-            PlanEndDate   = new DateTime(2028, 12, 31),
+            PlanEndDate   = new DateTime(2027, 3, 31),
             WorkingHoursPerDay = 8,
             WorkdaysPerWeek  = 5,
             CreatedAt = DateTime.UtcNow,
@@ -36,32 +36,38 @@ public static class DataSeeder
         var resources = new List<Resource>
         {
             // --- 人力资源 (10) ---
-            new() { ProjectId = null, Code = "PM-01",   Name = "项目经理",   Type = ResourceType.Labor, Unit = "人", Quantity = 1,  UnitPrice = 0,    HourlyCost = 150m,  Notes = "一级建造师",               CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "ENG-CV",  Name = "土建工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 3,  UnitPrice = 0,    HourlyCost = 120m,  Notes = "中级以上职称",             CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "ENG-ST",  Name = "结构工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 2,  UnitPrice = 0,    HourlyCost = 130m,  Notes = "注册结构工程师",           CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "ENG-ME",  Name = "机电工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 2,  UnitPrice = 0,    HourlyCost = 130m,  Notes = "注册电气/暖通",            CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "SFT-01",  Name = "安全员",     Type = ResourceType.Labor, Unit = "人", Quantity = 2,  UnitPrice = 0,    HourlyCost = 80m,   Notes = "持安全C证",               CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "SUR-01",  Name = "测量员",     Type = ResourceType.Labor, Unit = "人", Quantity = 2,  UnitPrice = 0,    HourlyCost = 70m,   Notes = "持测量员证",               CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "LAB-RB",  Name = "钢筋工",     Type = ResourceType.Labor, Unit = "人", Quantity = 10, UnitPrice = 0,    HourlyCost = 60m,   Notes = "中高级钢筋工",             CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "LAB-FW",  Name = "模板工",     Type = ResourceType.Labor, Unit = "人", Quantity = 8,  UnitPrice = 0,    HourlyCost = 55m,   Notes = "木工/铝模工",              CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "LAB-WD",  Name = "电焊工",     Type = ResourceType.Labor, Unit = "人", Quantity = 5,  UnitPrice = 0,    HourlyCost = 75m,   Notes = "持焊工操作证",             CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "LAB-GN",  Name = "普工",       Type = ResourceType.Labor, Unit = "人", Quantity = 20, UnitPrice = 0,    HourlyCost = 45m,   Notes = "辅助用工",                 CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "PM-01",   Name = "项目经理",   Type = ResourceType.Labor, Unit = "人", Quantity = 1,  UnitPrice = 0,    HourlyCost = 150m,  Notes = "一级建造师",               CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "ENG-CV",  Name = "土建工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 3,  UnitPrice = 0,    HourlyCost = 120m,  Notes = "中级以上职称",             CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "ENG-ST",  Name = "结构工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 2,  UnitPrice = 0,    HourlyCost = 130m,  Notes = "注册结构工程师",           CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "ENG-ME",  Name = "机电工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 2,  UnitPrice = 0,    HourlyCost = 130m,  Notes = "注册电气/暖通",            CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "SFT-01",  Name = "安全员",     Type = ResourceType.Labor, Unit = "人", Quantity = 2,  UnitPrice = 0,    HourlyCost = 80m,   Notes = "持安全C证",               CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "SUR-01",  Name = "测量员",     Type = ResourceType.Labor, Unit = "人", Quantity = 2,  UnitPrice = 0,    HourlyCost = 70m,   Notes = "持测量员证",               CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "LAB-RB",  Name = "钢筋工",     Type = ResourceType.Labor, Unit = "人", Quantity = 10, UnitPrice = 0,    HourlyCost = 60m,   Notes = "中高级钢筋工",             CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "LAB-FW",  Name = "模板工",     Type = ResourceType.Labor, Unit = "人", Quantity = 8,  UnitPrice = 0,    HourlyCost = 55m,   Notes = "木工/铝模工",              CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "LAB-WD",  Name = "电焊工",     Type = ResourceType.Labor, Unit = "人", Quantity = 5,  UnitPrice = 0,    HourlyCost = 75m,   Notes = "持焊工操作证",             CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "LAB-GN",  Name = "普工",       Type = ResourceType.Labor, Unit = "人", Quantity = 20, UnitPrice = 0,    HourlyCost = 45m,   Notes = "辅助用工",                 CreatedAt = DateTime.UtcNow },
 
             // --- 设备资源 (5) ---
-            new() { ProjectId = null, Code = "EQU-EX",  Name = "挖掘机",     Type = ResourceType.Equipment, Unit = "台", Quantity = 2,  UnitPrice = 0,    HourlyCost = 800m,  Notes = "斗容≥1.2m³, 履带式",     CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "EQU-CR",  Name = "塔吊",       Type = ResourceType.Equipment, Unit = "台", Quantity = 2,  UnitPrice = 0,    HourlyCost = 1200m, Notes = "QTZ80型, 臂长≥55m",       CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "EQU-CP",  Name = "混凝土泵车", Type = ResourceType.Equipment, Unit = "台", Quantity = 1,  UnitPrice = 0,    HourlyCost = 1500m, Notes = "臂架≥37m",                 CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "EQU-DR",  Name = "挖泥船",     Type = ResourceType.Equipment, Unit = "艘", Quantity = 1,  UnitPrice = 0,    HourlyCost = 2000m, Notes = "舱容≥4500m³, 绞吸式",      CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "EQU-LC",  Name = "起重船",     Type = ResourceType.Equipment, Unit = "艘", Quantity = 1,  UnitPrice = 0,    HourlyCost = 3000m, Notes = "起吊≥500t, 浮式",          CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "EQU-EX",  Name = "挖掘机",     Type = ResourceType.Equipment, Unit = "台", Quantity = 2,  UnitPrice = 0,    HourlyCost = 800m,  Notes = "斗容≥1.2m³, 履带式",     CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "EQU-CR",  Name = "塔吊",       Type = ResourceType.Equipment, Unit = "台", Quantity = 2,  UnitPrice = 0,    HourlyCost = 1200m, Notes = "QTZ80型, 臂长≥55m",       CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "EQU-CP",  Name = "混凝土泵车", Type = ResourceType.Equipment, Unit = "台", Quantity = 1,  UnitPrice = 0,    HourlyCost = 1500m, Notes = "臂架≥37m",                 CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "EQU-DR",  Name = "挖泥船",     Type = ResourceType.Equipment, Unit = "艘", Quantity = 1,  UnitPrice = 0,    HourlyCost = 2000m, Notes = "舱容≥4500m³, 绞吸式",      CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "EQU-LC",  Name = "起重船",     Type = ResourceType.Equipment, Unit = "艘", Quantity = 1,  UnitPrice = 0,    HourlyCost = 3000m, Notes = "起吊≥500t, 浮式",          CreatedAt = DateTime.UtcNow },
 
             // --- 材料资源 (7) ---
-            new() { ProjectId = null, Code = "MAT-CON", Name = "混凝土C40",   Type = ResourceType.Material, Unit = "m³",  Quantity = 5000,  UnitPrice = 400m,   HourlyCost = null,  Notes = "商品混凝土, 塌落度180±20",   CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "MAT-RB",  Name = "钢筋",        Type = ResourceType.Material, Unit = "t",   Quantity = 800,   UnitPrice = 4500m,  HourlyCost = null,  Notes = "HRB400E, φ8-32mm",          CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "MAT-FW",  Name = "模板",        Type = ResourceType.Material, Unit = "m²",  Quantity = 3000,  UnitPrice = 85m,    HourlyCost = null,  Notes = "铝合金模板体系",              CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "MAT-CB",  Name = "电缆",        Type = ResourceType.Material, Unit = "m",   Quantity = 5000,  UnitPrice = 120m,   HourlyCost = null,  Notes = "YJV-0.6/1kV铜芯",           CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "MAT-PP",  Name = "管材",        Type = ResourceType.Material, Unit = "m",   Quantity = 3000,  UnitPrice = 65m,    HourlyCost = null,  Notes = "PPR/镀锌钢管/PE管综合",       CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "MAT-WP",  Name = "防水材料",    Type = ResourceType.Material, Unit = "m²",  Quantity = 2000,  UnitPrice = 55m,    HourlyCost = null,  Notes = "SBS改性沥青+聚氨酯涂膜",      CreatedAt = DateTime.UtcNow },
-            new() { ProjectId = null, Code = "MAT-PT",  Name = "涂料",        Type = ResourceType.Material, Unit = "L",   Quantity = 1500,  UnitPrice = 35m,    HourlyCost = null,  Notes = "内外墙乳胶漆, 环保型",        CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "MAT-CON", Name = "混凝土C40",   Type = ResourceType.Material, Unit = "m³",  Quantity = 5000,  UnitPrice = 400m,   HourlyCost = null,  Notes = "商品混凝土, 塌落度180±20",   CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "MAT-RB",  Name = "钢筋",        Type = ResourceType.Material, Unit = "t",   Quantity = 800,   UnitPrice = 4500m,  HourlyCost = null,  Notes = "HRB400E, φ8-32mm",          CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "MAT-FW",  Name = "模板",        Type = ResourceType.Material, Unit = "m²",  Quantity = 3000,  UnitPrice = 85m,    HourlyCost = null,  Notes = "铝合金模板体系",              CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "MAT-CB",  Name = "电缆",        Type = ResourceType.Material, Unit = "m",   Quantity = 5000,  UnitPrice = 120m,   HourlyCost = null,  Notes = "YJV-0.6/1kV铜芯",           CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "MAT-PP",  Name = "管材",        Type = ResourceType.Material, Unit = "m",   Quantity = 3000,  UnitPrice = 65m,    HourlyCost = null,  Notes = "PPR/镀锌钢管/PE管综合",       CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "MAT-WP",  Name = "防水材料",    Type = ResourceType.Material, Unit = "m²",  Quantity = 2000,  UnitPrice = 55m,    HourlyCost = null,  Notes = "SBS改性沥青+聚氨酯涂膜",      CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "MAT-PT",  Name = "涂料",        Type = ResourceType.Material, Unit = "L",   Quantity = 1500,  UnitPrice = 35m,    HourlyCost = null,  Notes = "内外墙乳胶漆, 环保型",        CreatedAt = DateTime.UtcNow },
+
+            // --- 措施类资源 (4) ---
+            new() { ProjectId = project.Id, Code = "MEA-SAFE", Name = "安全文明施工费",  Type = ResourceType.Measure, Unit = "项", Quantity = 1,   UnitPrice = 250000m, HourlyCost = null, Notes = "安全防护/警示/文明施工/围挡", CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "MEA-TEMP", Name = "临时设施费",    Type = ResourceType.Measure, Unit = "项", Quantity = 1,   UnitPrice = 180000m, HourlyCost = null, Notes = "临时水电/道路/办公板房",   CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "MEA-WTR",  Name = "冬雨季施工措施费", Type = ResourceType.Measure, Unit = "项", Quantity = 1,   UnitPrice = 120000m, HourlyCost = null, Notes = "冬季保温/雨季排水/防滑",   CreatedAt = DateTime.UtcNow },
+            new() { ProjectId = project.Id, Code = "MEA-PROT", Name = "已完工程保护费",  Type = ResourceType.Measure, Unit = "项", Quantity = 1,   UnitPrice = 80000m,  HourlyCost = null, Notes = "成品保护/覆盖/围栏",     CreatedAt = DateTime.UtcNow },
         };
         db.Resources.AddRange(resources);
         db.SaveChanges();
@@ -71,7 +77,7 @@ public static class DataSeeder
                            // r[5]=SUR-01, r[6]=LAB-RB, r[7]=LAB-FW, r[8]=LAB-WD, r[9]=LAB-GN,
                            // r[10]=EQU-EX, r[11]=EQU-CR, r[12]=EQU-CP, r[13]=EQU-DR, r[14]=EQU-LC,
                            // r[15]=MAT-CON, r[16]=MAT-RB, r[17]=MAT-FW, r[18]=MAT-CB, r[19]=MAT-PP,
-                           // r[20]=MAT-WP, r[21]=MAT-PT
+                           // r[20]=MAT-WP, r[21]=MAT-PT, r[22]=MEA-SAFE, r[23]=MEA-TEMP, r[24]=MEA-WTR, r[25]=MEA-PROT
 
         // ==============================================================================
         // Tasks: 30 tasks across 5 phases (A→E)
@@ -497,8 +503,12 @@ public static class DataSeeder
         // ==============================================================================
         var assignments = new List<ResourceAssignment>
         {
-            // A1 项目立项与审批: 项目经理
+            // A1 项目立项与审批: 项目经理 + 措施费
             new() { TaskId = tasks[0].Id, ResourceId = r[0].Id, Quantity = 1, Notes = "全程负责审批对接" },
+            new() { TaskId = tasks[0].Id, ResourceId = r[22].Id, Quantity = 1, Notes = "安全文明施工措施费" },
+            new() { TaskId = tasks[0].Id, ResourceId = r[23].Id, Quantity = 1, Notes = "临时设施搭建费" },
+            new() { TaskId = tasks[0].Id, ResourceId = r[24].Id, Quantity = 1, Notes = "冬雨季施工措施费" },
+            new() { TaskId = tasks[0].Id, ResourceId = r[25].Id, Quantity = 1, Notes = "已完工程保护费" },
 
             // A2 施工图设计: 土建/结构工程师
             new() { TaskId = tasks[1].Id, ResourceId = r[1].Id, Quantity = 1, Notes = "建筑专业设计协调" },

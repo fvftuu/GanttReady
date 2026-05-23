@@ -1027,12 +1027,37 @@ body {
     width: 100%;
     height: calc(100% - 52px);
     pointer-events: none;
-    z-index: 0;
+    z-index: 10;
 }
 
 .gantt-relation-lines line,
 .gantt-relation-lines path {
     pointer-events: stroke;
+}
+
+/* 工具栏控件 */
+.gantt-toolbar-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 8px;
+}
+.gantt-row-height-slider {
+    width: 60px;
+    height: 4px;
+    accent-color: #4f6ef7;
+    cursor: pointer;
+}
+.toolbar-sep {
+    width: 1px;
+    height: 20px;
+    background: #d0d5dd;
+    margin: 0 4px;
+}
+
+/* 行高 CSS 变量 */
+#gantt-left-body .gantt-left-row {
+    min-height: var(--gantt-row-min-height, 36px);
 }
 
 /* 甘特条形拖拽样式 */

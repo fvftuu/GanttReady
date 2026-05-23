@@ -176,6 +176,7 @@ else
     // 工具调用（function calling）相关
     private List<AiToolCall>? _pendingToolCalls;
     private string? _pendingToolCallMessage; // 工具调用时 AI 的文本回复（如果有）
+    private int _chainDepth = 0; // 当前链式调用深度
     private bool _executingToolCall = false;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -818,9 +819,9 @@ else
         }
         if (!aiWasAskingAboutProject) return null;
 
-        // 从对话历史中提取已提供的项目信息
+        // 从对话历史中提取已提供的项目信息（仅提取可靠的结构化字段）
         var projectInfo = new Dictionary<string, string>();
-        var taskList = new List<string>();
+        var rawDescriptions = new List<string>(); // 用户原始描述原文，AI 自行解析
 
         foreach (var m in _chatMessages)
         {
@@ -840,27 +841,23 @@ else
             if (durMatch.Success && !projectInfo.ContainsKey("工期"))
                 projectInfo["工期"] = durMatch.Groups[1].Value + "天";
 
-            // 任务 — 至少2个中文字符，排除"总工期按18个月考虑"这类误匹配
-            var taskMatches = System.Text.RegularExpressions.Regex.Matches(c, @"([\u4e00-\u9fff]{2,}?)\s*(\d+)\s*天");
-            foreach (System.Text.RegularExpressions.Match m2 in taskMatches)
+            // 收集包含项目/任务信息的用户原始消息（原文透传，AI 自行用 NLP 解析）
+            if (c.Length > 5 && (c.Contains("天") || c.Contains("任务") || c.Contains("项目") || c.Contains("名称")))
             {
-                var taskName = m2.Groups[1].Value;
-                if (taskName != "工期" && taskName != "总工期" && taskName.Length > 1)
-                    taskList.Add(taskName + " " + m2.Groups[2].Value + "天");
+                rawDescriptions.Add(c);
             }
         }
 
-        if (projectInfo.Count == 0 && taskList.Count == 0) return null;
+        if (projectInfo.Count == 0 && rawDescriptions.Count == 0) return null;
 
         var summary = "【项目创建上下文 - 用户已提供的信息】\n";
         foreach (var kv in projectInfo)
             summary += $"- {kv.Key}: {kv.Value}\n";
-        if (taskList.Count > 0)
+        if (rawDescriptions.Count > 0)
         {
-            summary += $"- 共 {taskList.Count} 个任务\n";
-            foreach (var t in taskList.Take(8))
-                summary += $"  • {t}\n";
-            if (taskList.Count > 8) summary += $"  ... 还有 {taskList.Count - 8} 个\n";
+            summary += "\n【用户原始描述 — 请直接用 NLP 从中解析任务列表，不要人工计数】\n";
+            foreach (var desc in rawDescriptions)
+                summary += $"{desc}\n---\n";
         }
         summary += "上述是用户已经提供过的信息，不要再重复询问。如果信息齐全，请立即用 create_project_with_tasks 创建。";
 
@@ -937,6 +934,7 @@ else
 
             _pendingToolCalls = null;
             _pendingToolCallMessage = null;
+            _chainDepth = 0;
 
             var tools = AiToolDefinitions.GetAllTools(pid > 0 ? pid : null);
             var messages = new List<AiMessage>
@@ -1020,24 +1018,39 @@ else
             _pendingToolCalls = null;
 
             // 调用 AI 生成最终回复（带工具执行结果）
+            _chainDepth++;
             var opts = await GetChatAiOptions();
             if (opts != null)
             {
-                var result = await AiService.ChatWithToolsAsync(_chatMessages, new List<AiToolDefinition>(), temperature: 0.3, overrideOptions: opts);
-                if (result.IsToolCall)
+                if (_chainDepth >= 2)
                 {
-                    // AI 又想调用工具（链式调用），继续等待确认
-                    _pendingToolCalls = result.ToolCalls;
+                    // 链式调用已达上限，强制 AI 只做文本总结，忽略任何工具调用
                     _chatMessages.Add(new AiMessage
                     {
-                        Role = "assistant",
-                        Content = result.Text ?? "还需要执行以下操作：",
-                        ToolCalls = result.ToolCalls
+                        Role = "system",
+                        Content = "注意：已经连续执行了多步工具调用，现在请直接总结最终结果，不要再调用任何工具。"
                     });
+                    var finalResult = await AiService.ChatWithToolsAsync(_chatMessages, new List<AiToolDefinition>(), temperature: 0.3, overrideOptions: opts);
+                    _chatMessages.Add(new AiMessage { Role = "assistant", Content = finalResult.Text ?? "操作已完成。" });
                 }
                 else
                 {
-                    _chatMessages.Add(new AiMessage { Role = "assistant", Content = result.Text ?? "操作已完成。" });
+                    var result = await AiService.ChatWithToolsAsync(_chatMessages, new List<AiToolDefinition>(), temperature: 0.3, overrideOptions: opts);
+                    if (result.IsToolCall)
+                    {
+                        // AI 又想调用工具（链式调用，最多1次），继续等待确认
+                        _pendingToolCalls = result.ToolCalls;
+                        _chatMessages.Add(new AiMessage
+                        {
+                            Role = "assistant",
+                            Content = result.Text ?? "还需要执行以下操作：",
+                            ToolCalls = result.ToolCalls
+                        });
+                    }
+                    else
+                    {
+                        _chatMessages.Add(new AiMessage { Role = "assistant", Content = result.Text ?? "操作已完成。" });
+                    }
                 }
             }
         }
@@ -1055,25 +1068,25 @@ else
     {
         if (_pendingToolCalls == null) return;
 
-        // 把拒绝结果加入对话历史
+        // 把拒绝结果加入对话历史 — 加入明确指令阻止重复建议
         foreach (var tc in _pendingToolCalls)
         {
             _chatMessages.Add(new AiMessage
             {
                 Role = "tool",
                 ToolCallId = tc.Id,
-                Content = "用户拒绝了此操作，未执行。"
+                Content = "用户拒绝了此操作。请不要再建议相同的操作，也不要再调用任何工具。简短回复「好的」或「已取消」即可。"
             });
         }
 
         _pendingToolCalls = null;
 
-        // 让 AI 生成回复（知道操作被拒绝了）
+        // 让 AI 生成回复（知道操作被拒绝了）— 传入空工具列表，防止 AI 再次调工具
         var opts = await GetChatAiOptions();
         if (opts != null)
         {
-            var result = await AiService.ChatWithToolsAsync(_chatMessages, new List<AiToolDefinition>(), temperature: 0.3, overrideOptions: opts);
-            _chatMessages.Add(new AiMessage { Role = "assistant", Content = result.Text ?? "已取消操作。" });
+            var result = await AiService.ChatAsync(_chatMessages, temperature: 0.3, overrideOptions: opts);
+            _chatMessages.Add(new AiMessage { Role = "assistant", Content = result ?? "已取消操作。" });
         }
 
         await SaveChatMessages();

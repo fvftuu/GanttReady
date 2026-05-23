@@ -321,9 +321,8 @@ public class ProjectService : IProjectService
             }
             else if (resource.Type == ResourceType.Measure)
             {
-                // 措施：数量 × 日成本 × 工期(天)
-                var dailyCost = resource.HourlyCost ?? resource.UnitPrice;
-                totalCost += assignment.Quantity * dailyCost * task.PlanDuration;
+                // 措施：数量 × 单价（一次性费用，不乘工期）
+                totalCost += assignment.Quantity * resource.UnitPrice;
             }
             else
             {

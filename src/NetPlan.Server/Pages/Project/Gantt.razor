@@ -81,6 +81,26 @@
         </div>
     </div>
     <div class="header-right">
+        <div class="gantt-toolbar-group">
+            <label class="toggle-label" style="font-size:12px;">行高</label>
+            <input type="range" class="gantt-row-height-slider" min="28" max="80" 
+                   value="@rowHeightSetting"
+                   @oninput="OnRowHeightChange" 
+                   title="调整行高" />
+            <span class="toggle-label" style="min-width:28px;font-size:12px;">@rowHeightSetting</span>
+            <span class="toolbar-sep"></span>
+            <label class="toggle-switch" title="水平网格线">
+                <input type="checkbox" @bind="showHorizontalGrid" @bind:after="ToggleHorizontalGrid" />
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label" style="font-size:12px;">横线</span>
+            <label class="toggle-switch" title="竖直网格线">
+                <input type="checkbox" @bind="showVerticalGrid" @bind:after="ToggleVerticalGrid" />
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label" style="font-size:12px;">竖线</span>
+            <span class="toolbar-sep"></span>
+        </div>
         <div class="scale-switch">
             <button class="scale-btn @(timeScaleMode == 0 ? "active" : "")" @onclick="() => SetTimeScaleMode(0)" title="标准模式">标准</button>
             <button class="scale-btn @(timeScaleMode == 1 ? "active" : "")" @onclick="() => SetTimeScaleMode(1)" title="模式1:月日平均分布">模式1</button>
@@ -412,7 +432,11 @@
             </div>
             @* 前置关系线 SVG 层 *@
             <svg class="gantt-relation-lines" style="width: @(totalDays * dayWidth)px;">
-                <defs></defs>
+                <defs>
+                    <marker id="arrow-fs" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+                        <polygon points="0 0, 8 4, 0 8" fill="#999" />
+                    </marker>
+                </defs>
                 @* 今日线 *@
                 @if (showTodayLine)
                 {
@@ -465,22 +489,21 @@
                                 _ => predEndX  // FS 默认
                             };
 
-                            var predTop = predRow * rowHeight + 18;
-                            var succTop = succRow * rowHeight + 18;
+                            var predTop = predRow * rowHeight + 15;  // 15 = barHeight/2 (30/2)
+                            var succTop = succRow * rowHeight + 15;
 
                             @if (predRow == succRow)
                             {
                                 <g data-relation-pred="@predTask.Id" data-relation-succ="@succTask.Id">
                                     <line x1="@barEdgeX" y1="@predTop" x2="@endX" y2="@succTop" 
-                                          stroke="#666" stroke-width="1.5"/>
+                                          stroke="#999" stroke-width="0.5" stroke-dasharray="3,3" marker-end="url(#arrow-fs)"/>
                                 </g>
                             }
                             else
                             {
-                                var midX = barEdgeX + Math.Max(20, (endX - barEdgeX) / 2);
                                 <g data-relation-pred="@predTask.Id" data-relation-succ="@succTask.Id">
-                                    <path d="M @barEdgeX @predTop L @midX @predTop L @midX @succTop L @endX @succTop" 
-                                          stroke="#666" stroke-width="1.5" fill="none"/>
+                                    <path d="M @barEdgeX @predTop L @barEdgeX @succTop L @endX @succTop" 
+                                          stroke="#999" stroke-width="0.5" stroke-dasharray="3,3" fill="none" marker-end="url(#arrow-fs)"/>
                                 </g>
                             }
                         }
@@ -912,6 +935,9 @@
     private bool showCriticalLine = true;
     private bool showTodayLine = false;
     private bool showRelationLine = false;
+    private bool showHorizontalGrid = true;
+    private bool showVerticalGrid = true;
+    private int rowHeightSetting = 36;
     private bool _ganttSettingsRestored = false;
 
     // 拖拽相关
@@ -972,6 +998,25 @@
     private async Task OnHistogramToggled()
     {
         if (showResourceHistogram) { CalculateHistogram(); await RenderChartAsync(); }
+    }
+
+    private async Task OnRowHeightChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var val))
+        {
+            rowHeightSetting = Math.Clamp(val, 28, 80);
+            await JS.InvokeVoidAsync("setGanttRowHeight", rowHeightSetting);
+        }
+    }
+
+    private async Task ToggleHorizontalGrid()
+    {
+        await JS.InvokeVoidAsync("toggleGanttGrid", "horizontal", showHorizontalGrid);
+    }
+
+    private async Task ToggleVerticalGrid()
+    {
+        await JS.InvokeVoidAsync("toggleGanttGrid", "vertical", showVerticalGrid);
     }
 
     private async Task RenderChartAsync()

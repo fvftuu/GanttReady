@@ -118,12 +118,28 @@ export function syncGanttRowHeights(): void {
       }
     });
 
-    // 更新前置关系线 Y 坐标
+    // 先更新条形位置（确保关系线能读到正确的坐标）
+    bars.forEach((bar) => {
+      const taskId = bar.getAttribute('data-task-id');
+      if (taskId === null) return;
+      const leftRow = document.querySelector(`#gantt-left-body .gantt-left-row[data-task-id="${taskId}"]`);
+      if (!leftRow) return;
+      const rowEls = Array.from(leftRows);
+      const idx = rowEls.indexOf(leftRow as Element);
+      if (idx < 0 || idx >= rowTops.length) return;
+      (bar as HTMLElement).style.top = rowTops[idx] + 'px';
+      (bar as HTMLElement).style.height = rowHeights[idx] + 'px';
+    });
+
+    // 再更新前置关系线的 X/Y 坐标（此时条形已在正确位置）
     const relationGroups = relationSvg.querySelectorAll('[data-relation-pred][data-relation-succ]');
     relationGroups.forEach((group) => {
       const predId = group.getAttribute('data-relation-pred');
       const succId = group.getAttribute('data-relation-succ');
       if (!predId || !succId) return;
+
+      const predBar = document.querySelector(`#gantt-right .gantt-bar-frame[data-task-id="${predId}"]`) as HTMLElement;
+      const succBar = document.querySelector(`#gantt-right .gantt-bar-frame[data-task-id="${succId}"]`) as HTMLElement;
 
       const predRow = document.querySelector(`#gantt-left-body .gantt-left-row[data-task-id="${predId}"]`);
       const succRow = document.querySelector(`#gantt-left-body .gantt-left-row[data-task-id="${succId}"]`);
@@ -137,39 +153,37 @@ export function syncGanttRowHeights(): void {
       const predMid = rowTops[predIdx] + rowHeights[predIdx] / 2;
       const succMid = rowTops[succIdx] + rowHeights[succIdx] / 2;
 
-      // 更新 <line> 元素
-      const lineEl = group.querySelector('line');
-      if (lineEl) {
-        lineEl.setAttribute('y1', predMid.toFixed(1));
-        lineEl.setAttribute('y2', succMid.toFixed(1));
+      // 从条形的 left/width 计算关系线 X 端点
+      let barEdgeX = 0, endX = 0;
+      if (predBar && succBar) {
+        const predLeft = parseFloat(predBar.style.left) || 0;
+        const predW = parseFloat(predBar.style.width) || 0;
+        const succLeft = parseFloat(succBar.style.left) || 0;
+        barEdgeX = predLeft + predW;
+        endX = succLeft;
       }
 
-      // 更新 <path> 元素（d="M x1 y1 L midX y1 L midX y2 L x2 y2"）
+      // 更新 <line> 元素（同行）
+      const lineEl = group.querySelector('line');
+      if (lineEl) {
+        lineEl.setAttribute('x1', barEdgeX.toFixed(1));
+        lineEl.setAttribute('y1', predMid.toFixed(1));
+        lineEl.setAttribute('x2', endX.toFixed(1));
+        lineEl.setAttribute('y2', succMid.toFixed(1));
+        lineEl.setAttribute('stroke-width', '0.5');
+        lineEl.setAttribute('stroke-dasharray', '3,3');
+      }
+
+      // 更新 <path> 元素（竖直线→水平线）
       const pathEl = group.querySelector('path');
       if (pathEl) {
-        const d = pathEl.getAttribute('d') || '';
-        // 匹配 "M x0 Y0 L x1 Y1 L x2 Y2 L x3 Y3" 格式
-        const parts = d.match(/M\s+([\d.]+)\s+[\d.]+\s+L\s+([\d.]+)\s+[\d.]+\s+L\s+([\d.]+)\s+[\d.]+\s+L\s+([\d.]+)\s+[\d.]+/);
-        if (parts) {
-          const newD = `M ${parts[1]} ${predMid.toFixed(1)} L ${parts[2]} ${predMid.toFixed(1)} L ${parts[3]} ${succMid.toFixed(1)} L ${parts[4]} ${succMid.toFixed(1)}`;
-          pathEl.setAttribute('d', newD);
-        }
+        const newD = `M ${barEdgeX.toFixed(1)} ${predMid.toFixed(1)} L ${barEdgeX.toFixed(1)} ${succMid.toFixed(1)} L ${endX.toFixed(1)} ${succMid.toFixed(1)}`;
+        pathEl.setAttribute('d', newD);
+        pathEl.setAttribute('stroke-width', '0.5');
+        pathEl.setAttribute('stroke-dasharray', '3,3');
       }
     });
   }
-
-  // 更新每个 gantt-bar-frame 的 top 和 height（直接绝对定位）
-  bars.forEach((bar) => {
-    const taskId = bar.getAttribute('data-task-id');
-    if (taskId === null) return;
-    const leftRow = document.querySelector(`#gantt-left-body .gantt-left-row[data-task-id="${taskId}"]`);
-    if (!leftRow) return;
-    const rowEls = Array.from(leftRows);
-    const idx = rowEls.indexOf(leftRow as Element);
-    if (idx < 0 || idx >= rowTops.length) return;
-    (bar as HTMLElement).style.top = rowTops[idx] + 'px';
-    (bar as HTMLElement).style.height = rowHeights[idx] + 'px';
-  });
 }
 
 /**

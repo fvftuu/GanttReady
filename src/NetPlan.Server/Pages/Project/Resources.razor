@@ -83,7 +83,7 @@
                             <th>类型</th>
                             <th>数量</th>
                             <th>单位</th>
-                            <th>成本/小时</th>
+                            <th>成本</th>
                             <th>归属</th>
                             <th>操作</th>
                         </tr>
@@ -105,7 +105,20 @@
                                 </td>
                                 <td>@resource.Quantity</td>
                                 <td>@resource.Unit</td>
-                                <td>@(resource.HourlyCost.HasValue ? $"¥{resource.HourlyCost.Value:F2}" : "-")</td>
+                                <td>
+                                    @if (resource.Type == ResourceType.Material || resource.Type == ResourceType.Measure)
+                                    {
+                                        <span>¥@resource.UnitPrice.ToString("F2") / @resource.Unit</span>
+                                    }
+                                    else if (resource.HourlyCost.HasValue)
+                                    {
+                                        <span>¥@resource.HourlyCost.Value.ToString("F2") / 小时</span>
+                                    }
+                                    else
+                                    {
+                                        <span>-</span>
+                                    }
+                                </td>
                                 <td>
                                     @if (resource.ProjectId == null)
                                     {
@@ -181,8 +194,16 @@
                     <input type="number" class="form-control" @bind="editingResource.Quantity" min="0" step="0.01" />
                 </div>
                 <div class="form-group" style="flex:1;">
-                    <label>成本/小时 (¥)</label>
-                    <input type="number" class="form-control" @bind="editingResource.HourlyCost" min="0" step="0.01" />
+                    @if (editingResource.Type == ResourceType.Material || editingResource.Type == ResourceType.Measure)
+                    {
+                        <label>单价 (¥) / @(string.IsNullOrEmpty(editingResource.Unit) ? "单位" : editingResource.Unit)</label>
+                        <input type="number" class="form-control" @bind="editingResource.UnitPrice" min="0" step="0.01" />
+                    }
+                    else
+                    {
+                        <label>成本/小时 (¥)</label>
+                        <input type="number" class="form-control" @bind="editingResource.HourlyCost" min="0" step="0.01" />
+                    }
                 </div>
             </div>
 
@@ -334,6 +355,7 @@
             Type = resource.Type,
             Unit = resource.Unit,
             Quantity = resource.Quantity,
+            UnitPrice = resource.UnitPrice,
             HourlyCost = resource.HourlyCost,
             Notes = resource.Notes
         };

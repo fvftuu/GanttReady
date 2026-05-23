@@ -249,6 +249,7 @@ using (var scope = app.Services.CreateScope())
     }
 
     DataSeeder.SeedDemoData(db);
+    DemoProjectSeeder.Seed(db);
 }
 
 app.Run();
