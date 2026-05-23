@@ -31,6 +31,9 @@ public interface IProjectService
     Task RecalculateTaskBudgetCostAsync(int taskId);
     Task RecalculateAllTaskBudgetsAsync(int projectId);
 
+    // 首页摘要
+    Task<List<ProjectSummary>> GetProjectSummariesAsync();
+
     // 保存所有变更
     Task SaveChangesAsync();
 

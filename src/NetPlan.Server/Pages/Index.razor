@@ -3,16 +3,18 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<PageTitle>NetPlan - 项目列表</PageTitle>
+<PageTitle>NetPlan - 项目总览</PageTitle>
 
 <div class="page-body">
     <div class="page-main" style="padding:20px;">
+
+        @* 工具栏 *@
         <div class="toolbar">
             <button class="btn btn-primary" @onclick="ShowCreateDialog">
                 <span class="oi oi-plus"></span> 新建项目
             </button>
             <button class="btn btn-outline" @onclick="DownloadBlankTemplate">
-                <span class="oi oi-file"></span> 下载导入模板
+                <span class="oi oi-file"></span> 下载模板
             </button>
             <button class="btn btn-outline" @onclick="TriggerImport">
                 <span class="oi oi-data-upload"></span> 导入Excel
@@ -31,64 +33,119 @@
 
         @if (isLoading)
         {
-            <div class="loading">加载中...</div>
+            <div class="loading" style="text-align:center;padding:60px 0;color:#999;">加载中...</div>
         }
-        else if (Projects.Count == 0)
+        else if (summaries.Count == 0)
         {
             <div class="empty-state">
-                <div style="font-size:48px; margin-bottom:16px;">📁</div>
-                <p>暂无项目</p>
-                <button class="btn btn-primary" @onclick="ShowCreateDialog">创建第一个项目</button>
+                <div style="font-size:56px; margin-bottom:16px;">📋</div>
+                <p style="font-size:18px;color:#666;">暂无项目</p>
+                <p style="color:#999;margin-bottom:20px;">创建第一个项目开始管理您的工程计划</p>
+                <button class="btn btn-primary btn-lg" @onclick="ShowCreateDialog">创建第一个项目</button>
             </div>
         }
         else
         {
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th style="width:42px;"></th>
-                        <th>项目代码</th>
-                        <th>项目名称</th>
-                        <th>计划开始</th>
-                        <th>计划结束</th>
-                        <th>工期(天)</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var p in Projects)
-                    {
-                        <tr class="@(selectedProject?.Id == p.Id ? "selected" : "")" @onclick="() => SelectProject(p)">
-                            <td @onclick:stopPropagation>
-                                <input type="radio" name="project-select" value="@p.Id"
-                                       checked="@(checkedProjectId == p.Id)"
-                                       @onchange="(e) => SelectCheckedProject(p.Id)" />
-                            </td>
-                            <td><span class="badge primary">@p.Code</span></td>
-                            <td>
-                                <strong>@p.Name</strong>
-                                @if (!string.IsNullOrEmpty(p.Description))
-                                {
-                                    <div style="font-size:12px; color:#999; margin-top:2px;">@p.Description</div>
-                                }
-                            </td>
-                            <td>@p.PlanStartDate.ToString("yyyy-MM-dd")</td>
-                            <td>@p.PlanEndDate.ToString("yyyy-MM-dd")</td>
-                            <td>@(p.PlanEndDate - p.PlanStartDate).Days 天</td>
-                            <td @onclick:stopPropagation>
-                                <a href="/project/@p.Id/gantt" class="btn-link">📅 甘特图</a>
-                                <a href="/project/@p.Id/network" class="btn-link" style="opacity:0.4;cursor:not-allowed;pointer-events:none;">🔗 网络图</a>
-                                <a href="/project/@p.Id/resources" class="btn-link">👥 资源</a>
-                                <a href="/project/@p.Id/analysis" class="btn-link">📊 分析</a>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+            @* 统计卡片 *@
+            <div class="dashboard-cards">
+                <div class="dash-card">
+                    <div class="dash-card-icon" style="background:#eef1ff;color:#4f6ef7;">📊</div>
+                    <div class="dash-card-body">
+                        <div class="dash-card-value">@summaries.Count</div>
+                        <div class="dash-card-label">项目总数</div>
+                    </div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-icon" style="background:#e6fff2;color:#3ecf8e;">🔄</div>
+                    <div class="dash-card-body">
+                        <div class="dash-card-value">@summaries.Count(s => s.Status == 1)</div>
+                        <div class="dash-card-label">进行中</div>
+                    </div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-icon" style="background:#fff0e6;color:#f5a623;">⏳</div>
+                    <div class="dash-card-body">
+                        <div class="dash-card-value">@summaries.Count(s => s.Status == 0)</div>
+                        <div class="dash-card-label">未开始</div>
+                    </div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-icon" style="background:#ffeaea;color:#ff5a5f;">❗</div>
+                    <div class="dash-card-body">
+                        <div class="dash-card-value">@summaries.Count(s => s.Status == 2)</div>
+                        <div class="dash-card-label">已超期</div>
+                    </div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-icon" style="background:#f0f0ff;color:#7c5cfc;">💰</div>
+                    <div class="dash-card-body">
+                        <div class="dash-card-value">¥@(summaries.Sum(s => s.TotalPlanCost).ToString("N0"))</div>
+                        <div class="dash-card-label">总预算</div>
+                    </div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-icon" style="background:#fef6e6;color:#e8a317;">📌</div>
+                    <div class="dash-card-body">
+                        <div class="dash-card-value">@summaries.Sum(s => s.TaskCount)</div>
+                        <div class="dash-card-label">总任务数</div>
+                    </div>
+                </div>
+            </div>
+
+            @* 项目卡片网格 *@
+            <div class="project-cards">
+                @foreach (var p in summaries)
+                {
+                    var isSelected = selectedProject?.Id == p.Id;
+                    <div class="project-card @(isSelected ? "selected" : "")" @onclick="() => SelectProject(p.Id)">
+                        @* 顶部标识条 *@
+                        <div class="card-accent @(p.Status == 2 ? "overdue" : p.Status == 0 ? "pending" : "active")"></div>
+                        <div class="card-body">
+                            @* 头行：代码 + 状态 *@
+                            <div class="card-header-row">
+                                <span class="badge primary">@p.Code</span>
+                                <span class="status-badge @(p.Status == 2 ? "overdue" : p.Status == 0 ? "pending" : "active")">
+                                    @(p.Status == 2 ? "🔴" : p.Status == 0 ? "⚪" : "🟢") @p.StatusLabel
+                                </span>
+                            </div>
+                            @* 项目名称 *@
+                            <h3 class="card-title">@p.Name</h3>
+                            @* 描述 *@
+                            @if (!string.IsNullOrEmpty(p.Description))
+                            {
+                                <p class="card-desc">@p.Description</p>
+                            }
+                            @* 进度条 *@
+                            <div class="card-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill @(p.CompletionPct >= 100 ? "done" : p.CompletionPct > 0 ? "ongoing" : "")"
+                                         style="width:@(p.CompletionPct)%"></div>
+                                </div>
+                                <span class="progress-text">@p.CompletionPct%</span>
+                            </div>
+                            @* 元信息行 *@
+                            <div class="card-meta">
+                                <span title="计划周期">📅 @p.PlanStartDate.ToString("MM/dd") - @p.PlanEndDate.ToString("MM/dd")</span>
+                                <span title="剩余天数">⏱ @(p.DaysRemaining >= 0 ? $"{p.DaysRemaining}天" : $"已超期{-p.DaysRemaining}天")</span>
+                                <span title="任务数">📋 @p.TaskCount 任务</span>
+                                <span title="资源数">👥 @p.ResourceCount 资源</span>
+                            </div>
+                            @* 操作按钮 *@
+                            <div class="card-actions">
+                                <a href="/project/@p.Id/gantt" class="btn btn-sm btn-primary" title="甘特图">📅 甘特图</a>
+                                <a href="/project/@p.Id/analysis" class="btn btn-sm btn-outline" title="分析">📊 分析</a>
+                                <a href="/project/@p.Id/resources" class="btn btn-sm btn-outline" title="资源">👥 资源</a>
+                                <a href="/project/@p.Id/network" class="btn btn-sm btn-outline disabled" title="网络图" style="opacity:0.35;pointer-events:none;">🔗 网络图</a>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
         }
     </div>
 </div>
 
+@* 新建/编辑对话框 *@
 @if (showDialog && editingProject != null)
 {
     <div class="modal-overlay" @onclick="CloseDialog">
@@ -141,7 +198,7 @@
 }
 
 @code {
-    private List<Models.Project> Projects = new();
+    private List<ProjectSummary> summaries = new();
     private Models.Project? editingProject;
     private Models.Project? selectedProject;
     private bool isLoading = true;
@@ -151,16 +208,16 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadProjects();
+        await LoadSummaries();
         await LoadCheckedState();
     }
 
-    private async Task LoadProjects()
+    private async Task LoadSummaries()
     {
         isLoading = true;
         try
         {
-            Projects = await ProjectService.GetAllProjectsAsync();
+            summaries = await ProjectService.GetProjectSummariesAsync();
         }
         finally
         {
@@ -173,17 +230,10 @@
         try
         {
             checkedProjectId = await JS.InvokeAsync<int>("getCheckedProject");
-            // 清理无效的勾选
-            if (checkedProjectId > 0 && !Projects.Any(p => p.Id == checkedProjectId))
+            if (checkedProjectId > 0 && !summaries.Any(p => p.Id == checkedProjectId))
                 checkedProjectId = 0;
         }
         catch { checkedProjectId = 0; }
-    }
-
-    private async Task SelectCheckedProject(int projectId)
-    {
-        checkedProjectId = projectId;
-        await JS.InvokeVoidAsync("setCheckedProject", projectId);
     }
 
     private void ShowCreateDialog()
@@ -201,13 +251,12 @@
     private async Task SaveProject()
     {
         if (editingProject == null) return;
-        if (string.IsNullOrWhiteSpace(editingProject.Code) ||
-            string.IsNullOrWhiteSpace(editingProject.Name))
+        if (string.IsNullOrWhiteSpace(editingProject.Code) || string.IsNullOrWhiteSpace(editingProject.Name))
             return;
 
         await ProjectService.CreateProjectAsync(editingProject);
         CloseDialog();
-        await LoadProjects();
+        await LoadSummaries();
     }
 
     private void CloseDialog()
@@ -216,9 +265,17 @@
         editingProject = null;
     }
 
-    private void SelectProject(Models.Project p)
+    private void SelectProject(int projectId)
     {
-        selectedProject = selectedProject?.Id == p.Id ? null : p;
+        if (selectedProject?.Id == projectId)
+        {
+            selectedProject = null;
+        }
+        else
+        {
+            var s = summaries.FirstOrDefault(s => s.Id == projectId);
+            selectedProject = s != null ? new Models.Project { Id = s.Id, Code = s.Code, Name = s.Name } : null;
+        }
     }
 
     private async Task DeleteSelectedProject()
@@ -228,7 +285,7 @@
         {
             await ProjectService.DeleteProjectAsync(selectedProject.Id);
             selectedProject = null;
-            await LoadProjects();
+            await LoadSummaries();
         }
         catch (Exception ex)
         {
@@ -236,13 +293,11 @@
         }
     }
 
-    // 导出空白模板
     private async Task DownloadBlankTemplate()
     {
         try
         {
-            var url = "/download/blank-template";
-            await JS.InvokeVoidAsync("window.open", url, "_blank");
+            await JS.InvokeVoidAsync("window.open", "/download/blank-template", "_blank");
         }
         catch (Exception ex)
         {
@@ -250,14 +305,12 @@
         }
     }
 
-    // 导出项目数据模板
     private async Task ExportTemplate()
     {
         if (selectedProject == null) return;
         try
         {
-            var url = $"/download/template/{selectedProject.Id}";
-            await JS.InvokeVoidAsync("window.open", url, "_blank");
+            await JS.InvokeVoidAsync("window.open", $"/download/template/{selectedProject.Id}", "_blank");
         }
         catch (Exception ex)
         {
@@ -265,25 +318,22 @@
         }
     }
 
-    // 触发导入文件选择
     private async Task TriggerImport()
     {
         if (selectedProject == null)
         {
-            await JS.InvokeVoidAsync("alert", "请先选择或创建一个项目");
+            await JS.InvokeVoidAsync("alert", "请先选择一个项目");
             return;
         }
         await JS.InvokeVoidAsync("eval", "document.getElementById('fileInput').click()");
     }
 
-    // 处理文件选择
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
         if (selectedProject == null || e.File == null) return;
-
         pendingFile = e.File;
         var result = await UploadAndImport(e.File, selectedProject.Id);
-        
+
         if (result != null)
         {
             if (result.Success)
@@ -293,15 +343,12 @@
             }
             else
             {
-                var errorMsg = result.Errors.Count > 0 
-                    ? string.Join("\n", result.Errors.Take(5)) 
-                    : result.Message;
+                var errorMsg = result.Errors.Count > 0 ? string.Join("\n", result.Errors.Take(5)) : result.Message;
                 await JS.InvokeVoidAsync("alert", $"导入完成但有错误:\n{errorMsg}");
             }
         }
     }
 
-    // 上传并导入
     private async Task<ExcelImportResult?> UploadAndImport(IBrowserFile file, int projectId)
     {
         try
@@ -309,7 +356,7 @@
             using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
             using var memoryStream = new MemoryStream();
             await stream.CopyToAsync(memoryStream);
-            
+
             var content = new MultipartFormDataContent();
             content.Add(new ByteArrayContent(memoryStream.ToArray()), "file", file.Name);
 

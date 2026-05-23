@@ -99,6 +99,27 @@ public class ProjectService : IProjectService
 
     #endregion
 
+    public async Task<List<ProjectSummary>> GetProjectSummariesAsync()
+    {
+        return await _db.Projects
+            .Select(p => new ProjectSummary
+            {
+                Id = p.Id,
+                Code = p.Code,
+                Name = p.Name,
+                Description = p.Description,
+                PlanStartDate = p.PlanStartDate,
+                PlanEndDate = p.PlanEndDate,
+                TaskCount = p.Tasks.Count,
+                ResourceCount = p.Resources.Count,
+                CompletedTaskCount = p.Tasks.Count(t => t.CompletionPercentage >= 100),
+                TotalPlanCost = (double)p.Tasks.Sum(t => t.BudgetCost),
+                UpdatedAt = p.UpdatedAt
+            })
+            .OrderByDescending(s => s.UpdatedAt)
+            .ToListAsync();
+    }
+
     #region 任务 CRUD
 
     public async Task<List<TaskItem>> GetTasksByProjectIdAsync(int projectId)
