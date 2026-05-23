@@ -1393,7 +1393,7 @@
 
             var tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
             var taskNames = string.Join("、", tasks.Select(t => $"{t.Code} {t.Name}").Take(20));
-            var sysPrompt = $"你是一个项目管理助手。根据用户描述的自然语言任务，解析为结构化的JSON数据。项目已有任务（供参考前置任务名称）：{taskNames}。返回JSON格式：{{'code':'自动生成','name':'任务名称','responsiblePerson':'负责人','planDuration':'工期天数','planStartDate':'YYYY-MM-DD或空','planEndDate':'YYYY-MM-DD或空','isMilestone':true/false,'predecessorNames':['前置任务名称列表']}}。如果用户没有指定某个字段，用空字符串或null。只返回JSON，不要其他文字。";
+            var sysPrompt = $"你是一个项目管理助手。根据用户描述的自然语言任务，解析为结构化的JSON数据。项目已有任务（供参考前置任务名称）：{taskNames}。返回JSON格式：{{'code':'自动生成或空','name':'任务名称','responsiblePerson':'负责人或空','planDuration':15,'planStartDate':'2026-05-01或空','planEndDate':'2026-05-15或空','isMilestone':false,'predecessorNames':['前置任务名称1','前置任务名称2']}}。注意：planDuration用数字，isMilestone用布尔值，不要用字符串。如果用户没有指定某个字段，用空字符串''或null。只返回JSON，不要其他文字。";
 
             var result = await AiService.ChatAsync(sysPrompt, _aiTaskInput, temperature: 0.1, overrideOptions: opts);
             if (result.StartsWith("⚠️")) return;
@@ -1413,10 +1413,20 @@
                 editingTask.Code = code;
             if (root.TryGetProperty("responsiblePerson", out var rpEl) && rpEl.GetString() is string rp && !string.IsNullOrEmpty(rp))
                 editingTask.ResponsiblePerson = rp;
-            if (root.TryGetProperty("planDuration", out var durEl) && durEl.TryGetInt32(out var dur) && dur > 0)
-                editingTask.PlanDuration = dur;
-            if (root.TryGetProperty("isMilestone", out var msEl) && msEl.ValueKind == System.Text.Json.JsonValueKind.True)
-                editingTask.IsMilestone = true;
+            if (root.TryGetProperty("planDuration", out var durEl))
+            {
+                if (durEl.ValueKind == System.Text.Json.JsonValueKind.Number && durEl.TryGetInt32(out var dur) && dur > 0)
+                    editingTask.PlanDuration = dur;
+                else if (durEl.ValueKind == System.Text.Json.JsonValueKind.String && int.TryParse(durEl.GetString(), out var dur2) && dur2 > 0)
+                    editingTask.PlanDuration = dur2;
+            }
+            if (root.TryGetProperty("isMilestone", out var msEl))
+            {
+                if (msEl.ValueKind == System.Text.Json.JsonValueKind.True)
+                    editingTask.IsMilestone = true;
+                else if (msEl.ValueKind == System.Text.Json.JsonValueKind.String && (msEl.GetString() == "true" || msEl.GetString() == "True"))
+                    editingTask.IsMilestone = true;
+            }
 
             // 日期
             if (root.TryGetProperty("planStartDate", out var psEl) && psEl.GetString() is string ps && !string.IsNullOrEmpty(ps) && DateTime.TryParse(ps, out var startDate))

@@ -19,12 +19,15 @@
         </select>
         <span class="page-title">计划分析仪表板</span>
         <button class="btn btn-default btn-sm" style="margin-left:12px;" @onclick="ShowAiSettings">🤖 AI 设置</button>
-        @if (GetActiveConnection() != null)
-        {
-            <button class="btn @(_aiMode ? "btn-primary" : "btn-default") btn-sm" style="margin-left:6px;" @onclick="ToggleAiMode">
-                @(_aiMode ? "🔵 AI 分析" : "⚪ 标准分析")
-            </button>
-        }
+            <div class="scale-switch" style="margin-left:8px;">
+                @foreach (var role in _roles)
+                {
+                    <button class="scale-btn @(_currentRole == role.Value ? "active" : "")"
+                            @onclick="() => SwitchRole(role.Value)" title="@role.Desc">
+                        @role.Icon @role.Label
+                    </button>
+                }
+            </div>
     </div>
     <div class="header-right">
         <button class="btn btn-default btn-sm" onclick="window.print()">🖨 打印</button>
@@ -47,18 +50,23 @@
         else if (analysisResult != null)
         {
             <div class="section">
-                <h3>AI 项目分析报告</h3>
+                @{
+                    var currentRoleInfo = _roles.FirstOrDefault(r => r.Value == _currentRole);
+                    var roleIcon = currentRoleInfo.Icon;
+                    var roleLabel = currentRoleInfo.Label;
+                }
+                <h3>🤖 @roleIcon @roleLabel 视角 · AI 分析报告</h3>
                 @if (_aiLoading)
                 {
                     <div class="loading">⏳ AI 正在分析项目数据...</div>
                 }
-                else if (_aiReports.TryGetValue("analysis", out var report))
+                else if (_aiReports.TryGetValue(_currentReportKey, out var report))
                 {
                     <div style="background:#fafafa;border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;line-height:1.8;white-space:pre-wrap;font-size:13px;">@report</div>
                 }
                 else
                 {
-                    <div style="color:var(--text-secondary);padding:12px 0;">配置好 API Key 后，点击「AI分析」开关生成分析报告。</div>
+                    <div style="color:var(--text-secondary);padding:12px 0;">点击上方角色按钮生成对应视角的 AI 分析报告。</div>
                 }
             </div>
         }
@@ -131,13 +139,43 @@
 @code {
     [Parameter] public int? ProjectId { get; set; }
 
+    // AI 增强数据
+    private string? _currentProjectName;
+    private EarnedValueResult? _earnedValueResult;
+    private StageCompletionResult? _stageCompletionResult;
+    private ResourceSummary? _resourceSummary;
+
+    // 角色选择
+    private string _currentRole = "manager";
+    private List<(string Value, string Label, string Icon, string Desc)> _roles = new()
+    {
+        ("operator",  "操作人员", "👷", "我接下来做什么"),
+        ("manager",   "项目经理", "📋", "项目在控制中吗"),
+        ("investor",  "监理业主", "📊", "钱和时间花得值吗"),
+        ("executive", "公司高层", "🏢", "哪个项目要我拍板"),
+    };
+
     private Dictionary<string, string> _aiReports = new();
     private bool _aiLoading = false;
     private string _aiLoadingTab = "";
-    private bool _aiMode = false;
     private bool _showAiSettings = false;
     private int _aiSelectedIdx = 0;
     private List<AiConnection> _aiConnections = new();
+
+    private string _currentReportKey => analysisResult != null ? $"analysis_{selectedProjectId}_{_currentRole}" : "";
+
+    private async Task SwitchRole(string role)
+    {
+        if (_currentRole == role) return;
+        _currentRole = role;
+        await JS.InvokeVoidAsync("localStorage.setItem", "ai_role", role);
+        if (analysisResult != null)
+        {
+            var key = _currentReportKey;
+            if (!_aiReports.ContainsKey(key))
+                await GenerateAiReportForTab(key);
+        }
+    }
 
     private string GetProviderLogo(string name) => name.ToLower() switch
     {
@@ -273,12 +311,6 @@
         conn.Testing = false; StateHasChanged();
     }
 
-    private void ToggleAiMode()
-    {
-        _aiMode = !_aiMode;
-        if (_aiMode) _ = GenerateAiReportForTab("analysis");
-    }
-
     private AiOptions? BuildAiOptions()
     {
         var conn = GetActiveConnection();
@@ -302,14 +334,7 @@
         StateHasChanged();
 
         var data = BuildAiReportData();
-        var systemPrompt = tabName switch
-        {
-            "overview" => "你是一个专业的项目管理分析师。根据提供的项目数据，生成一份简洁的项目总览分析。用中文，300字以内。包含：项目整体状态、进度绩效、关键指标。不要使用markdown格式。",
-            "implementation" => "你是一个专业的项目管理分析师。根据提供的项目数据，生成一份实施阶段分析。用中文，400字以内。包含：进度执行情况、资源使用状况、偏差分析、改进建议。不要使用markdown格式。",
-            "monthly" => "你是一个专业的项目管理分析师。根据提供的项目数据，生成一份月度分析报告。用中文，300字以内。包含：本月执行概况、进度偏差、关键风险、下月建议。不要使用markdown格式。",
-            "annual" => "你是一个专业的项目管理分析师。根据提供的项目数据，生成一份年度总结报告。用中文，500字以内。包含：年度执行概况、核心指标、里程碑回顾、存在问题、下阶段建议。不要使用markdown格式。",
-            _ => "你是一个专业的项目管理分析师。根据提供的项目数据，生成一份简洁的项目分析报告。用中文，300字以内。"
-        };
+        var systemPrompt = GetRolePrompt(_currentRole);
 
         var opts = BuildAiOptions();
         if (opts == null) { _aiLoading = false; _aiLoadingTab = ""; StateHasChanged(); return; }
@@ -318,6 +343,8 @@
         _aiLoading = false;
         _aiLoadingTab = "";
         await SaveAiReportsToStorage();
+        // 同步到聊天面板可读的共享存储
+        await JS.InvokeVoidAsync("localStorage.setItem", "ai_latest_analysis", result ?? "");
         StateHasChanged();
     }
 
@@ -344,17 +371,272 @@
     private string BuildAiReportData()
     {
         if (analysisResult == null) return "无数据";
-        var lateCount = analysisResult.LateStartTasks.Count;
-        var earlyCount = analysisResult.EarlyStartTasks.Count;
+        var sb = new System.Text.StringBuilder();
 
-        return $"项目工期：{analysisResult.ProjectDurationDays}天；" +
-               $"总任务数：{analysisResult.TotalTasks}；" +
-               $"关键路径任务：{analysisResult.CriticalPathTasks.Count}个；" +
-               $"里程碑：{analysisResult.Milestones.Count}个；" +
-               $"按时完成：{analysisResult.OnTimeTasks.Count}个；" +
-               $"提前完成：{earlyCount}个；" +
-               $"延后任务：{lateCount}个；" +
-               $"资源冲突：{resourceConflicts.Count}项。";
+        var projName = string.IsNullOrEmpty(_currentProjectName) ? "当前项目" : _currentProjectName;
+
+        // 1. 项目概况
+        sb.AppendLine($"## 项目基本信息");
+        sb.AppendLine($"- **项目名称**：{projName}");
+        sb.AppendLine($"- **总工期**：{analysisResult.ProjectDurationDays}天");
+        sb.AppendLine($"- **总任务数**：{analysisResult.TotalTasks}个");
+        sb.AppendLine($"- **计划最早完成**：{analysisResult.EarliestFinish:yyyy-MM-dd}");
+        sb.AppendLine($"- **按时完成**：{analysisResult.OnTimeTasks.Count}个 ／ **提前完成**：{analysisResult.EarlyStartTasks.Count}个 ／ **延后**：{analysisResult.LateStartTasks.Count}个");
+        if (_resourceSummary != null)
+        {
+            sb.AppendLine($"- **总资源数**：人工{_resourceSummary.LaborCount}/材料{_resourceSummary.MaterialCount}/设备{_resourceSummary.EquipmentCount}，**总预算成本**：{_resourceSummary.TotalCost:N0}元");
+        }
+        sb.AppendLine();
+
+        // 2. EVM 挣值分析
+        if (_earnedValueResult != null)
+        {
+            var evm = _earnedValueResult;
+            var spiStatus = evm.SchedulePerformanceIndex >= 1.0 ? "✅ 正常" : evm.SchedulePerformanceIndex >= 0.9 ? "⚠️ 预警" : "🔴 滞后";
+            var cpiStatus = evm.CostPerformanceIndex >= 1.0 ? "✅ 正常" : evm.CostPerformanceIndex >= 0.9 ? "⚠️ 预警" : "🔴 超支";
+            sb.AppendLine($"## 挣值分析 (EVM)");
+            sb.AppendLine($"- **计划价值 PV**：{evm.PlannedValue:N0} ｜ **挣值 EV**：{evm.EarnedValue:N0} ｜ **实际成本 AC**：{evm.ActualCost:N0}");
+            sb.AppendLine($"- **进度绩效 SPI**：{evm.SchedulePerformanceIndex:F2}（{spiStatus}）");
+            sb.AppendLine($"- **成本绩效 CPI**：{evm.CostPerformanceIndex:F2}（{cpiStatus}）");
+            sb.AppendLine($"- **综合绩效 CSI**：{evm.CostScheduleIndex:F2}（{(evm.CostScheduleIndex >= 0.9 ? "✅ 可控" : "⚠️ 需关注")}）");
+            sb.AppendLine($"- **进度偏差 SV**：{evm.ScheduleVariance:F0} ｜ **成本偏差 CV**：{evm.CostVariance:F0}");
+            sb.AppendLine($"- **总预算 BAC**：{evm.BudgetAtCompletion:N0} ｜ **估算完工 EAC**：{evm.EstimateAtCompletion:N0}");
+            if (evm.MonthlyTrend.Count > 1)
+            {
+                var trend = evm.MonthlyTrend.OrderByDescending(m => m.Month).Take(3).ToList();
+                sb.AppendLine($"- **SPI 近期趋势**（最近3月）：{string.Join(" → ", trend.Select(m => $"{m.Month}={m.SPI:F2}"))}");
+            }
+            sb.AppendLine();
+        }
+
+        // 3. 阶段完成率
+        if (_stageCompletionResult != null)
+        {
+            var sc = _stageCompletionResult;
+            sb.AppendLine($"## 阶段完成率");
+            sb.AppendLine($"- **检测方法**：{sc.DetectionMethod}");
+            sb.AppendLine($"- **完成进度**：{sc.CompletedStages}/{sc.TotalStages}阶段完成，**整体完成率**：{sc.OverallPct:F1}%");
+            foreach (var s in sc.Stages.Take(7))
+            {
+                var icon = s.Status == "completed" ? "✅" : s.Status == "in_progress" ? "🔄" : s.Status == "delayed" ? "🔴" : "⏳";
+                sb.AppendLine($"  - {icon} {s.StageName}：计划 {s.PlannedCompletionPct}% / 实际 {s.ActualCompletionPct}%（{s.CompletedTasks}/{s.TotalTasks}任务）{(s.DelayDays.HasValue && s.DelayDays != 0 ? $"偏差 {s.DelayDays}天" : "")}");
+            }
+            sb.AppendLine();
+        }
+
+        // 4. 关键路径
+        sb.AppendLine($"## 关键路径");
+        sb.AppendLine($"共 {analysisResult.CriticalPathTasks.Count} 个关键任务：");
+        foreach (var t in analysisResult.CriticalPathTasks.Take(10))
+        {
+            var floatStr = t.TotalFloat.HasValue ? $"，时差：{t.TotalFloat}天" : "";
+            var respStr = string.IsNullOrEmpty(t.ResponsiblePerson) ? "" : $"，负责人：{t.ResponsiblePerson}";
+            sb.AppendLine($"- **{t.Code} {t.Name}**：{t.PlanStartDate:MM/dd}→{t.PlanEndDate:MM/dd}（{t.PlanDuration}天）{floatStr}{respStr}");
+        }
+        if (analysisResult.CriticalPathTasks.Count > 10)
+            sb.AppendLine($"  ... 还有 {analysisResult.CriticalPathTasks.Count - 10} 个关键任务未列出");
+        sb.AppendLine();
+
+        // 5. 延后任务 TOP10
+        if (analysisResult.LateStartTasks.Any())
+        {
+            sb.AppendLine($"## 延后任务 TOP{Math.Min(analysisResult.LateStartTasks.Count, 10)}");
+            foreach (var t in analysisResult.LateStartTasks.OrderBy(t => t.PlanEndDate).Take(10))
+            {
+                var delayDays = t.ActualEndDate.HasValue ? (t.ActualEndDate.Value - t.PlanEndDate).Days : (DateTime.Today - t.PlanEndDate).Days;
+                var pct = t.CompletionPercentage;
+                sb.AppendLine($"- **{t.Code} {t.Name}**：计划完成 {t.PlanEndDate:MM/dd}，延后 {delayDays}天，完成率 {pct}%");
+            }
+            sb.AppendLine();
+        }
+
+        // 6. 里程碑
+        if (analysisResult.Milestones.Any())
+        {
+            sb.AppendLine($"## 里程碑");
+            sb.AppendLine($"共 {analysisResult.Milestones.Count} 个：");
+            foreach (var m in analysisResult.Milestones.OrderBy(m => m.Date))
+                sb.AppendLine($"- {m.Name}：{m.Date:yyyy-MM-dd}");
+            sb.AppendLine();
+        }
+
+        // 7. 资源冲突
+        sb.AppendLine($"## 资源冲突");
+        if (resourceConflicts.Any())
+        {
+            sb.AppendLine($"共 {resourceConflicts.Count} 项：");
+            foreach (var c in resourceConflicts.Take(10))
+                sb.AppendLine($"- **{c.ResourceName}**（{c.ConflictPeriod}）：涉及任务 {string.Join("、", c.ConflictTasks)}");
+            if (resourceConflicts.Count > 10)
+                sb.AppendLine($"  ... 还有 {resourceConflicts.Count - 10} 项资源冲突未列出");
+        }
+        else
+        {
+            sb.AppendLine("未检测到资源冲突，分配合理。");
+        }
+        sb.AppendLine();
+
+        // 8. 资源使用情况
+        if (resourceUsages.Any())
+        {
+            sb.AppendLine($"## 资源使用 TOP5（按负荷率排序）");
+            foreach (var u in resourceUsages.OrderByDescending(u => u.PeakUsage / Math.Max(0.001m, u.Capacity)).Take(5))
+            {
+                var pct = u.Capacity > 0 ? (int)(u.PeakUsage / u.Capacity * 100) : 0;
+                var status = pct > 100 ? "🔴 超额" : "✅ 正常";
+                sb.AppendLine($"- **{u.ResourceName}**：容量 {u.Capacity}{u.Unit}，峰值 {u.PeakUsage}{u.Unit}（{pct}%），{status}");
+            }
+            sb.AppendLine();
+        }
+
+        return sb.ToString();
+    }
+
+    private string GetRolePrompt(string role)
+    {
+        return role switch
+        {
+            "operator" => @"你是项目执行层会议的主持人。按「挂图作战、清单管理、销项落实」原则，对分包负责人和班组长发布指令。
+
+## 核心原则
+指令明确、时间具体、责任到人、考核刚性。不讲道理只讲要求，所有任务必须有明确的完成时间和验收标准。实行「当日事当日毕」和「问题不过夜」制度。
+
+## 报告结构（严格按以下顺序生成）
+
+### 1. 上周任务完成情况通报（只讲结果）
+- 量化通报各分包上周计划完成率，只讲结果不讲过程
+- 直接点名未完成任务的分包商和责任人
+- 通报上周考核结果（罚款/奖励金额）
+
+### 2. 未完成任务原因及整改要求
+- 不接受任何借口，只问「什么时候能补回来」，明确补回期限
+- 明确整改措施和责任人
+- 强调逾期后果（罚款/清退出场）
+
+### 3. 本周任务清单（精确到天）
+- 逐一下达各分包的具体任务，精确到天
+- 明确每个任务的验收标准和验收人
+
+### 4. 资源协调与交叉作业安排
+- 明确各分包交叉作业时间和顺序
+- 协调塔吊等大型设备使用时间
+- 要求各分包提前上报资源需求及截止时间
+
+### 5. 质量安全红线要求
+- 强调本周质量安全重点和处罚标准
+- 通报上周质量安全问题整改情况
+- 明确安全事故责任
+
+## 语言风格
+指令式、不容商量。用「必须」「不得」「罚款」「清退出场」等刚性词汇。每条指令必须有明确的完成时间和验收标准。",
+            "manager" => @"你是项目经理的汇报助手。按「三控三管一协调」框架生成项目周报。项目经理是项目第一责任人，实行「终身责任制」，必须对项目的进度、质量、安全、成本负全责。
+
+## 核心原则
+全面汇报、重点突出、主动担责、提出方案。按照问题导向原则，每个问题必须附带解决方案。
+
+## 报告结构（严格按以下顺序生成）
+
+### 1. 项目整体进度概况（用数据说话）
+- 总体进度：总工期/已完成/剩余天数，累计完成产值%，计划完成%，总进度偏差天数
+- 关键节点完成情况：上周计划完成关键节点数 vs 实际完成数，延误天数
+- 关键路径分析：关键工作延误天数，对总工期的影响天数
+- 配合关键路径图数据说明
+
+### 2. 质量安全管理情况
+- 质量：验收分项数/合格率/质量隐患数及整改完成情况
+- 安全：检查隐患数/已整改数/未整改数，安全事故情况
+- 文明施工：现场文明施工和环保检查情况
+
+### 3. 成本控制情况
+- 产值完成情况：上周产值/累计产值，占合同总价%
+- 成本支出情况：上周支出/累计支出，是否在预算范围内
+- 变更签证情况：设计变更份数/变更估价/审批状态
+
+### 4. 存在的主要问题及应对措施
+- 进度问题：具体延误原因 + 已采取措施 + 预计追回天数
+- 资源问题：资源缺口 + 协调方案 + 到场时间
+- 外部问题：需外部协调事项 + 已发工作联系单 + 要求确认期限
+
+### 5. 下周工作计划及资源需求
+- 下周进度目标：计划完成内容 + 产值目标
+- 资源需求：需要公司协调的资源清单
+- 需要解决的问题：请公司协助的具体事项
+
+### 6. 项目风险评估及应对预案
+- 主要风险：天气/供应链/人员/外部因素
+- 风险等级：绿/黄/红
+- 已准备的应对措施
+
+## 语言风格
+专业、数据驱动、主动担责。每个问题必须附带解决方案，不能只报问题不报方案。",
+            "investor" => @"你是向业主/监理汇报的正式简报助手。按合同履约和客户满意度导向，先汇报成绩再说明问题，强调有信心完成合同目标。实行「以现场促市场」经营理念。
+
+## 核心原则
+正式规范、尊重对方、体现履约、争取支持。非常重视合同履约和客户满意度。
+
+## 报告结构（严格按以下顺序生成）
+
+### 1. 开场白
+正式引入汇报内容
+
+### 2. 项目整体进展情况
+- 总体进度：累计完成产值%，较计划偏差天数及原因（客观说明）
+- 形象进度：当前完成的实物工作量
+- 配合甘特图和前锋线网络图数据说明
+
+### 3. 质量安全管理情况
+- 质量：验收分项数/合格率，工程质量是否符合设计和规范要求
+- 安全：安全事故情况/现场文明施工是否符合要求
+- 监理指令执行情况：收到监理通知单数/整改完成数/已回复
+
+### 4. 进度偏差原因及赶工措施
+- 客观说明偏差原因（供应商/天气等客观因素）
+- 详细说明赶工措施（多条，具体可执行）
+- 明确赶工目标时间
+
+### 5. 需要业主/监理协调解决的事项
+- 以请求语气提出，每条说明对项目的影响
+- 恳请业主确认事项/恳请监理加快审批/恳请支付进度款
+
+### 6. 下一步工作计划及承诺
+- 下周重点工作和产值目标
+- 质量安全承诺
+- 信心表态：有信心按时按质交付
+
+## 语言风格
+正式、规范、尊重。用「恳请」「感谢」「有信心」等词汇。先肯定成绩再说明问题。",
+            "executive" => @"你是向公司管理层汇报的项目简报助手。按「红黄绿灯」风险管控体系，只讲决策层关心的内容。
+
+## 核心原则
+结论先行、高度浓缩、只讲重点、聚焦决策。公司领导只关心：有没有问题、要不要我管、需要我做什么。
+
+## 报告结构（严格按以下顺序生成）
+
+### 1. 项目整体状态（一句话说清楚）
+🟢 正常 / 🟡 预警 / 🔴 失控 + 一句话说明核心状况
+
+### 2. 核心指标完成情况
+- 产值完成率：本月计划 vs 实际，完成率%
+- 关键节点完成率：本月计划 vs 实际，完成率%
+- 安全事故率
+
+### 3. 主要问题及已采取的措施
+- 只讲影响总工期和公司整体目标的重大问题
+- 说明已采取的措施和效果
+- 影响程度和预计解决时间
+
+### 4. 需要公司协调解决的事项
+- 只讲需要公司层面决策的问题，不讲项目能解决的问题
+- 明确需要公司在什么时间前解决
+
+### 5. 下一步工作计划及承诺
+- 追回延误的目标时间
+- 承诺：到期不能完成愿承担相应责任
+
+## 语言风格
+极简、bullet point、结论先行。不讲背景、不讲过程。每条不超过3行。最后一条必须有明确的时间承诺和责任承诺。",
+            _ => @"你是一个专业的项目管理分析师。根据以下项目分析数据，生成一份全面的项目分析报告。用中文，重点分析进度执行情况、关键路径风险、资源问题，并提出具体的改进建议。格式使用自然段落，不要用 markdown。"
+        };
     }
 
     private List<Models.Project> projects = new();
@@ -493,9 +775,14 @@
         var project = await ProjectService.GetProjectByIdAsync(projectId);
         if (project != null)
         {
+            _currentProjectName = project.Name;
             var tasks = await ProjectService.GetTasksByProjectIdAsync(projectId);
             analysisResult = AnalysisService.AnalyzeProject(project, tasks);
             await AnalyzeResourceConflicts(tasks, project);
+            // 加载 AI 增强数据
+            try { _earnedValueResult = await AnalysisService.GetEarnedValueAsync(projectId); } catch { _earnedValueResult = null; }
+            try { _stageCompletionResult = await AnalysisService.GetStageCompletionAsync(projectId); } catch { _stageCompletionResult = null; }
+            try { _resourceSummary = await AnalysisService.GetResourceSummaryAsync(projectId); } catch { _resourceSummary = null; }
         }
         await RenderSingleProjectChart(projectId);
     }

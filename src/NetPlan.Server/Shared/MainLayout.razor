@@ -3,6 +3,7 @@
 @inject NavigationManager Nav
 @inject IProjectService ProjectService
 @inject IAnalysisService AnalysisService
+@inject IResourceService ResourceService
 @inject IAiService AiService
 
 <div class="page-body">
@@ -48,56 +49,117 @@
             </a>
         </div>
     </div>
-    <div class="page-main">
+    <div class="page-main" style="@(_chatVisible ? "margin-right:380px;" : "")">
         @Body
     </div>
 </div>
 
-@* ===== AI 聊天气泡 ===== *@
-<div style="position:fixed;bottom:24px;right:24px;z-index:9999;">
-    @if (_chatVisible)
-    {
-        <div style="position:absolute;bottom:0;right:0;width:380px;height:520px;background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.15);display:flex;flex-direction:column;overflow:hidden;margin-bottom:56px;">
-            @* 标题栏 *@
-            <div style="padding:14px 16px;background:#4f6ef7;color:#fff;display:flex;align-items:center;gap:8px;">
-                <span style="font-size:18px;">🤖</span>
-                <span style="font-weight:600;flex:1;">AI 助手</span>
-                <button class="btn btn-sm" style="color:#fff;border:none;background:transparent;font-size:18px;cursor:pointer;" @onclick="CloseChat">✕</button>
-            </div>
-            @* 消息列表 *@
-            <div style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;">
-                @foreach (var msg in _chatMessages)
+@* ===== AI 聊天面板（右侧滑出）===== *@
+@if (_chatVisible)
+{
+    <div style="position:fixed;top:0;right:0;bottom:0;width:380px;background:#fff;border-left:1px solid #e8e8e8;box-shadow:-4px 0 24px rgba(0,0,0,0.1);z-index:1000;display:flex;flex-direction:column;animation:slideIn 0.25s ease;">
+        @* 标题栏 *@
+        <div style="padding:14px 16px;background:#4f6ef7;color:#fff;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;">🤖</span>
+            <span style="font-weight:600;">AI 助手</span>
+            @if (!string.IsNullOrEmpty(_currentModelName))
+            {
+                <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:8px;flex-shrink:0;">@_currentModelName</span>
+            }
+            <div style="flex:1;"></div>
+            <button class="btn btn-sm" style="color:#fff;border:none;background:transparent;font-size:18px;cursor:pointer;" @onclick="CloseChat">✕</button>
+        </div>
+        @* 快捷问题 *@
+        @if (_suggestedQuestions.Any() && !_chatMessages.Skip(1).Any())
+        {
+            <div style="padding:0 12px 8px;display:flex;flex-wrap:wrap;gap:6px;">
+                @foreach (var q in _suggestedQuestions)
                 {
-                    var isUser = msg.Role == "user";
-                    <div style="display:flex;@(isUser ? "justify-content:flex-end;" : "")">
-                        <div style="max-width:85%;padding:8px 12px;border-radius:10px;@(isUser ? "background:#4f6ef7;color:#fff;border-radius:10px 10px 2px 10px;" : "background:#f0f2f5;border-radius:10px 10px 10px 2px;")">
-                            <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;">@msg.Content</div>
+                    <button @onclick="() => AskQuickQuestion(q)"
+                            style="border:1px solid #d6e4ff;background:#f6f8ff;color:#4f6ef7;border-radius:14px;padding:4px 12px;font-size:12px;cursor:pointer;white-space:nowrap;transition:all 0.15s;"
+                            onmouseover="this.style.background='#e6f0ff'" onmouseout="this.style.background='#f6f8ff'">
+                        @q
+                    </button>
+                }
+            </div>
+        }
+        @* 消息列表 *@
+        <div @ref="_messageContainer" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;" id="chat-messages">
+            @foreach (var msg in _chatMessages)
+            {
+                var isUser = msg.Role == "user";
+                <div style="display:flex;@(isUser ? "justify-content:flex-end;" : "")">
+                    <div style="max-width:85%;padding:8px 12px;border-radius:10px;@(isUser ? "background:#4f6ef7;color:#fff;border-radius:10px 10px 2px 10px;" : "background:#f0f2f5;border-radius:10px 10px 10px 2px;")">
+                        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;">@msg.Content</div>
+                    </div>
+                </div>
+            }
+            @if (_chatLoading)
+            {
+                <div style="display:flex;gap:6px;padding:12px;">
+                    <span style="width:8px;height:8px;background:#999;border-radius:50%;animation:pulse 1s infinite;"> </span>
+                    <span style="width:8px;height:8px;background:#999;border-radius:50%;animation:pulse 1s infinite 0.2s;"> </span>
+                    <span style="width:8px;height:8px;background:#999;border-radius:50%;animation:pulse 1s infinite 0.4s;"> </span>
+                </div>
+            }
+        </div>
+        @* 工具调用确认区 *@
+        @if (_pendingToolCalls?.Count > 0)
+        {
+            <div style="padding:8px 12px;border-top:1px solid #e8e8e8;background:#fffbe6;">
+                @foreach (var tc in _pendingToolCalls)
+                {
+                    <div style="font-size:12px;margin-bottom:6px;">
+                        <div style="font-weight:600;color:#d48806;margin-bottom:4px;">
+                            📋 AI 建议操作：@(tc.FunctionName switch
+                            {
+                                "create_project" => "创建项目",
+                                "create_project_with_tasks" => "创建项目（含任务列表）",
+                                "create_task" => "创建任务",
+                                "update_task" => "修改任务",
+                                "get_tasks" => "查询任务列表",
+                                "get_all_projects" => "查询项目列表",
+                                _ => tc.FunctionName
+                            })
                         </div>
+                        <pre style="margin:0;font-size:11px;color:#555;white-space:pre-wrap;max-height:120px;overflow-y:auto;">@FormatToolCallArgs(tc)</pre>
                     </div>
                 }
-                @if (_chatLoading)
-                {
-                    <div style="display:flex;gap:6px;padding:12px;">
-                        <span style="width:8px;height:8px;background:#999;border-radius:50%;animation:pulse 1s infinite;"> </span>
-                        <span style="width:8px;height:8px;background:#999;border-radius:50%;animation:pulse 1s infinite 0.2s;"> </span>
-                        <span style="width:8px;height:8px;background:#999;border-radius:50%;animation:pulse 1s infinite 0.4s;"> </span>
-                    </div>
-                }
+                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                    <button @onclick="RejectPendingToolCall" disabled="@_executingToolCall"
+                            style="border:1px solid #d9d9d9;background:#fff;border-radius:6px;padding:4px 16px;font-size:13px;cursor:pointer;">✕ 拒绝</button>
+                    <button @onclick="ExecutePendingToolCall" disabled="@_executingToolCall"
+                            style="border:none;background:#4f6ef7;color:#fff;border-radius:6px;padding:4px 16px;font-size:13px;cursor:pointer;">
+                        @if (_executingToolCall) { <span>⏳ 执行中...</span> } else { <span>✅ 确认执行</span> }
+                    </button>
+                </div>
             </div>
-            @* 输入区 *@
-            <div style="padding:10px 12px;border-top:1px solid #e8e8e8;display:flex;gap:8px;">
-                <input type="text" class="form-control" @bind="_chatInput" @onkeydown="OnChatKeyDown" placeholder="问点项目相关的问题..." style="flex:1;font-size:13px;" />
-                <button class="btn btn-primary btn-sm" @onclick="SendChatMessage" disabled="@(_chatLoading || string.IsNullOrWhiteSpace(_chatInput))" style="white-space:nowrap;">发送</button>
+        }
+        @* 输入区 *@
+        <div style="padding:8px 10px;border-top:1px solid #e8e8e8;">
+            <div style="display:flex;align-items:flex-end;gap:6px;border:1px solid #d9d9d9;border-radius:8px;padding:4px 4px 4px 12px;background:#fff;transition:border-color 0.15s;" id="chat-input-wrap">
+                <textarea @bind="_chatInput" @bind:event="oninput" @onkeydown="OnChatKeyDown" id="chat-textarea"
+                    placeholder="问点项目相关的问题..."
+                    rows="1"
+                    style="border:none;outline:none;box-shadow:none;resize:none;flex:1;font-size:13px;line-height:1.5;height:22px;min-height:22px;max-height:33vh;padding:6px 0;overflow-y:auto;background:transparent;font-family:inherit;"></textarea>
+                <button @onclick="SendChatMessage" disabled="@(_chatLoading || string.IsNullOrWhiteSpace(_chatInput))"
+                    style="border:none;background:@((_chatLoading || string.IsNullOrWhiteSpace(_chatInput)) ? "#d9d9d9" : "#4f6ef7");color:#fff;width:32px;height:32px;border-radius:6px;cursor:@((_chatLoading || string.IsNullOrWhiteSpace(_chatInput)) ? "not-allowed" : "pointer");display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;transition:all 0.15s;flex-shrink:0;">
+                    ➤
+                </button>
             </div>
         </div>
-    }
-    <button class="btn btn-primary" @onclick="ToggleChat" style="width:52px;height:52px;border-radius:50%;font-size:24px;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(79,110,247,0.4);">
-        @(_chatVisible ? "✕" : "💬")
+    </div>
+}
+else
+{
+    <button class="btn btn-primary" @onclick="ToggleChat" style="position:fixed;bottom:24px;right:24px;z-index:1001;width:52px;height:52px;border-radius:50%;font-size:24px;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(79,110,247,0.4);">
+        💬
     </button>
-</div>
+}
 
 <style>
     @@keyframes pulse { 0%,100% { opacity:0.4; } 50% { opacity:1; } }
+    @@keyframes slideIn { from { transform:translateX(380px); } to { transform:translateX(0); } }
 </style>
 
 @code {
@@ -105,15 +167,198 @@
     private bool _chatVisible = false;
     private string _chatInput = "";
     private bool _chatLoading = false;
-    private List<AiMessage> _chatMessages = new() { new() { Role = "assistant", Content = "你好！我是 AI 助手，可以问我关于项目进度、资源、任务等方面的问题。" } };
+    private bool _chatLoaded = false;
+    private string _currentModelName = "";
+    private List<AiMessage> _chatMessages = new();
+    private ElementReference _messageContainer;
+    private List<string> _suggestedQuestions = new();
+
+    // 工具调用（function calling）相关
+    private List<AiToolCall>? _pendingToolCalls;
+    private string? _pendingToolCallMessage; // 工具调用时 AI 的文本回复（如果有）
+    private bool _executingToolCall = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_chatLoaded)
+        {
+            _chatLoaded = true;
+            try
+            {
+                var json = await JS.InvokeAsync<string>("localStorage.getItem", "ai_chat_messages");
+                if (!string.IsNullOrEmpty(json))
+                {
+                    var saved = System.Text.Json.JsonSerializer.Deserialize<List<AiMessage>>(json);
+                    if (saved != null && saved.Count > 0) _chatMessages = saved;
+                }
+            }
+            catch { }
+            if (_chatMessages.Count == 0)
+                _chatMessages.Add(new() { Role = "assistant", Content = "你好！我是 AI 助手，可以问我关于项目进度、资源、任务等方面的问题。" });
+            StateHasChanged();
+        }
+        // 每次渲染后：自动增高输入框 + 聚焦 + 滚动到底部
+        if (_chatVisible)
+        {
+            await JS.InvokeVoidAsync("eval", $@"
+                (function(){{
+                    var ta = document.getElementById('chat-textarea');
+                    if(ta){{
+                        if(document.activeElement !== ta) setTimeout(()=>ta.focus(),100);
+                        // 自动增高
+                        ta.style.height='22px';
+                        var h=Math.min(ta.scrollHeight,Math.round(window.innerHeight*0.33));
+                        ta.style.height=h+'px';
+                        // 阻止 Enter 默认行为（添加换行），只绑定一次
+                        if(!ta.hasAttribute('data-chat-bound')){{
+                            ta.setAttribute('data-chat-bound','1');
+                            ta.addEventListener('keydown',function(ev){{
+                                if(ev.key==='Enter'&&!ev.shiftKey){{
+                                    ev.preventDefault();
+                                }}
+                            }});
+                        }}
+                    }}
+                    var mc = document.getElementById('chat-messages');
+                    if(mc) mc.scrollTop = mc.scrollHeight;
+                }})();
+            ");
+        }
+    }
+
+    private async Task SaveChatMessages()
+    {
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(_chatMessages);
+            await JS.InvokeVoidAsync("localStorage.setItem", "ai_chat_messages", json);
+        }
+        catch { }
+    }
 
     private void ToggleSidebar() => _sidebarCollapsed = !_sidebarCollapsed;
-    private void ToggleChat() => _chatVisible = !_chatVisible;
-    private void CloseChat() => _chatVisible = false;
+    private void ToggleChat()
+    {
+        _chatVisible = !_chatVisible;
+        if (_chatVisible)
+        {
+            _ = BuildSuggestedQuestions();
+            _ = LoadCurrentModelName();
+        }
+        // 打开时 StateHasChanged 会触发 OnAfterRenderAsync 中的聚焦
+    }
+
+    private async Task LoadCurrentModelName()
+    {
+        try
+        {
+            var json = await JS.InvokeAsync<string>("localStorage.getItem", "ai_connections");
+            if (string.IsNullOrEmpty(json)) { _currentModelName = ""; return; }
+            var list = System.Text.Json.JsonSerializer.Deserialize<List<AiConnection>>(json);
+            var active = list?.FirstOrDefault(c => c.IsActive) ?? list?.FirstOrDefault();
+            _currentModelName = active?.Model ?? "";
+        }
+        catch { _currentModelName = ""; }
+        StateHasChanged();
+    }
+    private async void CloseChat() { _chatVisible = false; await SaveChatMessages(); }
+
+    private async Task BuildSuggestedQuestions()
+    {
+        var qs = new List<string>();
+        try
+        {
+            var uri = new Uri(Nav.Uri);
+            var path = uri.AbsolutePath.ToLower();
+
+            // 分析页相关
+            if (path.Contains("analysis"))
+            {
+                // 读取角色设置
+                try
+                {
+                    var roleJson = await JS.InvokeAsync<string>("localStorage.getItem", "ai_role");
+                    if (roleJson == "operator")
+                    {
+                        qs.Add("我今天需要关注哪些任务？");
+                        qs.Add("哪些任务延后了？原因是什么？");
+                        qs.Add("我负责的资源到位了吗？");
+                    }
+                    else if (roleJson == "investor")
+                    {
+                        qs.Add("里程碑达成情况怎么样？");
+                        qs.Add("预算执行率和超支风险");
+                        qs.Add("关键路径有没有偏移？");
+                    }
+                    else if (roleJson == "executive")
+                    {
+                        qs.Add("项目健康度简报");
+                        qs.Add("需要我决策的事项");
+                        qs.Add("预算和进度是否可控？");
+                    }
+                    else // manager / default
+                    {
+                        qs.Add("项目整体状况怎么样？");
+                        qs.Add("关键路径有什么风险？");
+                        qs.Add("哪些资源存在冲突？");
+                        qs.Add("当前最需要处理的问题");
+                    }
+                }
+                catch { }
+            }
+            // 甘特图页
+            else if (path.Contains("gantt"))
+            {
+                qs.Add("关键路径在哪里？");
+                qs.Add("哪些任务延后了？");
+                qs.Add("资源分配有没有问题？");
+            }
+            // 资源页
+            else if (path.Contains("resources"))
+            {
+                qs.Add("哪些资源使用最紧张？");
+                qs.Add("有没有超额的资源？");
+            }
+            // 首页 / 其他
+            else
+            {
+                try
+                {
+                    var allProjects = await ProjectService.GetAllProjectsAsync();
+                    if (allProjects.Count > 0)
+                    {
+                        qs.Add("所有项目整体情况怎么样？");
+                        qs.Add("哪个项目存在问题？");
+                    }
+                }
+                catch { }
+            }
+
+            // 通用兜底
+            if (qs.Count == 0)
+            {
+                qs.Add("项目整体进度怎么样？");
+                qs.Add("有哪些延后的任务？");
+                qs.Add("资源使用情况如何？");
+            }
+        }
+        catch { }
+        _suggestedQuestions = qs;
+    }
+
+    private async Task AskQuickQuestion(string question)
+    {
+        _chatInput = question;
+        await SendChatMessage();
+    }
 
     private async Task OnChatKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await SendChatMessage();
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendChatMessage();
+        }
+        // Shift+Enter 走默认行为（换行），不做任何拦截
     }
 
     private async Task<AiOptions?> GetChatAiOptions()
@@ -138,6 +383,25 @@
 
     private async Task<string> BuildProjectContext()
     {
+        var ctx = new System.Text.StringBuilder();
+        try
+        {
+            var allProjects = await ProjectService.GetAllProjectsAsync();
+            ctx.AppendLine($"【项目列表】共 {allProjects.Count} 个项目：");
+            foreach (var p in allProjects)
+                ctx.AppendLine($"  · ID={p.Id} {p.Name}（{p.Code}）");
+            ctx.AppendLine();
+        }
+        catch { }
+
+        try
+        {
+            var analysisJson = await JS.InvokeAsync<string>("localStorage.getItem", "ai_latest_analysis");
+            if (!string.IsNullOrEmpty(analysisJson))
+                ctx.AppendLine($"【最新 AI 分析报告】\n{analysisJson}\n");
+        }
+        catch { }
+
         try
         {
             var uri = new Uri(Nav.Uri);
@@ -145,23 +409,462 @@
             if (segments.Length >= 2 && segments[0] == "project" && int.TryParse(segments[1], out var pid))
             {
                 var project = await ProjectService.GetProjectByIdAsync(pid);
-                if (project == null) return "";
-                var tasks = await ProjectService.GetTasksByProjectIdAsync(pid);
-                var result = AnalysisService.AnalyzeProject(project, tasks);
-                if (result == null) return $"当前项目：{project.Name}\n";
+                if (project != null)
+                {
+                    ctx.AppendLine($"【当前项目】{project.Name}（{project.Code}）计划工期 {project.PlanStartDate:yyyy-MM-dd} → {project.PlanEndDate:yyyy-MM-dd}");
+                    var tasks = await ProjectService.GetTasksByProjectIdAsync(pid);
+                    var result = AnalysisService.AnalyzeProject(project, tasks);
+                    if (result != null)
+                    {
+                        ctx.AppendLine($"【进度概况】总工期 {result.ProjectDurationDays}天 | 总任务 {result.TotalTasks}个 | 按时 {result.OnTimeTasks.Count} / 提前 {result.EarlyStartTasks.Count} / 延后 {result.LateStartTasks.Count}");
+                        ctx.AppendLine($"关键路径 {result.CriticalPathTasks.Count}个任务 | 里程碑 {result.Milestones.Count}个");
+                        if (result.CriticalPathTasks.Any())
+                            ctx.AppendLine($"关键路径：{string.Join(" → ", result.CriticalPathTasks.Take(8).Select(t => t.Name))}");
+                        ctx.AppendLine();
 
-                var ctx = $"当前项目：{project.Name}\n";
-                ctx += $"项目工期：{result.ProjectDurationDays}天，总任务：{result.TotalTasks}个\n";
-                ctx += $"按时：{result.OnTimeTasks.Count}，提前：{result.EarlyStartTasks.Count}，延后：{result.LateStartTasks.Count}\n";
-                ctx += $"关键路径：{result.CriticalPathTasks.Count}个任务\n";
-                ctx += $"里程碑：{result.Milestones.Count}个\n";
-                if (result.CriticalPathTasks.Any())
-                    ctx += $"关键路径：{string.Join(" → ", result.CriticalPathTasks.Take(5).Select(t => t.Name))}\n";
-                return ctx;
+                        // 资源概况
+                        try
+                        {
+                            var resSum = await AnalysisService.GetResourceSummaryAsync(pid);
+                            if (resSum != null)
+                                ctx.AppendLine($"【资源概况】人工 {resSum.LaborCount} / 材料 {resSum.MaterialCount} / 设备 {resSum.EquipmentCount} | 总预算 {resSum.TotalCost:N0}元");
+                        }
+                        catch { }
+
+                        // EVM 挣值
+                        try
+                        {
+                            var evm = await AnalysisService.GetEarnedValueAsync(pid);
+                            if (evm != null)
+                            {
+                                var spiIcon = evm.SchedulePerformanceIndex >= 1.0 ? "✅" : evm.SchedulePerformanceIndex >= 0.9 ? "⚠️" : "🔴";
+                                var cpiIcon = evm.CostPerformanceIndex >= 1.0 ? "✅" : evm.CostPerformanceIndex >= 0.9 ? "⚠️" : "🔴";
+                                ctx.AppendLine($"【挣值分析】SPI {evm.SchedulePerformanceIndex:F2} {spiIcon} | CPI {evm.CostPerformanceIndex:F2} {cpiIcon} | BAC {evm.BudgetAtCompletion:N0}元 | EAC {evm.EstimateAtCompletion:N0}元");
+                            }
+                        }
+                        catch { }
+
+                        // 资源冲突
+                        try
+                        {
+                            var assignments = await ResourceService.GetAssignmentsByProjectAsync(pid);
+                            var resources = await ResourceService.GetResourcesByProjectAsync(pid);
+                            if (resources.Any())
+                            {
+                                var byRes = assignments.GroupBy(a => a.ResourceId);
+                                var conflictCount = 0;
+                                foreach (var g in byRes)
+                                {
+                                    var res = resources.FirstOrDefault(r => r.Id == g.Key);
+                                    if (res != null && g.Sum(a => a.Quantity) > res.Quantity)
+                                        conflictCount++;
+                                }
+                                ctx.AppendLine($"资源冲突项目数：{conflictCount} / {resources.Count}");
+                            }
+                        }
+                        catch { }
+                    }
+                    ctx.AppendLine();
+                }
             }
         }
         catch { }
-        return "";
+        return ctx.ToString();
+    }
+
+    private int? GetCurrentProjectId()
+    {
+        try
+        {
+            var uri = new Uri(Nav.Uri);
+            var segments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length >= 2 && segments[0] == "project" && int.TryParse(segments[1], out var pid))
+                return pid;
+        }
+        catch { }
+        return null;
+    }
+
+    private string FormatToolCallArgs(AiToolCall tc)
+    {
+        try
+        {
+            var args = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(tc.FunctionArguments);
+            if (args == null) return tc.FunctionArguments;
+
+            if (tc.FunctionName == "create_project_with_tasks")
+            {
+                return FormatProjectWithTasksArgs(args);
+            }
+
+            var lines = new List<string>();
+            foreach (var kv in args)
+            {
+                if (kv.Key == "tasks") continue; // skip raw tasks array
+                var val = kv.Value?.ToString() ?? "";
+                if (val.Length > 50) val = val[..50] + "…";
+                lines.Add($"  {kv.Key}: {val}");
+            }
+            return string.Join("\n", lines);
+        }
+        catch
+        {
+            return tc.FunctionArguments;
+        }
+    }
+
+    private string FormatProjectWithTasksArgs(Dictionary<string, object> args)
+    {
+        var lines = new List<string>();
+        foreach (var kv in args)
+        {
+            if (kv.Key == "tasks") continue;
+            var val = kv.Value?.ToString() ?? "";
+            if (val.Length > 60) val = val[..60] + "…";
+            lines.Add($"  {kv.Key}: {val}");
+        }
+        // parse tasks array for a nice summary
+        if (args.TryGetValue("tasks", out var tasksObj) && tasksObj != null)
+        {
+            try
+            {
+                var tasksJson = tasksObj.ToString()!;
+                var tasks = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(tasksJson);
+                if (tasks != null && tasks.Count > 0)
+                {
+                    var totalDays = 0;
+                    var milestones = 0;
+                    var hasSub = false;
+                    foreach (var t in tasks)
+                    {
+                        if (t.TryGetValue("planDuration", out var d)) totalDays += Convert.ToInt32(d);
+                        if (t.TryGetValue("isMilestone", out var m) && (m?.ToString() == "True" || m?.ToString() == "true")) milestones++;
+                        if (t.TryGetValue("parentTaskName", out var p) && p != null && !string.IsNullOrEmpty(p.ToString())) hasSub = true;
+                    }
+                    lines.Add($"  📋 共 {tasks.Count} 个任务 | 总工时 {totalDays}天 | 里程碑 {milestones}个" + (hasSub ? " | 含WBS层级" : ""));
+                    lines.Add("");
+                    // show first 12 tasks as preview
+                    var previewCount = Math.Min(tasks.Count, 12);
+                    for (int i = 0; i < previewCount; i++)
+                    {
+                        var t = tasks[i];
+                        var tName = t.GetValueOrDefault("name")?.ToString() ?? "-";
+                        var tDur = t.TryGetValue("planDuration", out var td) ? $"{td}天" : "";
+                        var tResp = t.TryGetValue("responsiblePerson", out var tr) ? tr?.ToString() : null;
+                        var tIcon = t.TryGetValue("isMilestone", out var tm) && (tm?.ToString() == "True" || tm?.ToString() == "true") ? "◆ " : "  ";
+                        lines.Add($"  {tIcon}{tName} {(string.IsNullOrEmpty(tDur) ? "" : $"({tDur})")}{(tResp != null ? $" — {tResp}" : "")}");
+                    }
+                    if (tasks.Count > 12)
+                        lines.Add($"  … 还有 {tasks.Count - 12} 个任务");
+                }
+            }
+            catch { }
+        }
+        return string.Join("\n", lines);
+    }
+
+    // ===== 文本兜底：从 AI 回复中解析工具调用 =====
+    private static readonly Dictionary<string, string> _toolNameMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["get_project_tasks"] = "get_tasks",
+        ["get_tasks"] = "get_tasks",
+        ["create_project_with_tasks"] = "create_project_with_tasks",
+        ["create_project"] = "create_project",
+        ["create_task"] = "create_task",
+        ["update_task"] = "update_task",
+        ["get_all_projects"] = "get_all_projects",
+    };
+
+    private static readonly Dictionary<string, string> _paramNameMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["project_id"] = "projectId",
+        ["projectId"] = "projectId",
+        ["task_name"] = "taskName",
+        ["taskName"] = "taskName",
+        ["name"] = "name",
+        ["start_date"] = "planStartDate",
+        ["planStartDate"] = "planStartDate",
+        ["end_date"] = "planEndDate",
+        ["planEndDate"] = "planEndDate",
+        ["plan_duration"] = "planDuration",
+        ["planDuration"] = "planDuration",
+        ["responsible_person"] = "responsiblePerson",
+        ["responsiblePerson"] = "responsiblePerson",
+        ["predecessor_names"] = "predecessorNames",
+        ["predecessorNames"] = "predecessorNames",
+        ["parent_task_name"] = "parentTaskName",
+        ["parentTaskName"] = "parentTaskName",
+        ["is_milestone"] = "isMilestone",
+        ["isMilestone"] = "isMilestone",
+        ["description"] = "description",
+        ["code"] = "code",
+        ["completion_percent"] = "completionPercent",
+        ["completionPercent"] = "completionPercent",
+        ["project_code"] = "code",
+        ["task_code"] = "code",
+    };
+
+    private List<AiToolCall>? TryParseToolCallsFromText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var calls = new List<AiToolCall>();
+
+        // Pattern 1: XML <invoke name="xxx"><parameter name="yyy">val</parameter></invoke>
+        //          Or:  <tool_calls><invoke name="xxx"><parameter name="yyy">val</parameter></invoke></tool_calls>
+        try
+        {
+            // First unwrap <tool_calls>...</tool_calls> wrapper if present
+            var tcMatch = System.Text.RegularExpressions.Regex.Match(text,
+                @"<\s*tool_calls\s*>(.*?)<\s*/\s*tool_calls\s*>",
+                System.Text.RegularExpressions.RegexOptions.Singleline);
+            var innerXml = tcMatch.Success ? tcMatch.Groups[1].Value : text;
+
+            var invokeRegex = new System.Text.RegularExpressions.Regex(
+                @"<\s*invoke\s+name\s*=\s*""(\w+)""\s*>(.*?)<\s*/\s*invoke\s*>",
+                System.Text.RegularExpressions.RegexOptions.Singleline);
+            var invokeMatch = invokeRegex.Match(innerXml);
+            if (invokeMatch.Success)
+            {
+                var rawName = invokeMatch.Groups[1].Value;
+                if (_toolNameMap.TryGetValue(rawName, out var mappedName))
+                {
+                    var paramsXml = invokeMatch.Groups[2].Value;
+                    var args = new Dictionary<string, object>();
+                    var paramRegex = new System.Text.RegularExpressions.Regex(
+                        @"<\s*parameter\s+name\s*=\s*""(\w+)""[^>]*>(.*?)<\s*/\s*parameter\s*>",
+                        System.Text.RegularExpressions.RegexOptions.Singleline);
+                    foreach (System.Text.RegularExpressions.Match m in paramRegex.Matches(paramsXml))
+                    {
+                        var rawParam = m.Groups[1].Value;
+                        var val = m.Groups[2].Value.Trim();
+                        if (_paramNameMap.TryGetValue(rawParam, out var mappedParam))
+                        {
+                            // Try to parse as number or bool
+                            if (int.TryParse(val, out var intVal)) args[mappedParam] = intVal;
+                            else if (bool.TryParse(val, out var boolVal)) args[mappedParam] = boolVal;
+                            else args[mappedParam] = val;
+                        }
+                    }
+                    calls.Add(new AiToolCall
+                    {
+                        Id = $"call_txt_{Guid.NewGuid():N}",
+                        FunctionName = mappedName,
+                        FunctionArguments = System.Text.Json.JsonSerializer.Serialize(args)
+                    });
+                    return calls;
+                }
+            }
+        }
+        catch { }
+
+        // Pattern 2: function_name(param1: val1, param2: val2)
+        try
+        {
+            var fnRegex = new System.Text.RegularExpressions.Regex(
+                @"(\w+)\s*\(\s*([^)]*)\s*\)");
+            foreach (System.Text.RegularExpressions.Match m in fnRegex.Matches(text))
+            {
+                var rawName = m.Groups[1].Value;
+                if (_toolNameMap.TryGetValue(rawName, out var mappedName))
+                {
+                    var args = new Dictionary<string, object>();
+                    var paramText = m.Groups[2].Value;
+                    var pairs = paramText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    foreach (var pair in pairs)
+                    {
+                        var eqIdx = pair.IndexOf(':');
+                        if (eqIdx < 0) eqIdx = pair.IndexOf('=');
+                        if (eqIdx > 0)
+                        {
+                            var k = pair[..eqIdx].Trim();
+                            var v = pair[(eqIdx + 1)..].Trim().Trim('"').Trim('\'');
+                            if (_paramNameMap.TryGetValue(k, out var mappedK))
+                            {
+                                if (int.TryParse(v, out var intVal)) args[mappedK] = intVal;
+                                else if (bool.TryParse(v, out var boolVal)) args[mappedK] = boolVal;
+                                else args[mappedK] = v;
+                            }
+                        }
+                    }
+                    calls.Add(new AiToolCall
+                    {
+                        Id = $"call_txt_{Guid.NewGuid():N}",
+                        FunctionName = mappedName,
+                        FunctionArguments = System.Text.Json.JsonSerializer.Serialize(args)
+                    });
+                }
+            }
+            if (calls.Count > 0) return calls;
+        }
+        catch { }
+
+        return null;
+    }
+
+    private string? StripToolCallText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return text;
+        // Remove XML invoke blocks
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text,
+            @"<\s*invoke\s+name\s*=\s*""(\w+)""\s*>.*?<\s*/\s*invoke\s*>",
+            "",
+            System.Text.RegularExpressions.RegexOptions.Singleline);
+        // Remove function call patterns (but keep the text around them)
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text,
+            @"(\w+)\s*\([^)]*\)\s*",
+            m =>
+            {
+                var name = m.Groups[1].Value;
+                return _toolNameMap.ContainsKey(name) ? "" : m.Value;
+            });
+        return text.Trim();
+    }
+
+    // ===== 参数获取辅助方法（支持多名称变体） =====
+    private static string? GetArgString(Dictionary<string, object> args, string primaryKey)
+    {
+        // 尝试主键 + 常见变体
+        var keys = new[] { primaryKey, ToSnakeCase(primaryKey), ToUnderscore(primaryKey) };
+        foreach (var k in keys)
+        {
+            if (args.TryGetValue(k, out var v) && v != null)
+            {
+                var s = JsonElementToString(v);
+                if (!string.IsNullOrEmpty(s)) return s;
+            }
+        }
+        // 也尝试大小写不敏感
+        foreach (var kv in args)
+        {
+            if (string.Equals(kv.Key, primaryKey, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(kv.Key, primaryKey.Replace("_", ""), StringComparison.OrdinalIgnoreCase))
+            {
+                var s = JsonElementToString(kv.Value);
+                if (!string.IsNullOrEmpty(s)) return s;
+            }
+        }
+        return null;
+    }
+
+    private static string? JsonElementToString(object? value)
+    {
+        if (value == null) return null;
+        if (value is System.Text.Json.JsonElement je)
+        {
+            return je.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.String => je.GetString(),
+                System.Text.Json.JsonValueKind.Number => je.GetRawText(), // 数字直接取原始文本
+                System.Text.Json.JsonValueKind.True => "true",
+                System.Text.Json.JsonValueKind.False => "false",
+                _ => je.GetRawText()
+            };
+        }
+        return value.ToString();
+    }
+
+    private static DateTime? GetArgDate(Dictionary<string, object> args, string primaryKey)
+    {
+        var val = GetArgString(args, primaryKey);
+        if (val == null) return null;
+        // 统一全角/半角分隔符
+        val = val.Replace('－', '-').Replace('／', '/').Replace('．', '-');
+        if (DateTime.TryParse(val, out var dt1)) return dt1;
+        if (DateTime.TryParseExact(val, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out var dt2)) return dt2;
+        if (DateTime.TryParseExact(val, "yyyy/M/d", null, System.Globalization.DateTimeStyles.None, out var dt3)) return dt3;
+        if (DateTime.TryParseExact(val, "yyyy-M-d", null, System.Globalization.DateTimeStyles.None, out var dt4)) return dt4;
+        return null;
+    }
+
+    private static int? GetArgInt(Dictionary<string, object> args, string primaryKey)
+    {
+        var val = GetArgString(args, primaryKey);
+        if (val == null)
+        {
+            // Also try as direct numeric value
+            var keys = new[] { primaryKey, ToSnakeCase(primaryKey) };
+            foreach (var k in keys)
+            {
+                if (args.TryGetValue(k, out var v) && v is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Number)
+                {
+                    if (je.TryGetInt32(out var n)) return n;
+                }
+            }
+            return null;
+        }
+        if (int.TryParse(val, out var i)) return i;
+        return null;
+    }
+
+    private static string ToSnakeCase(string s) =>
+        string.Concat(s.Select((c, i) => i > 0 && char.IsUpper(c) ? "_" + char.ToLower(c) : char.ToLower(c).ToString()));
+
+    private static string ToUnderscore(string s) => s.Replace("-", "_");
+
+    // ===== 项目创建上下文跟踪（帮 AI 记住用户已提供的信息） =====
+    private string? BuildProjectCreationContext(string userMsg)
+    {
+        // 检查最近几个消息是否在项目创建对话中
+        bool aiWasAskingAboutProject = false;
+        foreach (var m in _chatMessages.AsEnumerable().Reverse().Take(4))
+        {
+            if (m.Role == "assistant" && m.Content != null &&
+                (m.Content.Contains("项目") || m.Content.Contains("任务") || m.Content.Contains("工期")))
+            {
+                aiWasAskingAboutProject = true;
+            }
+        }
+        if (!aiWasAskingAboutProject) return null;
+
+        // 从对话历史中提取已提供的项目信息
+        var projectInfo = new Dictionary<string, string>();
+        var taskList = new List<string>();
+
+        foreach (var m in _chatMessages)
+        {
+            if (m.Role != "user" || m.Content == null) continue;
+            var c = m.Content;
+
+            // 名称
+            var nameMatch = System.Text.RegularExpressions.Regex.Match(c, @"名称[：:]\s*(\S+)");
+            if (nameMatch.Success) projectInfo["名称"] = nameMatch.Groups[1].Value;
+
+            // 开始日期
+            var dateMatch = System.Text.RegularExpressions.Regex.Match(c, @"(\d{4}[-/年]\d{1,2}[-/月]\d{1,2})");
+            if (dateMatch.Success) projectInfo["开始日期"] = dateMatch.Groups[1].Value;
+
+            // 总工期 — 只匹配明确带"总工期"或"工期"前缀的数字，且不覆盖已有值
+            var durMatch = System.Text.RegularExpressions.Regex.Match(c, @"(?:总)?工期[^0-9]*?(\d+)\s*天");
+            if (durMatch.Success && !projectInfo.ContainsKey("工期"))
+                projectInfo["工期"] = durMatch.Groups[1].Value + "天";
+
+            // 任务 — 至少2个中文字符，排除"总工期按18个月考虑"这类误匹配
+            var taskMatches = System.Text.RegularExpressions.Regex.Matches(c, @"([\u4e00-\u9fff]{2,}?)\s*(\d+)\s*天");
+            foreach (System.Text.RegularExpressions.Match m2 in taskMatches)
+            {
+                var taskName = m2.Groups[1].Value;
+                if (taskName != "工期" && taskName != "总工期" && taskName.Length > 1)
+                    taskList.Add(taskName + " " + m2.Groups[2].Value + "天");
+            }
+        }
+
+        if (projectInfo.Count == 0 && taskList.Count == 0) return null;
+
+        var summary = "【项目创建上下文 - 用户已提供的信息】\n";
+        foreach (var kv in projectInfo)
+            summary += $"- {kv.Key}: {kv.Value}\n";
+        if (taskList.Count > 0)
+        {
+            summary += $"- 共 {taskList.Count} 个任务\n";
+            foreach (var t in taskList.Take(8))
+                summary += $"  • {t}\n";
+            if (taskList.Count > 8) summary += $"  ... 还有 {taskList.Count - 8} 个\n";
+        }
+        summary += "上述是用户已经提供过的信息，不要再重复询问。如果信息齐全，请立即用 create_project_with_tasks 创建。";
+
+        return summary;
     }
 
     private async Task SendChatMessage()
@@ -169,7 +872,22 @@
         if (string.IsNullOrWhiteSpace(_chatInput) || _chatLoading) return;
         var userMsg = _chatInput.Trim();
         _chatInput = "";
+        // 发送后重置输入框高度
+        await JS.InvokeVoidAsync("eval", @"document.getElementById('chat-textarea') && (function(t){t.style.height='22px'})(document.getElementById('chat-textarea'));");
         _chatMessages.Add(new AiMessage { Role = "user", Content = userMsg });
+
+        // 为 AI 补充项目创建上下文记忆（避免反复问同样的问题）
+        var creationContext = BuildProjectCreationContext(userMsg);
+        if (!string.IsNullOrEmpty(creationContext))
+        {
+            _chatMessages.Add(new AiMessage
+            {
+                Role = "system",
+                Content = creationContext
+            });
+        }
+
+        await SaveChatMessages();
         _chatLoading = true;
         StateHasChanged();
 
@@ -179,24 +897,541 @@
             if (opts == null)
             {
                 _chatMessages.Add(new AiMessage { Role = "assistant", Content = "⚠️ 请先在分析页面的「AI 设置」中配置并保存 API 连接。" });
+                await SaveChatMessages();
                 _chatLoading = false;
                 StateHasChanged();
                 return;
             }
 
             var context = await BuildProjectContext();
-            var projectInfo = string.IsNullOrEmpty(context) ? "" : $"以下为当前项目背景信息，供回答参考：\n{context}\n";
-            var sysPrompt = $"你是一个项目管理助手，回答关于项目进度、任务、资源等问题。{projectInfo}回答简洁，用中文，列出关键数据。";
+            var projectInfo = string.IsNullOrEmpty(context) ? "" : $"\n【项目背景数据】\n{context}\n";
+            var pid = GetCurrentProjectId() ?? 0;
+            var sysPrompt = $@"你是项目管理系统 NetPlan 的 AI 助手。回答只有一个目标：帮用户最快完成操作。
 
-            var result = await AiService.ChatAsync(sysPrompt, userMsg, temperature: 0.3, overrideOptions: opts);
-            _chatMessages.Add(new AiMessage { Role = "assistant", Content = result });
+## 核心行为规则
+1. **极端简洁** — 每个回复不超过 3 句话。不要分析、不要总结、不要重复用户说过的话。
+2. **一次创建** — 用户提供项目信息后，缺什么问什么（每个问题1句话），收到补充后**立即创建**。不要先确认再问要不要创建。
+3. **不要问已有信息** — 对话历史里已经有过的回答，不要再问第二遍。
+4. **不要假装调用工具** — 不要在回复里写 `create_project(...)` 或 XML 伪代码。系统自动处理工具调用，你只需简短确认。
+
+## 你不需要做的事
+- ❌ 不需要分析任务结构
+- ❌ 不需要总结用户的输入
+- ❌ 不需要问「是否要创建」
+- ❌ 不需要解释工具
+	
+## 回答示例
+用户：创建项目 ABC，开始2026-06-01，任务A 30天，任务B 45天（依赖任务A）
+你：收到。任务B工期45天，任务A前置是任务B还是并行？
+用户：任务B在任务A之后。
+你：已创建。项目 ABC，2个任务，2026-06-01 → 2026-08-15。
+
+## 可用工具
+- create_project_with_tasks：创建项目+所有任务（只要有任务就用这个）
+- create_project：只创建项目（没有任务细节时用）
+- create_task / update_task / get_tasks / get_all_projects
+
+{projectInfo}
+- 当前项目ID：{pid}
+";
+
+            _pendingToolCalls = null;
+            _pendingToolCallMessage = null;
+
+            var tools = AiToolDefinitions.GetAllTools(pid > 0 ? pid : null);
+            var messages = new List<AiMessage>
+            {
+                new() { Role = "system", Content = sysPrompt },
+                new() { Role = "user", Content = userMsg }
+            };
+
+            var result = await AiService.ChatWithToolsAsync(messages, tools, temperature: 0.3, overrideOptions: opts);
+
+            if (result.IsToolCall)
+            {
+                // AI 提议了一个操作，等待用户确认
+                _pendingToolCalls = result.ToolCalls;
+                _pendingToolCallMessage = result.Text;
+                // 将 AI 的 tool_calls 消息加入对话历史（后续执行或拒绝时会用到）
+                _chatMessages.Add(new AiMessage
+                {
+                    Role = "assistant",
+                    Content = result.Text ?? "",
+                    ToolCalls = result.ToolCalls,
+                    ReasoningContent = result.ReasoningContent
+                });
+            }
+            else
+            {
+                // 兜底：尝试从回复文本中解析工具调用（兼容不支持 function calling 的模型）
+                var textCalls = TryParseToolCallsFromText(result.Text);
+                if (textCalls?.Count > 0)
+                {
+                    result.ToolCalls = textCalls;
+                    _pendingToolCalls = textCalls;
+                    _pendingToolCallMessage = result.Text;
+                    _chatMessages.Add(new AiMessage
+                    {
+                        Role = "assistant",
+                        Content = StripToolCallText(result.Text) ?? "",
+                        ToolCalls = textCalls
+                    });
+                }
+                else
+                {
+                    // 普通文本回复
+                    _chatMessages.Add(new AiMessage { Role = "assistant", Content = result.Text ?? "" });
+                }
+            }
         }
         catch (Exception ex)
         {
             _chatMessages.Add(new AiMessage { Role = "assistant", Content = $"❌ 出错了：{ex.Message}" });
         }
+        await SaveChatMessages();
         _chatLoading = false;
         StateHasChanged();
+    }
+
+    private async Task ExecutePendingToolCall()
+    {
+        if (_pendingToolCalls == null || _pendingToolCalls.Count == 0) return;
+        _executingToolCall = true;
+        StateHasChanged();
+
+        try
+        {
+            var responses = new List<string>();
+            foreach (var tc in _pendingToolCalls)
+            {
+                var result = await ExecuteToolCall(tc);
+                responses.Add(result);
+
+                // 把 tool 响应加入对话历史
+                _chatMessages.Add(new AiMessage
+                {
+                    Role = "tool",
+                    ToolCallId = tc.Id,
+                    Content = result
+                });
+            }
+
+            // 清空待处理
+            _pendingToolCalls = null;
+
+            // 调用 AI 生成最终回复（带工具执行结果）
+            var opts = await GetChatAiOptions();
+            if (opts != null)
+            {
+                var result = await AiService.ChatWithToolsAsync(_chatMessages, new List<AiToolDefinition>(), temperature: 0.3, overrideOptions: opts);
+                if (result.IsToolCall)
+                {
+                    // AI 又想调用工具（链式调用），继续等待确认
+                    _pendingToolCalls = result.ToolCalls;
+                    _chatMessages.Add(new AiMessage
+                    {
+                        Role = "assistant",
+                        Content = result.Text ?? "还需要执行以下操作：",
+                        ToolCalls = result.ToolCalls
+                    });
+                }
+                else
+                {
+                    _chatMessages.Add(new AiMessage { Role = "assistant", Content = result.Text ?? "操作已完成。" });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _chatMessages.Add(new AiMessage { Role = "assistant", Content = $"❌ 执行操作时出错：{ex.Message}" });
+        }
+
+        _executingToolCall = false;
+        await SaveChatMessages();
+        StateHasChanged();
+    }
+
+    private async Task RejectPendingToolCall()
+    {
+        if (_pendingToolCalls == null) return;
+
+        // 把拒绝结果加入对话历史
+        foreach (var tc in _pendingToolCalls)
+        {
+            _chatMessages.Add(new AiMessage
+            {
+                Role = "tool",
+                ToolCallId = tc.Id,
+                Content = "用户拒绝了此操作，未执行。"
+            });
+        }
+
+        _pendingToolCalls = null;
+
+        // 让 AI 生成回复（知道操作被拒绝了）
+        var opts = await GetChatAiOptions();
+        if (opts != null)
+        {
+            var result = await AiService.ChatWithToolsAsync(_chatMessages, new List<AiToolDefinition>(), temperature: 0.3, overrideOptions: opts);
+            _chatMessages.Add(new AiMessage { Role = "assistant", Content = result.Text ?? "已取消操作。" });
+        }
+
+        await SaveChatMessages();
+        StateHasChanged();
+    }
+
+    private async Task<string> ExecuteToolCall(AiToolCall tc)
+    {
+        try
+        {
+            var args = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(tc.FunctionArguments);
+            if (args == null) return $"❌ 无法解析参数：{tc.FunctionArguments}";
+
+            return tc.FunctionName switch
+            {
+                "get_all_projects" => await ExecuteGetAllProjects(),
+                "create_project_with_tasks" => await ExecuteCreateProjectWithTasks(args),
+                "create_project" => await ExecuteCreateProject(args),
+                "get_tasks" => await ExecuteGetTasks(args),
+                "create_task" => await ExecuteCreateTask(args),
+                "update_task" => await ExecuteUpdateTask(args),
+                _ => $"❌ 未知操作：{tc.FunctionName}"
+            };
+        }
+        catch (Exception ex)
+        {
+            return $"❌ 执行 {tc.FunctionName} 时出错：{ex.Message}";
+        }
+    }
+
+    private async Task<string> ExecuteGetAllProjects()
+    {
+        var allProjects = await ProjectService.GetAllProjectsAsync();
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"共 {allProjects.Count} 个项目：");
+        foreach (var p in allProjects.OrderBy(p => p.PlanStartDate))
+            sb.AppendLine($"  📁 ID={p.Id} {p.Name}（{p.Code}） | {p.PlanStartDate:yyyy-MM-dd} → {p.PlanEndDate:yyyy-MM-dd}");
+        return sb.ToString();
+    }
+
+    private async Task<string> ExecuteCreateProjectWithTasks(Dictionary<string, object> args)
+    {
+        var name = GetArgString(args, "name") ?? "新项目";
+        var code = GetArgString(args, "code") ?? "PROJ-" + DateTime.Now.ToString("MMddHHmmss");
+        var desc = GetArgString(args, "description");
+        var planStart = GetArgDate(args, "planStartDate") ?? DateTime.Today;
+        var planEnd = GetArgDate(args, "planEndDate") ?? planStart.AddMonths(1);
+
+        // 如果没传 planEndDate 但传了 duration，自动推算
+        var duration = GetArgInt(args, "duration") ?? GetArgInt(args, "planDuration");
+        if (!args.ContainsKey("planEndDate") && duration.HasValue)
+            planEnd = planStart.AddDays(duration.Value - 1);
+
+        // 1. 创建项目
+        var project = new Project
+        {
+            Name = name,
+            Code = code,
+            Description = desc,
+            PlanStartDate = planStart,
+            PlanEndDate = planEnd,
+            CreatedAt = DateTime.Now,
+            UpdatedAt = DateTime.Now
+        };
+        var created = await ProjectService.CreateProjectAsync(project);
+        var pid = created.Id;
+
+        // 2. 解析任务列表
+        var tasksArg = args.GetValueOrDefault("tasks");
+        if (tasksArg == null)
+            return $"✅ 已创建项目「{created.Name}」ID={pid}，但未提供任务列表。";
+
+        var tasksJson = System.Text.Json.JsonSerializer.Serialize(tasksArg);
+        var taskDefs = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(tasksJson);
+        if (taskDefs == null || taskDefs.Count == 0)
+            return $"✅ 已创建项目「{created.Name}」ID={pid}，但未提供任务列表。";
+
+        // 3. 第一遍：创建所有任务（先不处理依赖和父子关系，未指定日期的用项目开始日期暂存）
+        var taskDefList = new List<(string Name, int Duration, string? Resp, bool IsMs, DateTime? Start, DateTime? End)>();
+        var parentMap = new Dictionary<string, string>(); // taskName → parentTaskName
+        var predMap = new Dictionary<string, List<string>>(); // taskName → predecessor names
+
+        foreach (var td in taskDefs)
+        {
+            var tName = GetArgString(td, "name") ?? "未命名任务";
+            var tDur = GetArgInt(td, "planDuration") ?? GetArgInt(td, "duration") ?? 1;
+            var tCode = GetArgString(td, "code") ?? $"T-{taskDefList.Count + 1}";
+            var tResp = GetArgString(td, "responsiblePerson");
+            var tStart = GetArgDate(td, "planStartDate") ?? GetArgDate(td, "startDate");
+            var tEnd = GetArgDate(td, "planEndDate") ?? GetArgDate(td, "endDate");
+            var tIsMs = GetArgString(td, "isMilestone")?.ToLower() == "true";
+
+            taskDefList.Add((tName, tDur, tResp, tIsMs, tStart, tEnd));
+
+            var ptName = GetArgString(td, "parentTaskName");
+            if (ptName != null) parentMap[tName] = ptName;
+            if (td.TryGetValue("predecessorNames", out var pr) && pr != null)
+            {
+                var prJson = System.Text.Json.JsonSerializer.Serialize(pr);
+                var prList = System.Text.Json.JsonSerializer.Deserialize<List<string>>(prJson);
+                if (prList?.Count > 0)
+                    predMap[tName] = prList;
+            }
+        }
+
+        // 3b. 自动推算日期：按任务列表顺序从前到后排列
+        var taskMap = new Dictionary<string, Models.TaskItem>();
+        var lastEndDate = planStart;
+
+        foreach (var (tName, tDur, tResp, tIsMs, tStart, tEnd) in taskDefList)
+        {
+            DateTime taskStart, taskEnd;
+
+            if (tStart.HasValue && tEnd.HasValue)
+            {
+                // 用户指定了起止日期
+                taskStart = tStart.Value;
+                taskEnd = tEnd.Value;
+                lastEndDate = taskEnd.AddDays(1);
+            }
+            else if (tStart.HasValue)
+            {
+                // 用户只指定了开始日期
+                taskStart = tStart.Value;
+                taskEnd = tStart.Value.AddDays(tDur - 1);
+                lastEndDate = taskEnd.AddDays(1);
+            }
+            else
+            {
+                // 自动推算：延续上一个任务的结束日期
+                taskStart = lastEndDate;
+                taskEnd = lastEndDate.AddDays(tDur - 1);
+                lastEndDate = taskEnd.AddDays(1);
+            }
+
+            // 检查是否有前置任务：取前置任务最晚结束日期+1作为开始
+            if (predMap.TryGetValue(tName, out var predNames) && predNames.Count > 0)
+            {
+                var maxPredEnd = taskStart;
+                foreach (var pn in predNames)
+                {
+                    if (taskMap.TryGetValue(pn, out var predTask) && predTask.PlanEndDate > maxPredEnd)
+                        maxPredEnd = predTask.PlanEndDate.AddDays(1);
+                }
+                if (maxPredEnd > taskStart)
+                {
+                    taskStart = maxPredEnd;
+                    taskEnd = taskStart.AddDays(tDur - 1);
+                }
+            }
+
+            var task = new Models.TaskItem
+            {
+                ProjectId = pid,
+                Name = tName,
+                Code = $"T-{taskMap.Count + 1}",
+                PlanDuration = tDur,
+                PlanStartDate = taskStart,
+                PlanEndDate = taskEnd,
+                ResponsiblePerson = tResp,
+                IsMilestone = tIsMs,
+                CompletionPercentage = 0,
+                CreatedAt = DateTime.Now
+            };
+
+            var createdTask = await ProjectService.CreateTaskAsync(task);
+            taskMap[tName] = createdTask;
+            lastEndDate = taskEnd.AddDays(1);
+
+            // 更新项目实际结束日期
+            if (taskEnd > planEnd)
+                planEnd = taskEnd;
+        }
+
+        // 4. 第二遍：建立父子关系
+        foreach (var kv in parentMap)
+        {
+            if (taskMap.TryGetValue(kv.Key, out var childTask) && taskMap.TryGetValue(kv.Value, out var parentTask))
+            {
+                childTask.ParentTaskId = parentTask.Id;
+                childTask.OutlineLevel = parentTask.OutlineLevel + 1;
+                await ProjectService.UpdateTaskAsync(childTask);
+            }
+        }
+
+        // 5. 第三遍：建立前置依赖关系
+        foreach (var kv in predMap)
+        {
+            if (!taskMap.TryGetValue(kv.Key, out var successorTask)) continue;
+            foreach (var predName in kv.Value)
+            {
+                if (taskMap.TryGetValue(predName, out var predecessorTask))
+                {
+                    try
+                    {
+                        await ProjectService.CreateRelationAsync(new Models.TaskRelation
+                        {
+                            ProjectId = pid,
+                            SuccessorTaskId = successorTask.Id,
+                            PredecessorTaskId = predecessorTask.Id,
+                            Type = Models.RelationType.FS,
+                            Lag = 0
+                        });
+                    }
+                    catch { }
+                }
+            }
+        }
+
+        // 更新项目的结束日期（按实际任务排程修正）
+        created.PlanEndDate = planEnd;
+        await ProjectService.UpdateProjectAsync(created);
+
+        var milestoneCount = taskDefList.Count(t => t.IsMs);
+        var totalDur = taskDefList.Sum(t => t.Duration);
+
+        return $"✅ 已创建项目「{created.Name}」ID={pid}\n" +
+               $"   📋 共 {taskDefList.Count} 个任务 | 总工时 {totalDur}天 | 里程碑 {milestoneCount}个\n" +
+               $"   🔗 父子关系 {parentMap.Count}条 | 依赖关系 {predMap.Sum(kv => kv.Value.Count)}条\n" +
+               $"   📅 {planStart:yyyy-MM-dd} → {planEnd:yyyy-MM-dd}";
+    }
+
+    private async Task<string> ExecuteCreateProject(Dictionary<string, object> args)
+    {
+        var name = GetArgString(args, "name") ?? "新项目";
+        var code = GetArgString(args, "code") ?? "PROJ-" + DateTime.Now.ToString("MMddHHmmss");
+        var desc = GetArgString(args, "description");
+        var planStart = GetArgDate(args, "planStartDate") ?? DateTime.Today;
+        var planEnd = GetArgDate(args, "planEndDate") ?? planStart.AddMonths(1);
+
+        // 如果没传 planEndDate 但传了 duration，自动推算
+        var duration = GetArgInt(args, "duration") ?? GetArgInt(args, "planDuration");
+        if (!args.ContainsKey("planEndDate") && duration.HasValue)
+            planEnd = planStart.AddDays(duration.Value - 1);
+
+        var project = new Project
+        {
+            Name = name,
+            Code = code,
+            Description = desc,
+            PlanStartDate = planStart,
+            PlanEndDate = planEnd,
+            CreatedAt = DateTime.Now,
+            UpdatedAt = DateTime.Now
+        };
+
+        var created = await ProjectService.CreateProjectAsync(project);
+        return $"✅ 已创建项目「{created.Name}」ID={created.Id}，{created.PlanStartDate:yyyy-MM-dd} → {created.PlanEndDate:yyyy-MM-dd}";
+    }
+
+    private async Task<string> ExecuteGetTasks(Dictionary<string, object> args)
+    {
+        if (!args.TryGetValue("projectId", out var pidObj) || pidObj == null)
+            return "❌ 缺少 projectId 参数";
+
+        var pid = Convert.ToInt32(pidObj);
+        var project = await ProjectService.GetProjectByIdAsync(pid);
+        if (project == null) return $"❌ 项目 ID={pid} 不存在";
+
+        var tasks = await ProjectService.GetTasksByProjectIdAsync(pid);
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"项目 {project.Name} 共 {tasks.Count} 个任务：");
+        foreach (var t in tasks.OrderBy(t => t.PlanStartDate))
+        {
+            var statusIcon = t.CompletionPercentage >= 100 ? "✅" : t.CompletionPercentage > 0 ? "🔄" : "⏳";
+            sb.AppendLine($"  {statusIcon} {t.Name} | 工期 {t.PlanDuration}天 | {t.PlanStartDate:yyyy-MM-dd} → {t.PlanEndDate:yyyy-MM-dd} | 负责人 {t.ResponsiblePerson ?? "-"} | {t.CompletionPercentage}%");
+        }
+        return sb.ToString();
+    }
+
+    private async Task<string> ExecuteCreateTask(Dictionary<string, object> args)
+    {
+        if (!args.TryGetValue("projectId", out var pidObj) || pidObj == null)
+            return "❌ 缺少 projectId 参数";
+        var pid = Convert.ToInt32(pidObj);
+
+        var project = await ProjectService.GetProjectByIdAsync(pid);
+        if (project == null) return $"❌ 项目 ID={pid} 不存在";
+
+        var task = new TaskItem
+        {
+            ProjectId = pid,
+            Name = args.GetValueOrDefault("name")?.ToString() ?? "新任务",
+            PlanDuration = args.TryGetValue("planDuration", out var dur) ? Convert.ToInt32(dur) : 1,
+            PlanStartDate = args.TryGetValue("planStartDate", out var start) && DateTime.TryParse(start?.ToString(), out var sd) ? sd : DateTime.Today,
+            PlanEndDate = args.TryGetValue("planEndDate", out var end) && DateTime.TryParse(end?.ToString(), out var ed) ? ed : DateTime.Today.AddDays(1),
+            ResponsiblePerson = args.GetValueOrDefault("responsiblePerson")?.ToString(),
+            IsMilestone = args.TryGetValue("isMilestone", out var ism) && (ism?.ToString() == "True" || ism?.ToString() == "true"),
+            CompletionPercentage = 0,
+            CreatedAt = DateTime.Now
+        };
+
+        // 如果没传结束日期，自动按工期算
+        if (!args.ContainsKey("planEndDate") && task.PlanDuration > 0)
+            task.PlanEndDate = task.PlanStartDate.AddDays(task.PlanDuration - 1);
+
+        var newTask = await ProjectService.CreateTaskAsync(task);
+
+        // 处理前置任务关系
+        var resultMsg = $"✅ 已创建任务「{newTask.Name}」ID={newTask.Id}，工期 {newTask.PlanDuration}天，{newTask.PlanStartDate:yyyy-MM-dd} → {newTask.PlanEndDate:yyyy-MM-dd}";
+
+        if (args.TryGetValue("predecessorNames", out var preds) && preds != null)
+        {
+            var predNames = System.Text.Json.JsonSerializer.Deserialize<List<string>>(preds.ToString()!);
+            if (predNames?.Count > 0)
+            {
+                var allTasks = await ProjectService.GetTasksByProjectIdAsync(pid);
+                var linked = 0;
+                foreach (var pn in predNames)
+                {
+                    var pred = allTasks.FirstOrDefault(t => t.Name.Contains(pn, StringComparison.OrdinalIgnoreCase));
+                    if (pred != null)
+                    {
+                        await ProjectService.CreateRelationAsync(new TaskRelation
+                        {
+                            ProjectId = pid,
+                            SuccessorTaskId = newTask.Id,
+                            PredecessorTaskId = pred.Id,
+                            Type = RelationType.FS,
+                            Lag = 0
+                        });
+                        linked++;
+                        resultMsg += $"\n  → 前置任务：{pred.Name}";
+                    }
+                }
+                if (linked > 0) resultMsg += $"\n已建立 {linked} 条依赖关系。";
+            }
+        }
+
+        return resultMsg;
+    }
+
+    private async Task<string> ExecuteUpdateTask(Dictionary<string, object> args)
+    {
+        if (!args.TryGetValue("projectId", out var pidObj) || pidObj == null)
+            return "❌ 缺少 projectId 参数";
+        var pid = Convert.ToInt32(pidObj);
+
+        if (!args.TryGetValue("taskName", out var taskNameObj) || taskNameObj == null)
+            return "❌ 缺少 taskName 参数";
+
+        var tasks = await ProjectService.GetTasksByProjectIdAsync(pid);
+        var task = tasks.FirstOrDefault(t => t.Name.Contains(taskNameObj.ToString()!, StringComparison.OrdinalIgnoreCase));
+        if (task == null)
+            return $"❌ 未找到名称包含「{taskNameObj}」的任务";
+
+        var changes = new List<string>();
+
+        if (args.TryGetValue("newName", out var newName)) { task.Name = newName.ToString()!; changes.Add($"名称 → {newName}"); }
+        if (args.TryGetValue("planDuration", out var dur)) { task.PlanDuration = Convert.ToInt32(dur); changes.Add($"工期 → {dur}天"); }
+        if (args.TryGetValue("planStartDate", out var start) && DateTime.TryParse(start?.ToString(), out var sd)) { task.PlanStartDate = sd; changes.Add($"开始 → {sd:yyyy-MM-dd}"); }
+        if (args.TryGetValue("planEndDate", out var end) && DateTime.TryParse(end?.ToString(), out var ed)) { task.PlanEndDate = ed; changes.Add($"结束 → {ed:yyyy-MM-dd}"); }
+        if (args.TryGetValue("responsiblePerson", out var rp)) { task.ResponsiblePerson = rp.ToString(); changes.Add($"负责人 → {rp}"); }
+        if (args.TryGetValue("completionPercent", out var cp)) { task.CompletionPercentage = Convert.ToInt32(cp); changes.Add($"完成度 → {cp}%"); }
+
+        await ProjectService.UpdateTaskAsync(task);
+
+        return $"✅ 已更新任务「{task.Name}」：{string.Join("、", changes)}";
     }
 
     private class AiConnection

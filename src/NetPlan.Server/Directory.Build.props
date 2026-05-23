@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <RestorePackagesPath>C:\Users\REX\.nuget\packages</RestorePackagesPath>
+    <RestoreFallbackFolders>C:\Program Files\dotnet\sdk\8.0.201\NuGetFallbackFolder</RestoreFallbackFolders>
+    <RestoreSources>https://api.nuget.org/v3/index.json</RestoreSources>
+  </PropertyGroup>
+</Project>
