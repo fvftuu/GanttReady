@@ -2508,7 +2508,7 @@ var NetPlan = (() => {
     const totalHeight = cumY;
     barsContainer.style.height = totalHeight + "px";
     if (gridLinesContainer) {
-      gridLinesContainer.style.height = totalHeight + 40 + "px";
+      gridLinesContainer.style.height = totalHeight + "px";
     }
     if (gridLines) {
       gridLines.style.height = totalHeight + "px";
@@ -2784,7 +2784,7 @@ var NetPlan = (() => {
           backgroundColor: line.color || `hsla(${i * 60}, 60%, 70%, 0.2)`,
           borderColor: line.color || `hsl(${i * 60}, 60%, 50%)`,
           borderWidth: 2,
-          fill: true,
+          fill: false,
           tension: 0.3
         };
       });
@@ -2803,7 +2803,7 @@ var NetPlan = (() => {
           y: { stacked: false, beginAtZero: true, title: { display: true, text: "\u6295\u5165\u91CF" } }
         },
         plugins: {
-          legend: { position: "bottom" }
+          legend: { position: "top", align: "start", labels: { boxWidth: 12, padding: 8 } }
         }
       }
     });

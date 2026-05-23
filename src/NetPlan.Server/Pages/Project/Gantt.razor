@@ -368,7 +368,7 @@
         </div>
     }
 </div>
-@* 时间标尺竖线层 *@            <div class="gantt-grid-lines" style="height: @(tasks.Count * rowHeight + 40)px;">
+@* 时间标尺竖线层 *@            <div class="gantt-grid-lines" style="height: @(tasks.Count * rowHeight)px;">
                 @{
                     var gridMode = dayWidth > 20 ? "day" : (dayWidth >= 10 ? "week" : "month");
                     // 计算年份边界线位置
@@ -575,6 +575,7 @@
                     <button class="histogram-sort-btn labor @(resourceFilter == "labor" ? "active" : "")" @onclick="FilterLabor">人</button>
                     <button class="histogram-sort-btn material @(resourceFilter == "material" ? "active" : "")" @onclick="FilterMaterial">材</button>
                     <button class="histogram-sort-btn equipment @(resourceFilter == "equipment" ? "active" : "")" @onclick="FilterEquipment">机</button>
+                    <button class="histogram-sort-btn budget @(resourceFilter == "budget" ? "active" : "")" @onclick="FilterBudget">金</button>
                     <span class="histogram-title" style="margin-top:6px;">周期</span>
                     <button class="histogram-sort-btn @(histogramGranularity == "week" ? "active" : "")" @onclick="SetGranularityWeek">周</button>
                     <button class="histogram-sort-btn @(histogramGranularity == "month" ? "active" : "")" @onclick="SetGranularityMonth">月</button>
@@ -989,6 +990,7 @@
     private async Task FilterLabor() => await SetResourceFilterAsync("labor");
     private async Task FilterMaterial() => await SetResourceFilterAsync("material");
     private async Task FilterEquipment() => await SetResourceFilterAsync("equipment");
+    private async Task FilterBudget() => await SetResourceFilterAsync("budget");
 
     private async Task SetGranularityWeek() { histogramGranularity = "week"; CalculateHistogram(); await RenderChartAsync(); }
     private async Task SetGranularityMonth() { histogramGranularity = "month"; CalculateHistogram(); await RenderChartAsync(); }
@@ -1085,6 +1087,7 @@
             "material" => new[] { (ResourceType.Material, "材料", "#722ed1") },
             "equipment" => new[] { (ResourceType.Equipment, "设备", "#52c41a") },
             "measure" => new[] { (ResourceType.Measure, "措施", "#8c8c8c") },
+            "budget" => Array.Empty<(ResourceType, string, string)>(),
             _ => new[] { (ResourceType.Labor, "人工", "#1890ff"), (ResourceType.Material, "材料", "#722ed1"), (ResourceType.Equipment, "设备", "#52c41a"), (ResourceType.Measure, "措施", "#8c8c8c") }
         };
 
@@ -1115,6 +1118,27 @@
                 points.Add((b, total));
             }
             chartLines.Add(new ChartLine(name, color, points));
+        }
+
+        // 预算金额折线（按桶汇总任务 BudgetCost）
+        if (resourceFilter == "budget" || resourceFilter == "all")
+        {
+            var budgetPoints = new List<(int Bucket, double Value)>();
+            for (int b = 0; b < buckets.Count; b++)
+            {
+                var bs = buckets[b].Start;
+                var be = buckets[b].End;
+                double total = 0;
+                foreach (var t in tasks)
+                {
+                    var oStart = t.PlanStartDate > bs ? t.PlanStartDate : bs;
+                    var oEnd = t.PlanEndDate < be ? t.PlanEndDate : be;
+                    if (oStart > oEnd) continue;
+                    total += (double)t.BudgetCost / ((t.PlanEndDate - t.PlanStartDate).Days + 1) * (oEnd - oStart).Days;
+                }
+                budgetPoints.Add((b, Math.Round(total, 0)));
+            }
+            chartLines.Add(new ChartLine("预算费用", "#f5222d", budgetPoints));
         }
     }
 

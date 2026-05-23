@@ -35,7 +35,7 @@ export function syncGanttRowHeights(): void {
 
   // 更新网格竖线层高度
   if (gridLinesContainer) {
-    gridLinesContainer.style.height = (totalHeight + 40) + 'px';
+    gridLinesContainer.style.height = totalHeight + 'px';
   }
 
   // 绘制行背景（隔行变色）和水平分隔线

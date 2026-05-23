@@ -94,6 +94,19 @@ public static class DemoProjectSeeder
             }
             if (relPlan.Any())
                 db.SaveChanges();
+
+            // MFR 项目：MR-14 量产→MR-15 QC 质检 改为 SS（量产开始即开始质检）
+            if (project.Code == "MFR-2026-001" && relPlan.Any(r => r.succIdx == 14))
+            {
+                var mfrRel = db.TaskRelations.FirstOrDefault(r =>
+                    r.PredecessorTaskId == taskList[13].Id &&
+                    r.SuccessorTaskId == taskList[14].Id);
+                if (mfrRel != null)
+                {
+                    mfrRel.Type = RelationType.SS;
+                    mfrRel.Lag = 14; // 量产开始后 14 天开始质检（约 9 月下旬）
+                }
+            }
         }
 
         // ===== 全局去重：同名资源只保留一个 =====
@@ -607,8 +620,8 @@ public static class DemoProjectSeeder
                 (10, 11, 0), // 模具 → 小批量试产
                 (11, 12, 0), // 小批量 → 产线调试
                 (12, 13, 0), // 产线 → 大批量量产
-                (13, 14, 0), // 大批量 → QC质检
-                (14, 15, 0), // QC质检 → 发布上市
+                (13, 14, 0), // 大批量 → QC质检 (实际被覆盖为 SS+14d)
+                (13, 15, 0), // 大批量 → 发布上市 (FS, 量产完成后发布)
             };
         }
         else if (projectCode.StartsWith("AD-"))
@@ -792,28 +805,28 @@ public static class DemoProjectSeeder
                 Name = "新一代智能扫地机器人研发与量产",
                 Description = "自研 LDS 激光导航 + 视觉融合避障的全链路产品研发，从概念到量产",
                 PlanStartDate = new DateTime(baseYear, 1, 15),
-                PlanEndDate = new DateTime(baseYear, 12, 31),
+                PlanEndDate = new DateTime(baseYear, 11, 25),
                 WorkingHoursPerDay = 8, WorkdaysPerWeek = 5,
                 CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
             },
             new List<TaskDef>
             {
                 new("MR-01", "市场调研与竞品分析", 25, new DateTime(baseYear, 1, 15), "刘明", 100, 50000, false, "国内外 Top 10 竞品拆解分析报告"),
-                new("MR-02", "产品规格定义", 10, new DateTime(baseYear, 2, 10), "刘明", 100, 10000, true, "里程碑 — PRD 签批, 目标售价 2499 元"),
-                new("MR-03", "ID 工业设计", 30, new DateTime(baseYear, 2, 15), "周文", 0, 60000, false, "3D 建模+CMF+手板验证"),
-                new("MR-04", "结构设计", 45, new DateTime(baseYear, 3, 15), "周文", 0, 80000, false, "模具 DFM 评审, 整机结构堆叠"),
-                new("MR-05", "电子硬件设计", 40, new DateTime(baseYear, 3, 15), "吴波", 0, 100000, false, "主板原理图/PCB Layout/LDS 模组选型"),
-                new("MR-06", "嵌入式软件开发", 60, new DateTime(baseYear, 4, 1), "陈涛", 0, 150000, false, "RTOS + SLAM 算法 + 避障策略"),
-                new("MR-07", "App 端开发", 45, new DateTime(baseYear, 5, 15), "李想", 0, 90000, false, "iOS+Android 双端, 固件 OTA 升级"),
-                new("MR-08", "原型机打样", 20, new DateTime(baseYear, 6, 15), "吴波", 0, 80000, false, "CNC 手板 10 台, 整机组装验证"),
-                new("MR-09", "功能测试", 25, new DateTime(baseYear, 7, 1), "孙丽", 0, 40000, false, "清扫覆盖率/越障/断点续扫等 120 项用例"),
-                new("MR-10", "可靠性测试", 30, new DateTime(baseYear, 7, 15), "孙丽", 0, 60000, false, "跌落/高低温/盐雾/寿命 3000h 连续运行"),
-                new("MR-11", "模具开发", 45, new DateTime(baseYear, 8, 1), "周文", 0, 300000, false, "注塑模具 8 副, T1→T2→试模"),
-                new("MR-12", "小批量试产", 15, new DateTime(baseYear, 10, 1), "赵刚", 0, 50000, false, "200 台试产, 直通率≥90%"),
-                new("MR-13", "产线调试", 20, new DateTime(baseYear, 10, 15), "赵刚", 0, 80000, false, "SMT 贴片线/总装线/测试线联调"),
-                new("MR-14", "大批量量产", 60, new DateTime(baseYear, 11, 1), "赵刚", 0, 500000, false, "首批 5 万台, 日产目标 1500 台"),
-                new("MR-15", "QC 质检入库", 10, new DateTime(baseYear, 11, 20), "孙丽", 0, 20000, false, "AQL 抽检+全检, 入库放行"),
-                new("MR-16", "产品发布上市", 3, new DateTime(baseYear, 12, 20), "刘明", 0, 100000, true, "里程碑 — 线上发布会+全渠道开售"),
+                new("MR-02", "产品规格定义", 1, new DateTime(baseYear, 2, 9), "刘明", 100, 10000, true, "里程碑 — PRD 签批, 目标售价 2499 元"),
+                new("MR-03", "ID 工业设计", 30, new DateTime(baseYear, 2, 10), "周文", 0, 60000, false, "3D 建模+CMF+手板验证"),
+                new("MR-04", "结构设计", 45, new DateTime(baseYear, 2, 10), "周文", 0, 80000, false, "模具 DFM 评审, 整机结构堆叠"),
+                new("MR-05", "电子硬件设计", 40, new DateTime(baseYear, 2, 10), "吴波", 0, 100000, false, "主板原理图/PCB Layout/LDS 模组选型"),
+                new("MR-06", "嵌入式软件开发", 60, new DateTime(baseYear, 2, 10), "陈涛", 0, 150000, false, "RTOS + SLAM 算法 + 避障策略"),
+                new("MR-07", "App 端开发", 45, new DateTime(baseYear, 2, 10), "李想", 0, 90000, false, "iOS+Android 双端, 固件 OTA 升级"),
+                new("MR-08", "原型机打样", 20, new DateTime(baseYear, 4, 11), "吴波", 0, 80000, false, "CNC 手板 10 台, 整机组装验证"),
+                new("MR-09", "功能测试", 25, new DateTime(baseYear, 5, 1), "孙丽", 0, 40000, false, "清扫覆盖率/越障/断点续扫等 120 项用例"),
+                new("MR-10", "可靠性测试", 30, new DateTime(baseYear, 5, 26), "孙丽", 0, 60000, false, "跌落/高低温/盐雾/寿命 3000h 连续运行"),
+                new("MR-11", "模具开发", 45, new DateTime(baseYear, 6, 25), "周文", 0, 300000, false, "注塑模具 8 副, T1→T2→试模"),
+                new("MR-12", "小批量试产", 15, new DateTime(baseYear, 8, 9), "赵刚", 0, 50000, false, "200 台试产, 直通率≥90%"),
+                new("MR-13", "产线调试", 20, new DateTime(baseYear, 8, 24), "赵刚", 0, 80000, false, "SMT 贴片线/总装线/测试线联调"),
+                new("MR-14", "大批量量产", 60, new DateTime(baseYear, 9, 13), "赵刚", 0, 500000, false, "首批 5 万台, 日产目标 1500 台"),
+                new("MR-15", "QC 质检入库", 10, new DateTime(baseYear, 9, 27), "孙丽", 0, 20000, false, "AQL 抽检+全检, 入库放行"),
+                new("MR-16", "产品发布上市", 1, new DateTime(baseYear, 11, 12), "刘明", 0, 100000, true, "里程碑 — 线上发布会+全渠道开售"),
             },
             new List<Resource>
             {

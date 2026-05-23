@@ -3,7 +3,7 @@
 // ============================================================
 
 /**
- * 初始化资源投入量面积图（曲线+填充）
+ * 初始化资源投入量折线图（纯曲线）
  */
 export function initResourceChart(chartData: any): void {
   // 注意: Blazor JS interop 传递的是已解析的对象，不是 JSON 字符串
@@ -39,7 +39,7 @@ export function initResourceChart(chartData: any): void {
         backgroundColor: line.color || `hsla(${i * 60}, 60%, 70%, 0.2)`,
         borderColor: line.color || `hsl(${i * 60}, 60%, 50%)`,
         borderWidth: 2,
-        fill: true,
+        fill: false,
         tension: 0.3
       };
     });
@@ -59,7 +59,7 @@ export function initResourceChart(chartData: any): void {
         y: { stacked: false, beginAtZero: true, title: { display: true, text: '投入量' } }
       },
       plugins: {
-        legend: { position: 'bottom' }
+        legend: { position: 'top', align: 'start', labels: { boxWidth: 12, padding: 8 } }
       }
     }
   });

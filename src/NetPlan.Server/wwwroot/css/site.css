@@ -990,6 +990,7 @@ body {
     right: 0;
     pointer-events: none;
     z-index: 5;
+    border-bottom: 1px solid #ccc;
 }
 
 .grid-line {
@@ -1704,6 +1705,7 @@ body {
 .histogram-sort-btn.labor.active { background: #1890ff; border-color: #1890ff; }
 .histogram-sort-btn.material.active { background: #722ed1; border-color: #722ed1; }
 .histogram-sort-btn.equipment.active { background: #52c41a; border-color: #52c41a; }
+.histogram-sort-btn.budget.active { background: #f5222d; border-color: #f5222d; }
 
 .histogram-chart-area {
     flex: 1;
