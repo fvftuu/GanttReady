@@ -1211,6 +1211,17 @@ body {
 }
 
 /* ===== AI 分析报告样式 ===== */
+.ai-report {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 20px 24px;
+    line-height: 1.8;
+    font-size: 14px;
+    box-shadow: var(--shadow-sm);
+    color: var(--text);
+}
+
 .ai-report h2 {
     font-size: 16px;
     font-weight: 700;

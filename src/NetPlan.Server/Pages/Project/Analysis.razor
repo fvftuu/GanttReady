@@ -37,7 +37,7 @@
                 <h3>🌐 多项目横向分析</h3>
                 @if (!string.IsNullOrEmpty(_aiReport))
                 {
-                    <div class="ai-report" style="background:#fafafa;border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;line-height:1.8;font-size:13px;">@((MarkupString)_aiReport)</div>
+                    <div class="ai-report">@((MarkupString)_aiReport)</div>
                 }
                 else if (!_aiLoading)
                 {
@@ -84,7 +84,7 @@
                 }
                 else if (!string.IsNullOrEmpty(_aiReport))
                 {
-                    <div class="ai-report" style="background:#fafafa;border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;line-height:1.8;font-size:13px;">@((MarkupString)_aiReport)</div>
+                    <div class="ai-report">@((MarkupString)_aiReport)</div>
                 }
                 else
                 {
