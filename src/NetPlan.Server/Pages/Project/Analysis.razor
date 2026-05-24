@@ -18,13 +18,10 @@
             }
         </select>
         <span class="page-title">进度分析报告</span>
-        <button class="btn btn-default btn-sm" style="margin-left:12px;" @onclick="ShowAiSettings">🤖 AI 设置</button>
-        <button class="btn btn-primary btn-sm" style="margin-left:8px;" @onclick="GenerateAiReport" disabled="@_aiLoading">
+        <button class="btn btn-default" @onclick="ShowAiSettings">🤖 AI 设置</button>
+        <button class="btn btn-primary" @onclick="GenerateAiReport" disabled="@_aiLoading">
             @if (_aiLoading) { <span>⏳ 分析中...</span> } else { <span>🤖 AI 分析</span> }
         </button>
-    </div>
-    <div class="header-right">
-        <button class="btn btn-default btn-sm" onclick="window.print()">🖨 打印</button>
     </div>
 </div>
 
