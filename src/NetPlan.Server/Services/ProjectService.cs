@@ -101,23 +101,25 @@ public class ProjectService : IProjectService
 
     public async Task<List<ProjectSummary>> GetProjectSummariesAsync()
     {
-        return await _db.Projects
-            .Select(p => new ProjectSummary
-            {
-                Id = p.Id,
-                Code = p.Code,
-                Name = p.Name,
-                Description = p.Description,
-                PlanStartDate = p.PlanStartDate,
-                PlanEndDate = p.PlanEndDate,
-                TaskCount = p.Tasks.Count,
-                ResourceCount = p.Resources.Count,
-                CompletedTaskCount = p.Tasks.Count(t => t.CompletionPercentage >= 100),
-                TotalPlanCost = (double)p.Tasks.Sum(t => t.BudgetCost),
-                UpdatedAt = p.UpdatedAt
-            })
-            .OrderByDescending(s => s.UpdatedAt)
+        var projects = await _db.Projects
+            .Include(p => p.Tasks)
+            .OrderByDescending(p => p.UpdatedAt)
             .ToListAsync();
+
+        return projects.Select(p => new ProjectSummary
+        {
+            Id = p.Id,
+            Code = p.Code,
+            Name = p.Name,
+            Description = p.Description,
+            PlanStartDate = p.PlanStartDate,
+            PlanEndDate = p.PlanEndDate,
+            TaskCount = p.Tasks.Count,
+            ResourceCount = _db.Resources.Count(r => r.ProjectId == p.Id),
+            CompletedTaskCount = p.Tasks.Count(t => t.CompletionPercentage >= 100),
+            TotalPlanCost = (double)p.Tasks.Sum(t => t.BudgetCost),
+            UpdatedAt = p.UpdatedAt
+        }).ToList();
     }
 
     #region 任务 CRUD

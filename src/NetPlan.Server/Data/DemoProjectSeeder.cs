@@ -626,25 +626,25 @@ public static class DemoProjectSeeder
         }
         else if (projectCode.StartsWith("AD-"))
         {
-            // 双11营销 — 创意/制作/投放/复盘
+            // 双11营销 — 按实际节奏：Brief/研究→策略→创意→制作→媒介→预热→爆发→复盘
             plan = new()
             {
-                (0, 1, 0),   // 创意概念 → 视觉设计
-                (0, 2, 0),   // 创意概念 → 视频制作（并行）
-                (1, 3, 0),   // 视觉设计 → 社交内容
-                (2, 3, 0),   // 视频制作 → 社交内容
-                (2, 7, 0),   // 视频制作 → KOL合作
-                (3, 4, 0),   // 社交内容 → 预售预热
-                (7, 4, 0),   // KOL合作 → 预售预热
-                (4, 5, 0),   // 预售 → 正式期投放
-                (5, 6, 0),   // 正式期 → 效果追踪
-                (5, 8, 0),   // 正式期 → 承接页优化
-                (4, 9, 0),   // 预售 → 竞品监控
-                (5, 9, 0),   // 正式期 → 竞品监控
-                (5, 10, 0),  // 正式期 → 客服培训
-                (5, 11, 0),  // 正式期 → 舆情预案
-                (6, 12, 0),  // 效果追踪 → 复盘总结
-                (9, 12, 0),  // 竞品监控 → 复盘总结
+                (0, 2, 0),   // AD-01 Brief → AD-03 策略
+                (1, 2, 0),   // AD-02 竞品研究 → AD-03 策略
+                (2, 3, 0),   // AD-03 策略 → AD-04 创意概念
+                (3, 4, 0),   // AD-04 创意概念 → AD-05 视觉设计
+                (3, 5, 0),   // AD-04 创意概念 → AD-06 视频制作
+                (3, 6, 0),   // AD-04 创意概念 → AD-07 社交内容
+                (3, 7, 0),   // AD-04 创意概念 → AD-08 KOL筛选
+                (4, 8, 0),   // AD-05 视觉 → AD-09 媒介计划
+                (5, 8, 0),   // AD-06 视频 → AD-09 媒介计划
+                (6, 8, 0),   // AD-07 社交 → AD-09 媒介计划
+                (7, 8, 0),   // AD-08 KOL → AD-09 媒介计划
+                (8, 9, 32),  // AD-09 媒介计划 → AD-10 预热 (32d lag, 9月中→10月20)
+                (8, 11, 13), // AD-09 媒介计划 → AD-12 数据监测 (13d lag, 9月中→10月1)
+                (9, 10, 7),  // AD-10 预热 → AD-11 正式期投放 (7d lag, 11月3→11月11)
+                (10, 12, 4), // AD-11 正式期 → AD-13 复盘 (4d lag, 11月13→11月18)
+                (11, 12, 0), // AD-12 数据监测 → AD-13 复盘
             };
         }
         else if (projectCode.StartsWith("MED-"))
@@ -756,14 +756,14 @@ public static class DemoProjectSeeder
                 Code = "IT-2026-001",
                 Name = "智慧园区管理平台 v2.0",
                 Description = "基于微服务架构的园区综合管理平台，涵盖门禁、能耗、物业、访客等模块",
-                PlanStartDate = new DateTime(baseYear, 3, 1),
+                PlanStartDate = new DateTime(baseYear, 3, 7),
                 PlanEndDate = new DateTime(baseYear, 9, 30),
                 WorkingHoursPerDay = 8, WorkdaysPerWeek = 5,
                 CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
             },
             new List<TaskDef>
             {
-                new("PA-01", "需求调研与分析", 20, new DateTime(baseYear, 3, 1), "张敏", 0, 40000, false, "完成 12 个部门的需求访谈，输出需求规格说明书 PRD"),
+                new("PA-01", "需求调研与分析", 20, new DateTime(baseYear, 3, 7), "张敏", 0, 40000, false, "完成 12 个部门的需求访谈，输出需求规格说明书 PRD"),
                 new("PA-02", "产品原型设计", 15, new DateTime(baseYear, 3, 22), "李思思", 0, 25000, false, "Axure 高保真原型，包含 8 个核心模块"),
                 new("PA-03", "需求评审确认", 5, new DateTime(baseYear, 4, 7), "张敏", 100, 5000, true, "里程碑 — 需求基线冻结"),
                 new("PA-04", "系统架构设计", 15, new DateTime(baseYear, 4, 7), "王磊", 0, 35000, false, "微服务拆分方案、技术选型、API 设计"),
@@ -850,26 +850,26 @@ public static class DemoProjectSeeder
                 Code = "AD-2026-001",
                 Name = "双11全案整合营销 Campaign",
                 Description = "某消费电子品牌双11全案策划与执行，涵盖策略、创意、制作、投放、复盘全链路",
-                PlanStartDate = new DateTime(baseYear, 7, 1),
+                PlanStartDate = new DateTime(baseYear, 7, 13),
                 PlanEndDate = new DateTime(baseYear, 11, 30),
                 WorkingHoursPerDay = 8, WorkdaysPerWeek = 5,
                 CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
             },
             new List<TaskDef>
             {
-                new("AD-01", "客户 Brief 解读", 5, new DateTime(baseYear, 7, 1), "杨丽", 100, 5000, false, "需求拆解、目标对齐、预算确认"),
-                new("AD-02", "行业与竞品分析", 7, new DateTime(baseYear, 7, 6), "刘畅", 100, 8000, false, "竞品投放策略/创意方向/媒体分布"),
-                new("AD-03", "核心策略制定", 10, new DateTime(baseYear, 7, 14), "杨丽", 100, 15000, true, "里程碑 — 策略提案过稿"),
-                new("AD-04", "创意概念提案", 15, new DateTime(baseYear, 7, 21), "黄迪", 0, 20000, false, "3 个创意方向, 含 moodboard+storyboard"),
-                new("AD-05", "视觉设计（主视觉+延展）", 25, new DateTime(baseYear, 8, 1), "黄迪", 0, 40000, false, "KV/商详页/社媒头图/Dou+素材/线下物料"),
-                new("AD-06", "视频广告制作", 20, new DateTime(baseYear, 8, 15), "徐导", 0, 80000, false, "TVC 1 支 + 信息流短视频 8 支"),
-                new("AD-07", "社交媒体内容创作", 20, new DateTime(baseYear, 8, 20), "林琳", 0, 25000, false, "小红书/抖音/微博内容排期 60 篇"),
-                new("AD-08", "KOL 达人筛选签约", 15, new DateTime(baseYear, 9, 1), "刘畅", 0, 100000, false, "头部 2 人 + 腰部 8 人 + KOC 20 人"),
-                new("AD-09", "媒介投放计划", 10, new DateTime(baseYear, 9, 15), "王敏", 0, 15000, false, "媒体组合排期/预算分配/出价策略"),
-                new("AD-10", "预售期预热推广", 15, new DateTime(baseYear, 10, 10), "王敏", 0, 200000, false, "种草内容 + 预热短视频 + 直播间预热"),
-                new("AD-11", "双11正式期投放", 3, new DateTime(baseYear, 10, 24), "杨丽", 0, 500000, true, "里程碑 — 全渠道流量收割, 目标 GMV 8000 万"),
-                new("AD-12", "数据监测与优化", 30, new DateTime(baseYear, 10, 24), "王敏", 0, 20000, false, "每日数据看板、预算调优、素材替换"),
-                new("AD-13", "收官复盘报告", 10, new DateTime(baseYear, 11, 16), "杨丽", 0, 10000, false, "全案效果总结、ROI 分析、经验沉淀"),
+                new("AD-01", "客户 Brief 解读", 5, new DateTime(baseYear, 7, 13), "杨丽", 100, 5000, false, "需求拆解、目标对齐、预算确认"),
+                new("AD-02", "行业与竞品分析", 7, new DateTime(baseYear, 7, 13), "刘畅", 100, 8000, false, "竞品投放策略/创意方向/媒体分布"),
+                new("AD-03", "核心策略制定", 10, new DateTime(baseYear, 7, 20), "杨丽", 100, 15000, true, "里程碑 — 策略提案过稿"),
+                new("AD-04", "创意概念提案", 15, new DateTime(baseYear, 7, 27), "黄迪", 0, 20000, false, "3 个创意方向, 含 moodboard+storyboard"),
+                new("AD-05", "视觉设计（主视觉+延展）", 25, new DateTime(baseYear, 8, 3), "黄迪", 0, 40000, false, "KV/商详页/社媒头图/Dou+素材/线下物料"),
+                new("AD-06", "视频广告制作", 20, new DateTime(baseYear, 8, 10), "徐导", 0, 80000, false, "TVC 1 支 + 信息流短视频 8 支"),
+                new("AD-07", "社交媒体内容创作", 20, new DateTime(baseYear, 8, 10), "林琳", 0, 25000, false, "小红书/抖音/微博内容排期 60 篇"),
+                new("AD-08", "KOL 达人筛选签约", 15, new DateTime(baseYear, 8, 3), "刘畅", 0, 100000, false, "头部 2 人 + 腰部 8 人 + KOC 20 人"),
+                new("AD-09", "媒介投放计划", 10, new DateTime(baseYear, 9, 1), "王敏", 0, 15000, false, "媒体组合排期/预算分配/出价策略"),
+                new("AD-10", "预售期预热推广", 15, new DateTime(baseYear, 10, 20), "王敏", 0, 200000, false, "种草内容 + 预热短视频 + 直播间预热"),
+                new("AD-11", "双11正式期投放", 3, new DateTime(baseYear, 11, 11), "杨丽", 0, 500000, true, "里程碑 — 全渠道流量收割, 目标 GMV 8000 万"),
+                new("AD-12", "数据监测与优化", 30, new DateTime(baseYear, 10, 1), "王敏", 0, 20000, false, "每日数据看板、预算调优、素材替换"),
+                new("AD-13", "收官复盘报告", 10, new DateTime(baseYear, 11, 18), "杨丽", 0, 10000, false, "全案效果总结、ROI 分析、经验沉淀"),
             },
             new List<Resource>
             {
@@ -889,14 +889,14 @@ public static class DemoProjectSeeder
                 Code = "MED-2026-001",
                 Name = "新型口服降糖药 III 期临床研发",
                 Description = "全新机制 SGLT2/DPP-4 双靶点抑制剂, 从临床前到 NDA 申报全流程",
-                PlanStartDate = new DateTime(baseYear, 3, 1),
+                PlanStartDate = new DateTime(baseYear, 1, 15),
                 PlanEndDate = new DateTime(baseYear, 9, 30),
                 WorkingHoursPerDay = 8, WorkdaysPerWeek = 5,
                 CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
             },
             new List<TaskDef>
             {
-                new("MD-01", "临床前药效学研究", 90, new DateTime(baseYear, 1, 1), "陈博士", 0, 2000000, false, "动物模型药效验证, 剂量爬坡"),
+                new("MD-01", "临床前药效学研究", 90, new DateTime(baseYear, 1, 15), "陈博士", 0, 2000000, false, "动物模型药效验证, 剂量爬坡"),
                 new("MD-02", "临床前毒理学研究", 90, new DateTime(baseYear, 1, 15), "陈博士", 0, 3000000, false, "急毒/慢毒/生殖毒/致癌性"),
                 new("MD-03", "IND 申报材料准备", 45, new DateTime(baseYear, 4, 15), "赵敏", 0, 500000, false, "CTD 模块撰写, 药学/药理/毒理汇总"),
                 new("MD-04", "IND 审评", 60, new DateTime(baseYear, 6, 1), "赵敏", 0, 100000, true, "里程碑 — CDE 默示许可, 获临床试验批件"),
@@ -926,14 +926,14 @@ public static class DemoProjectSeeder
                 Code = "FIN-2026-001",
                 Name = "移动支付平台 3.0",
                 Description = "新一代聚合支付平台，支持数字人民币、跨境支付、多商户管理",
-                PlanStartDate = new DateTime(baseYear, 4, 1),
+                PlanStartDate = new DateTime(baseYear, 4, 11),
                 PlanEndDate = new DateTime(baseYear, 11, 30),
                 WorkingHoursPerDay = 8, WorkdaysPerWeek = 5,
                 CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
             },
             new List<TaskDef>
             {
-                new("FN-01", "监管政策合规评审", 30, new DateTime(baseYear, 4, 1), "胡律", 0, 60000, false, "央行 259 号文/《非银行支付机构条例》解读"),
+                new("FN-01", "监管政策合规评审", 30, new DateTime(baseYear, 4, 11), "胡律", 0, 60000, false, "央行 259 号文/《非银行支付机构条例》解读"),
                 new("FN-02", "产品方案设计", 20, new DateTime(baseYear, 5, 1), "高翔", 0, 50000, false, "产品架构/交互流程/商户端/用户端"),
                 new("FN-03", "安全架构设计", 25, new DateTime(baseYear, 5, 15), "邓工", 0, 60000, false, "国密 SM2/SM3/SM4 方案、密钥管理体系"),
                 new("FN-04", "核心支付引擎开发", 60, new DateTime(baseYear, 6, 1), "邓工", 0, 200000, false, "清结算/对账/路由/风控规则引擎"),
@@ -964,14 +964,14 @@ public static class DemoProjectSeeder
                 Code = "EDU-2026-001",
                 Name = "少儿编程 AI 课程体系开发",
                 Description = "面向 7-15 岁儿童的 AI 编程课程体系，涵盖课程内容、互动平台、师资培训",
-                PlanStartDate = new DateTime(baseYear, 2, 1),
+                PlanStartDate = new DateTime(baseYear, 2, 13),
                 PlanEndDate = new DateTime(baseYear, 9, 30),
                 WorkingHoursPerDay = 8, WorkdaysPerWeek = 5,
                 CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
             },
             new List<TaskDef>
             {
-                new("ED-01", "用户需求分析", 15, new DateTime(baseYear, 2, 1), "赵老师", 100, 20000, false, "家长调研/竞品课程体验/行业报告"),
+                new("ED-01", "用户需求分析", 15, new DateTime(baseYear, 2, 13), "赵老师", 100, 20000, false, "家长调研/竞品课程体验/行业报告"),
                 new("ED-02", "课程大纲设计", 20, new DateTime(baseYear, 2, 16), "钱教授", 0, 30000, false, "L1-L4 四大阶段, 共 200 课时"),
                 new("ED-03", "L1-L2 教学内容编写", 30, new DateTime(baseYear, 3, 8), "钱教授", 0, 50000, false, "Scratch+Python 入门, 60 课时教案+PPT"),
                 new("ED-04", "L3-L4 教学内容编写", 30, new DateTime(baseYear, 4, 8), "钱教授", 0, 50000, false, "Python+AI 基础, 60 课时教案+PPT"),
@@ -1001,14 +1001,14 @@ public static class DemoProjectSeeder
                 Code = "GOV-2026-001",
                 Name = "数字城市智能交通管理系统",
                 Description = "城市级智慧交通一期工程, 含交通数据采集/信号控制/视频监控/数据中心",
-                PlanStartDate = new DateTime(baseYear, 4, 1),
+                PlanStartDate = new DateTime(baseYear, 3, 8),
                 PlanEndDate = new DateTime(baseYear, 12, 31),
                 WorkingHoursPerDay = 8, WorkdaysPerWeek = 5,
                 CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
             },
             new List<TaskDef>
             {
-                new("GV-01", "项目立项审批", 45, new DateTime(baseYear, 3, 1), "张局", 100, 50000, false, "立项报告编制/专家评审/发改委批复"),
+                new("GV-01", "项目立项审批", 45, new DateTime(baseYear, 3, 8), "张局", 100, 50000, false, "立项报告编制/专家评审/发改委批复"),
                 new("GV-02", "可研报告编制评审", 30, new DateTime(baseYear, 4, 15), "张局", 100, 80000, false, "可行性研究报告/财政局资金评审"),
                 new("GV-03", "初步设计方案", 40, new DateTime(baseYear, 5, 15), "李工", 0, 120000, false, "整体方案设计/系统架构/技术路线"),
                 new("GV-04", "公开招标采购", 60, new DateTime(baseYear, 6, 20), "王采购", 0, 50000, true, "里程碑 — 招标公告→开标→评标→中标公示"),

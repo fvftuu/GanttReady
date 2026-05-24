@@ -77,13 +77,6 @@
                     </div>
                 </div>
                 <div class="dash-card">
-                    <div class="dash-card-icon" style="background:#f0f0ff;color:#7c5cfc;">💰</div>
-                    <div class="dash-card-body">
-                        <div class="dash-card-value">¥@(summaries.Sum(s => s.TotalPlanCost).ToString("N0"))</div>
-                        <div class="dash-card-label">总预算</div>
-                    </div>
-                </div>
-                <div class="dash-card">
                     <div class="dash-card-icon" style="background:#fef6e6;color:#e8a317;">📌</div>
                     <div class="dash-card-body">
                         <div class="dash-card-value">@summaries.Sum(s => s.TaskCount)</div>
@@ -129,6 +122,7 @@
                                 <span title="剩余天数">⏱ @(p.DaysRemaining >= 0 ? $"{p.DaysRemaining}天" : $"已超期{-p.DaysRemaining}天")</span>
                                 <span title="任务数">📋 @p.TaskCount 任务</span>
                                 <span title="资源数">👥 @p.ResourceCount 资源</span>
+                                <span title="总预算">💰 ¥@p.TotalPlanCost.ToString("N0")</span>
                             </div>
                             @* 操作按钮 *@
                             <div class="card-actions">

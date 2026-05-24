@@ -160,14 +160,16 @@
             @{
                 // 计算年月跨度（上层显示）
                 var months = new List<(DateTime date, int span)>();
-                var currentMonth = projectStartDate;
-                while (currentMonth < projectStartDate.AddDays(totalDays))
+                var chartEnd = projectStartDate.AddDays(totalDays);
+                var currentMonthStart = projectStartDate;
+                while (currentMonthStart < chartEnd)
                 {
-                    var daysInMonth = DateTime.DaysInMonth(currentMonth.Year, currentMonth.Month);
-                    var remainingDays = (projectStartDate.AddDays(totalDays) - currentMonth).Days;
-                    var span = Math.Min(daysInMonth - currentMonth.Day + 1, remainingDays);
-                    months.Add((currentMonth, span));
-                    currentMonth = currentMonth.AddMonths(1);
+                    var daysInMonth = DateTime.DaysInMonth(currentMonthStart.Year, currentMonthStart.Month);
+                    var monthEnd = new DateTime(currentMonthStart.Year, currentMonthStart.Month, daysInMonth);
+                    var span = Math.Min((monthEnd - currentMonthStart).Days + 1, (chartEnd - currentMonthStart).Days);
+                    months.Add((currentMonthStart, span));
+                    // 下个月从 1 日开始（不继续从当前日+1个月，避免月列之间出现间隔）
+                    currentMonthStart = new DateTime(currentMonthStart.Year, currentMonthStart.Month, 1).AddMonths(1);
                 }
                 
                 // 计算周年跨度
