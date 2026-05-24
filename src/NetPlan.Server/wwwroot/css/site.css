@@ -544,45 +544,83 @@ body {
     flex-shrink: 0;
 }
 
-.search-box .form-control {
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    transition: border-color 0.2s;
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
 }
-.search-box .form-control:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(79,110,247,0.15);
+
+.search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.search-icon {
+    position: absolute;
+    left: 10px;
+    font-size: 14px;
+    pointer-events: none;
+    opacity: 0.5;
+}
+.search-input {
+    width: 180px;
+    height: 32px;
+    padding: 0 30px 0 32px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+    transition: all 0.2s;
     outline: none;
+}
+.search-input:focus {
+    border-color: var(--primary);
+    background: #fff;
+    box-shadow: 0 0 0 2px rgba(79,110,247,0.1);
+    width: 220px;
+}
+.search-input::placeholder {
+    color: #bbb;
+}
+.search-clear {
+    position: absolute;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: #ddd;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    transition: background 0.15s;
+}
+.search-clear:hover {
+    background: #bbb;
 }
 
 .status-filter {
     display: flex;
-    gap: 4px;
-}
-.filter-btn {
-    padding: 4px 12px;
-    font-size: 12px;
+    align-items: center;
+    gap: 2px;
+    background: var(--bg);
+    padding: 2px;
+    border-radius: 16px;
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: #fff;
+}
+.filter-lbl {
+    font-size: 11px;
     color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
+    padding: 0 6px 0 8px;
+    user-select: none;
 }
-.filter-btn:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-}
-.filter-btn.active {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: #fff;
-    font-weight: 600;
-}
-.filter-btn.status-active.active { background: #52c41a; border-color: #52c41a; }
-.filter-btn.status-pending.active { background: #999; border-color: #999; }
-.filter-btn.status-overdue.active { background: #ff4d4f; border-color: #ff4d4f; }
 
 /* 徽章 */
 .badge {

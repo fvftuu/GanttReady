@@ -19,6 +19,12 @@ public interface IAiService
     /// 带工具调用（function calling）的 AI 对话
     /// </summary>
     Task<AiChatResult> ChatWithToolsAsync(List<AiMessage> messages, List<AiToolDefinition> tools, double temperature = 0.3, AiOptions? overrideOptions = null);
+
+    /// <summary>
+    /// 流式 AI 对话（SSE）。通过 onChunk 回调逐段返回文本。
+    /// 如果模型返回工具调用，自动降级为非流式模式并完整返回。
+    /// </summary>
+    Task<AiChatResult> ChatWithToolsStreamAsync(List<AiMessage> messages, List<AiToolDefinition> tools, Action<string> onChunk, double temperature = 0.3, AiOptions? overrideOptions = null);
 }
 
 public class AiMessage

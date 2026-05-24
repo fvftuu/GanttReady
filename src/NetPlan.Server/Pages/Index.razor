@@ -30,15 +30,16 @@
                 </button>
             }
             <InputFile id="fileInput" OnChange="HandleFileSelected" accept=".xlsx,.xls" style="display:none" />
-            <span class="toolbar-sep"></span>
-            <div class="search-box">
-                <input type="text" class="form-control" placeholder="🔍 搜索项目名称/代码..." @bind="_searchText" @bind:after="StateHasChanged" style="width:200px;height:32px;font-size:13px;" />
-            </div>
-            <div class="status-filter">
-                <button class="filter-btn @(_statusFilter == null ? "active" : "")" @onclick="() => { _statusFilter = null; }">全部</button>
-                <button class="filter-btn status-active @(_statusFilter == 1 ? "active" : "")" @onclick="() => { _statusFilter = 1; }">🟢 进行中</button>
-                <button class="filter-btn status-pending @(_statusFilter == 0 ? "active" : "")" @onclick="() => { _statusFilter = 0; }">⚪ 未开始</button>
-                <button class="filter-btn status-overdue @(_statusFilter == 2 ? "active" : "")" @onclick="() => { _statusFilter = 2; }">🔴 已超期</button>
+            <div class="toolbar-right">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" class="search-input" placeholder="搜索项目..." @bind="_searchText" @bind:after="StateHasChanged" />
+                    @if (!string.IsNullOrEmpty(_searchText))
+                    {
+                        <button class="search-clear" @onclick="() => { _searchText = string.Empty; }">✕</button>
+                    }
+                </div>
+
             </div>
         </div>
 
@@ -96,7 +97,7 @@
                 </div>
             </div>
 
-            @if (!string.IsNullOrEmpty(_searchText) || _statusFilter != null)
+            @if (!string.IsNullOrEmpty(_searchText))
             {
                 <div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary);">
                     找到 @filteredSummaries.Count() / @summaries.Count 个项目
@@ -211,24 +212,18 @@
 @code {
     private List<ProjectSummary> summaries = new();
     private string _searchText = "";
-    private int? _statusFilter = null;
 
     private IEnumerable<ProjectSummary> filteredSummaries
     {
         get
         {
-            var q = summaries.AsEnumerable();
-            if (!string.IsNullOrWhiteSpace(_searchText))
-            {
-                var s = _searchText.Trim().ToLower();
-                q = q.Where(p =>
-                    (p.Name?.ToLower().Contains(s) ?? false) ||
-                    (p.Code?.ToLower().Contains(s) ?? false) ||
-                    (p.Description?.ToLower().Contains(s) ?? false));
-            }
-            if (_statusFilter.HasValue)
-                q = q.Where(p => p.Status == _statusFilter.Value);
-            return q;
+            if (string.IsNullOrWhiteSpace(_searchText))
+                return summaries;
+            var s = _searchText.Trim().ToLower();
+            return summaries.Where(p =>
+                (p.Name?.ToLower().Contains(s) ?? false) ||
+                (p.Code?.ToLower().Contains(s) ?? false) ||
+                (p.Description?.ToLower().Contains(s) ?? false));
         }
     }
 

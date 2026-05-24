@@ -12,6 +12,7 @@ public static class AiToolDefinitions
     {
         return new List<AiToolDefinition>
         {
+            FindProjectTool(),
             CreateProjectWithTasksTool(),
             CreateProjectTool(),
             GetAllProjectsTool(),
@@ -32,7 +33,7 @@ public static class AiToolDefinitions
     }
 
     /// <summary>
-    /// 全部可用工具
+    /// 全部可用工具（projectId > 0 时项目工具也会包含）
     /// </summary>
     public static List<AiToolDefinition> GetAllTools(int? projectId = null)
     {
@@ -42,7 +43,34 @@ public static class AiToolDefinitions
         return tools;
     }
 
+    /// <summary>
+    /// 链式调用用工具列表——始终包含所有工具，不限制项目
+    /// </summary>
+    public static List<AiToolDefinition> GetAllChainTools()
+    {
+        // 为每个项目工具手动创建定义，避免不能与具体 projectId 绑定
+        return GetGlobalTools().Concat(GetProjectTools(0)).ToList();
+    }
+
     // ==================== 工具定义 ====================
+
+    public static AiToolDefinition FindProjectTool()
+    {
+        return new AiToolDefinition
+        {
+            Name = "find_project",
+            Description = "根据项目名称模糊搜索匹配的项目，返回项目ID、名称、起止日期。当用户提到项目名但未指定 projectId 时，先调用此工具找到项目ID，再用 ID 调用其他工具。",
+            Parameters = new
+            {
+                type = "object",
+                properties = new
+                {
+                    name = new { type = "string", description = "要搜索的项目名称，支持模糊匹配" }
+                },
+                required = new[] { "name" }
+            }
+        };
+    }
 
     public static AiToolDefinition CreateProjectWithTasksTool()
     {
