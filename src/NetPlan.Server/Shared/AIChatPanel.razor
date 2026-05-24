@@ -913,7 +913,7 @@ else
             {
                 var m = _chatMessages[i];
                 if (m.Role == "system") continue;
-                if (m.Role == "assistant" && m.ToolCalls?.Count > 0) continue;
+                // 保留 assistant tool_calls 消息，保证 tool 消息有对应的上下文
                 cleanMessages.Add(m);
             }
 
