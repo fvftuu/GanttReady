@@ -30,6 +30,7 @@ builder.Services.AddScoped<ExcelTemplateService>();
 builder.Services.AddScoped<ProjectXmlImportService>();
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
 builder.Services.AddScoped<IAiService, AiService>();
+builder.Services.AddSingleton<ToastService>();
 builder.Services.AddHttpClient();
 
 var app = builder.Build();

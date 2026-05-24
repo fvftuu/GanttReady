@@ -3,6 +3,7 @@
 @inject IProjectService ProjectService
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
+@inject ToastService Toast
 
 <PageTitle>资源管理 - NetPlan</PageTitle>
 
@@ -23,7 +24,7 @@
     <div class="page-main" style="padding:20px;">
         @if (isLoading)
         {
-            <div class="loading">加载中...</div>
+            <Skeleton Type="table" Count="6" />
         }
         else
         {
@@ -384,7 +385,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"保存失败: {ex.Message}");
+            Toast.Error($"保存失败: {ex.Message}");
         }
     }
 
@@ -398,7 +399,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"删除失败: {ex.Message}");
+            Toast.Error($"删除失败: {ex.Message}");
         }
     }
 
@@ -443,7 +444,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"批量删除失败: {ex.Message}");
+            Toast.Error($"批量删除失败: {ex.Message}");
         }
     }
 
@@ -458,7 +459,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"导出失败: {ex.Message}");
+            Toast.Error($"导出失败: {ex.Message}");
         }
     }
 
@@ -474,7 +475,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"导出失败: {ex.Message}");
+            Toast.Error($"导出失败: {ex.Message}");
         }
     }
 
@@ -503,18 +504,18 @@
             if (response.IsSuccessStatusCode)
             {
                 var resultText = await response.Content.ReadAsStringAsync();
-                await JS.InvokeVoidAsync("alert", $"导入成功！\n{resultText}");
+                Toast.Success($"导入成功！{resultText}");
                 await LoadResources();
             }
             else
             {
                 var errorText = await response.Content.ReadAsStringAsync();
-                await JS.InvokeVoidAsync("alert", $"导入失败: {errorText}");
+                Toast.Error($"导入失败: {errorText}");
             }
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"导入出错: {ex.Message}");
+            Toast.Error($"导入出错: {ex.Message}");
         }
     }
 

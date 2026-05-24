@@ -2,6 +2,7 @@
 @inject IProjectService ProjectService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject ToastService Toast
 
 <PageTitle>NetPlan - 项目总览</PageTitle>
 
@@ -29,11 +30,21 @@
                 </button>
             }
             <InputFile id="fileInput" OnChange="HandleFileSelected" accept=".xlsx,.xls" style="display:none" />
+            <span class="toolbar-sep"></span>
+            <div class="search-box">
+                <input type="text" class="form-control" placeholder="🔍 搜索项目名称/代码..." @bind="_searchText" @bind:after="StateHasChanged" style="width:200px;height:32px;font-size:13px;" />
+            </div>
+            <div class="status-filter">
+                <button class="filter-btn @(_statusFilter == null ? "active" : "")" @onclick="() => { _statusFilter = null; }">全部</button>
+                <button class="filter-btn status-active @(_statusFilter == 1 ? "active" : "")" @onclick="() => { _statusFilter = 1; }">🟢 进行中</button>
+                <button class="filter-btn status-pending @(_statusFilter == 0 ? "active" : "")" @onclick="() => { _statusFilter = 0; }">⚪ 未开始</button>
+                <button class="filter-btn status-overdue @(_statusFilter == 2 ? "active" : "")" @onclick="() => { _statusFilter = 2; }">🔴 已超期</button>
+            </div>
         </div>
 
         @if (isLoading)
         {
-            <div class="loading" style="text-align:center;padding:60px 0;color:#999;">加载中...</div>
+            <Skeleton Type="card-grid" Count="6" />
         }
         else if (summaries.Count == 0)
         {
@@ -85,9 +96,15 @@
                 </div>
             </div>
 
+            @if (!string.IsNullOrEmpty(_searchText) || _statusFilter != null)
+            {
+                <div style="margin-bottom:12px;font-size:13px;color:var(--text-secondary);">
+                    找到 @filteredSummaries.Count() / @summaries.Count 个项目
+                </div>
+            }
             @* 项目卡片网格 *@
             <div class="project-cards">
-                @foreach (var p in summaries)
+                @foreach (var p in filteredSummaries)
                 {
                     var isSelected = selectedProject?.Id == p.Id;
                     <div class="project-card @(isSelected ? "selected" : "")" @onclick="() => SelectProject(p.Id)">
@@ -193,6 +210,28 @@
 
 @code {
     private List<ProjectSummary> summaries = new();
+    private string _searchText = "";
+    private int? _statusFilter = null;
+
+    private IEnumerable<ProjectSummary> filteredSummaries
+    {
+        get
+        {
+            var q = summaries.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(_searchText))
+            {
+                var s = _searchText.Trim().ToLower();
+                q = q.Where(p =>
+                    (p.Name?.ToLower().Contains(s) ?? false) ||
+                    (p.Code?.ToLower().Contains(s) ?? false) ||
+                    (p.Description?.ToLower().Contains(s) ?? false));
+            }
+            if (_statusFilter.HasValue)
+                q = q.Where(p => p.Status == _statusFilter.Value);
+            return q;
+        }
+    }
+
     private Models.Project? editingProject;
     private Models.Project? selectedProject;
     private bool isLoading = true;
@@ -283,7 +322,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"删除失败: {ex.Message}");
+            Toast.Error($"删除失败: {ex.Message}");
         }
     }
 
@@ -316,7 +355,7 @@
     {
         if (selectedProject == null)
         {
-            await JS.InvokeVoidAsync("alert", "请先选择一个项目");
+            Toast.Warning("请先选择一个项目");
             return;
         }
         await JS.InvokeVoidAsync("eval", "document.getElementById('fileInput').click()");
@@ -332,13 +371,13 @@
         {
             if (result.Success)
             {
-                await JS.InvokeVoidAsync("alert", $"导入成功！\n任务: {result.TasksImported}\n资源: {result.ResourcesImported}\n分配: {result.AssignmentsImported}");
+                Toast.Success($"导入成功！任务 {result.TasksImported}、资源 {result.ResourcesImported}、分配 {result.AssignmentsImported}");
                 Navigation.NavigateTo($"/project/{selectedProject.Id}/gantt", forceLoad: true);
             }
             else
             {
-                var errorMsg = result.Errors.Count > 0 ? string.Join("\n", result.Errors.Take(5)) : result.Message;
-                await JS.InvokeVoidAsync("alert", $"导入完成但有错误:\n{errorMsg}");
+                var errorMsg = result.Errors.Count > 0 ? string.Join("；", result.Errors.Take(5)) : result.Message;
+                Toast.Warning($"导入完成但有错误：{errorMsg}");
             }
         }
     }
@@ -363,13 +402,13 @@
             else
             {
                 var error = await response.Content.ReadAsStringAsync();
-                await JS.InvokeVoidAsync("alert", $"导入失败: {error}");
+                Toast.Error($"导入失败: {error}");
                 return null;
             }
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"导入出错: {ex.Message}");
+            Toast.Error($"导入出错: {ex.Message}");
             return null;
         }
     }

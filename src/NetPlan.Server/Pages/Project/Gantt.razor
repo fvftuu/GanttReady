@@ -4,6 +4,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager NavManager
 @inject IAiService AiService
+@inject ToastService Toast
 @implements IDisposable
 
 <div class="page-header">
@@ -1460,7 +1461,7 @@
         {
             // 读取分析页保存的 AI 连接配置
             var opts = await GetGanttAiOptions();
-            if (opts == null) { await JS.InvokeVoidAsync("alert", "⚠️ 请先在分析页面的 AI 设置中配置并保存 API 连接。"); _aiLoading = false; return; }
+            if (opts == null) { Toast.Warning("请先在分析页面的 AI 设置中配置并保存 API 连接"); _aiLoading = false; return; }
 
             var tasks = await ProjectService.GetTasksByProjectIdAsync(currentProjectId);
             var taskNames = string.Join("、", tasks.Select(t => $"{t.Code} {t.Name}").Take(20));
@@ -1534,11 +1535,11 @@
                 }
             }
 
-            await JS.InvokeVoidAsync("alert", "✅ AI 已解析任务信息并填入表单，请检查后点击确定保存。");
+            Toast.Success("AI 已解析任务信息并填入表单，请检查后点击确定保存。");
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"❌ 解析失败：{ex.Message}");
+            Toast.Error($"解析失败：{ex.Message}");
         }
         _aiLoading = false;
         StateHasChanged();
@@ -1971,7 +1972,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"删除失败: {ex.Message}");
+            Toast.Error($"删除失败: {ex.Message}");
         }
     }
 
@@ -2049,7 +2050,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"删除失败: {ex.Message}");
+            Toast.Error($"删除失败: {ex.Message}");
         }
     }
 
@@ -2315,7 +2316,7 @@
     {
         if (tasks.Count == 0)
         {
-            await JS.InvokeVoidAsync("alert", "没有数据可导出");
+            Toast.Warning("没有数据可导出");
             return;
         }
 
@@ -2356,7 +2357,7 @@
             {
                 if (result.Success)
                 {
-                    await JS.InvokeVoidAsync("alert", $"导入成功！\n任务: {result.TasksImported}\n资源: {result.ResourcesImported}\n分配: {result.AssignmentsImported}");
+                    Toast.Success($"导入成功！任务 {result.TasksImported}、资源 {result.ResourcesImported}、分配 {result.AssignmentsImported}");
                     // 重新加载项目列表（获取最新的项目起止日期）
                     projects = await ProjectService.GetAllProjectsAsync();
                     await LoadTasks();
@@ -2365,15 +2366,15 @@
                 else
                 {
                     var errorMsg = result.Errors.Count > 0
-                        ? string.Join("\n", result.Errors.Take(5))
+                        ? string.Join("；", result.Errors.Take(5))
                         : result.Message;
-                    await JS.InvokeVoidAsync("alert", $"导入完成但有错误:\n{errorMsg}");
+                    Toast.Warning($"导入完成但有错误：{errorMsg}");
                 }
             }
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"导入出错: {ex.Message}");
+            Toast.Error($"导入出错: {ex.Message}");
         }
     }
 
@@ -2382,7 +2383,7 @@
     {
         if (currentProjectId == 0)
         {
-            await JS.InvokeVoidAsync("alert", "请先选择项目");
+            Toast.Warning("请先选择项目");
             return;
         }
         await JS.InvokeVoidAsync("eval", "document.getElementById('projectXmlInput').click()");
@@ -2410,8 +2411,7 @@
             {
                 if (result.Success)
                 {
-                    await JS.InvokeVoidAsync("alert",
-                        $"Project 导入成功！\n任务: {result.TasksImported}\n关系: {result.RelationsImported}");
+                    Toast.Success($"Project 导入成功！任务 {result.TasksImported}、关系 {result.RelationsImported}");
                     projects = await ProjectService.GetAllProjectsAsync();
                     await LoadTasks();
                     StateHasChanged();
@@ -2419,15 +2419,15 @@
                 else
                 {
                     var errorMsg = result.Errors.Count > 0
-                        ? string.Join("\n", result.Errors.Take(5))
+                        ? string.Join("；", result.Errors.Take(5))
                         : result.Message;
-                    await JS.InvokeVoidAsync("alert", $"导入失败:\n{errorMsg}");
+                    Toast.Error($"导入失败：{errorMsg}");
                 }
             }
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Project 导入出错: {ex.Message}");
+            Toast.Error($"Project 导入出错: {ex.Message}");
         }
     }
 

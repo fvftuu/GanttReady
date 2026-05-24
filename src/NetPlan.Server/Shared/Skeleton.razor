@@ -1,0 +1,79 @@
+@* 加载骨架屏组件 *@
+@* Type: cards / table / text / chart / card-grid *@
+
+<div class="skeleton-container">
+    @if (Type == "card-grid")
+    {
+        <div class="skeleton-card-grid">
+            @for (int i = 0; i < Count; i++)
+            {
+                <div class="skeleton-card">
+                    <div class="skeleton-line w40 h16 mb12"></div>
+                    <div class="skeleton-line w70 h22 mb8"></div>
+                    <div class="skeleton-line w100 h8 mb16"></div>
+                    <div class="skeleton-line w90 h10 mb6"></div>
+                    <div class="skeleton-line w60 h10 mb12"></div>
+                    <div class="skeleton-line w80 h32"></div>
+                </div>
+            }
+        </div>
+    }
+    else if (Type == "cards")
+    {
+        <div class="skeleton-cards-row">
+            @for (int i = 0; i < Count; i++)
+            {
+                <div class="skeleton-stat-card">
+                    <div class="skeleton-line w40 h16 mb8"></div>
+                    <div class="skeleton-line w60 h32"></div>
+                </div>
+            }
+        </div>
+    }
+    else if (Type == "table")
+    {
+        <div class="skeleton-table">
+            <div class="skeleton-table-header">
+                @for (int c = 0; c < Count; c++)
+                {
+                    <div class="skeleton-line w@(80 - c * 10) h14"></div>
+                }
+            </div>
+            @for (int r = 0; r < 5; r++)
+            {
+                <div class="skeleton-table-row">
+                    @for (int c = 0; c < Count; c++)
+                    {
+                        <div class="skeleton-line w@(90 - c * 8) h12"></div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else if (Type == "text")
+    {
+        <div class="skeleton-text-block">
+            @for (int i = 0; i < Count; i++)
+            {
+                <div class="skeleton-line w@(100 - i * 5) h12 mb8"></div>
+            }
+        </div>
+    }
+    else if (Type == "chart")
+    {
+        <div class="skeleton-chart">
+            <div class="skeleton-line w40 h14 mb16"></div>
+            <div class="skeleton-bar-chart">
+                @for (int i = 0; i < Count; i++)
+                {
+                    <div class="skeleton-bar" style="height: @(30 + (i % 5) * 12)px;"></div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Type { get; set; } = "text";
+    [Parameter] public int Count { get; set; } = 4;
+}
