@@ -17,17 +17,11 @@
                 <option value="@("p-"+project.Id)">📁 @project.Name</option>
             }
         </select>
-        <span class="page-title">计划分析仪表板</span>
+        <span class="page-title">进度分析报告</span>
         <button class="btn btn-default btn-sm" style="margin-left:12px;" @onclick="ShowAiSettings">🤖 AI 设置</button>
-            <div class="scale-switch" style="margin-left:8px;">
-                @foreach (var role in _roles)
-                {
-                    <button class="scale-btn @(_currentRole == role.Value ? "active" : "")"
-                            @onclick="() => SwitchRole(role.Value)" title="@role.Desc">
-                        @role.Icon @role.Label
-                    </button>
-                }
-            </div>
+        <button class="btn btn-primary btn-sm" style="margin-left:8px;" @onclick="GenerateAiReport" disabled="@_aiLoading">
+            @if (_aiLoading) { <span>⏳ 分析中...</span> } else { <span>🤖 AI 分析</span> }
+        </button>
     </div>
     <div class="header-right">
         <button class="btn btn-default btn-sm" onclick="window.print()">🖨 打印</button>
@@ -43,30 +37,61 @@
         else if (isAllProjects)
         {
             <div class="section">
-                <h3>🌐 所有项目分析</h3>
-                <p style="color:var(--text-secondary);">请选择具体项目后使用 AI 分析。</p>
+                <h3>🌐 多项目横向分析</h3>
+                @if (!string.IsNullOrEmpty(_aiReport))
+                {
+                    <div style="background:#fafafa;border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;line-height:1.8;white-space:pre-wrap;font-size:13px;">@_aiReport</div>
+                }
+                else if (!_aiLoading)
+                {
+                    <p style="color:var(--text-secondary);">点击上方「AI 分析」按钮，生成多项目横向对比报告。</p>
+                }
+                else
+                {
+                    <div class="loading">⏳ AI 正在分析多项目数据...</div>
+                }
             </div>
         }
         else if (analysisResult != null)
         {
+            @* ===== 四张核心指标卡片 ===== *@
+            <div class="metric-cards" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+                <div class="metric-card" style="background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:var(--radius-sm,8px);padding:14px;">
+                    <div style="font-size:12px;color:var(--text-secondary);">整体完成度</div>
+                    <div style="font-size:24px;font-weight:700;">@GetOverallProgress()%</div>
+                    <div style="font-size:12px;">@GetProgressStatusIcon(GetOverallProgress())</div>
+                </div>
+                <div class="metric-card" style="background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:var(--radius-sm,8px);padding:14px;">
+                    <div style="font-size:12px;color:var(--text-secondary);">关键任务完成率</div>
+                    <div style="font-size:24px;font-weight:700;">@GetCriticalTaskRate()%</div>
+                    <div style="font-size:12px;">@GetCriticalTaskDetail()</div>
+                </div>
+                <div class="metric-card" style="background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:var(--radius-sm,8px);padding:14px;">
+                    <div style="font-size:12px;color:var(--text-secondary);">里程碑达成率</div>
+                    <div style="font-size:24px;font-weight:700;">@GetMilestoneRate()%</div>
+                    <div style="font-size:12px;">@GetMilestoneDetail()</div>
+                </div>
+                <div class="metric-card" style="background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:var(--radius-sm,8px);padding:14px;">
+                    <div style="font-size:12px;color:var(--text-secondary);">进度偏差</div>
+                    <div style="font-size:24px;font-weight:700;color:@GetVarianceColor();">@GetVarianceText()</div>
+                    <div style="font-size:12px;">@GetVarianceIcon()</div>
+                </div>
+            </div>
+
+            @* ===== AI 分析报告 ===== *@
             <div class="section">
-                @{
-                    var currentRoleInfo = _roles.FirstOrDefault(r => r.Value == _currentRole);
-                    var roleIcon = currentRoleInfo.Icon;
-                    var roleLabel = currentRoleInfo.Label;
-                }
-                <h3>🤖 @roleIcon @roleLabel 视角 · AI 分析报告</h3>
+                <h3>📊 AI 进度分析报告</h3>
                 @if (_aiLoading)
                 {
                     <div class="loading">⏳ AI 正在分析项目数据...</div>
                 }
-                else if (_aiReports.TryGetValue(_currentReportKey, out var report))
+                else if (!string.IsNullOrEmpty(_aiReport))
                 {
-                    <div style="background:#fafafa;border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;line-height:1.8;white-space:pre-wrap;font-size:13px;">@report</div>
+                    <div style="background:#fafafa;border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;line-height:1.8;white-space:pre-wrap;font-size:13px;">@_aiReport</div>
                 }
                 else
                 {
-                    <div style="color:var(--text-secondary);padding:12px 0;">点击上方角色按钮生成对应视角的 AI 分析报告。</div>
+                    <div style="color:var(--text-secondary);padding:12px 0;">点击上方「AI 分析」按钮生成进度分析报告。</div>
                 }
             </div>
         }
@@ -145,36 +170,93 @@
     private StageCompletionResult? _stageCompletionResult;
     private ResourceSummary? _resourceSummary;
 
-    // 角色选择
-    private string _currentRole = "manager";
-    private List<(string Value, string Label, string Icon, string Desc)> _roles = new()
-    {
-        ("operator",  "操作人员", "👷", "我接下来做什么"),
-        ("manager",   "项目经理", "📋", "项目在控制中吗"),
-        ("investor",  "监理业主", "📊", "钱和时间花得值吗"),
-        ("executive", "公司高层", "🏢", "哪个项目要我拍板"),
-    };
-
-    private Dictionary<string, string> _aiReports = new();
+    // AI 报告
+    private string? _aiReport;
     private bool _aiLoading = false;
-    private string _aiLoadingTab = "";
     private bool _showAiSettings = false;
     private int _aiSelectedIdx = 0;
     private List<AiConnection> _aiConnections = new();
 
-    private string _currentReportKey => analysisResult != null ? $"analysis_{selectedProjectId}_{_currentRole}" : "";
-
-    private async Task SwitchRole(string role)
+    private async Task GenerateAiReport()
     {
-        if (_currentRole == role) return;
-        _currentRole = role;
-        await JS.InvokeVoidAsync("localStorage.setItem", "ai_role", role);
-        if (analysisResult != null)
+        if (_aiLoading) return;
+        _aiLoading = true;
+        _aiReport = null;
+        StateHasChanged();
+
+        try
         {
-            var key = _currentReportKey;
-            if (!_aiReports.ContainsKey(key))
-                await GenerateAiReportForTab(key);
+            var opts = BuildAiOptions();
+            if (opts == null)
+            {
+                _aiReport = "⚠️ 请先在「AI 设置」中配置 API 连接。";
+                _aiLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            if (isAllProjects)
+            {
+                await GenerateMultiProjectReport(opts);
+            }
+            else if (analysisResult != null)
+            {
+                await GenerateSingleProjectReport(opts);
+            }
         }
+        catch (Exception ex)
+        {
+            _aiReport = $"❌ AI 分析出错：{ex.Message}";
+        }
+        finally
+        {
+            _aiLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GenerateSingleProjectReport(AiOptions opts)
+    {
+        var data = BuildAiReportData();
+        var prompt = ChatPromptBuilder.BuildAnalysisPrompt(data, selectedProjectId, isMultiProject: false);
+        var result = await AiService.ChatAsync(prompt, data, overrideOptions: opts);
+        _aiReport = result;
+        await SaveAiReportToStorage();
+        await JS.InvokeVoidAsync("localStorage.setItem", "ai_latest_analysis", result ?? "");
+    }
+
+    private async Task GenerateMultiProjectReport(AiOptions opts)
+    {
+        if (projects.Count == 0) return;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("## 多项目概览");
+        sb.AppendLine($"共 {projects.Count} 个在管项目：\n");
+        sb.AppendLine("| 项目名称 | 总任务 | 完成率 | 关键任务 | 里程碑 | 资源数 | 预算成本 |");
+        sb.AppendLine("|---------|------:|------:|--------:|-------:|------:|--------:|");
+        foreach (var proj in projects)
+        {
+            try
+            {
+                var tasks = await ProjectService.GetTasksByProjectIdAsync(proj.Id);
+                var overview = await AnalysisService.GetProjectOverviewAsync(proj.Id);
+                var stage = await AnalysisService.GetStageCompletionAsync(proj.Id);
+                var summary = await AnalysisService.GetResourceSummaryAsync(proj.Id);
+                var total = tasks.Count;
+                var done = tasks.Count(t => t.CompletionPercentage >= 100);
+                var pct = total > 0 ? (done * 100.0 / total) : 0;
+                var criticalDone = tasks.Count(t => t.IsCritical && t.CompletionPercentage >= 100);
+                var criticalTotal = tasks.Count(t => t.IsCritical);
+                var msDone = stage?.CompletedStages ?? 0;
+                var msTotal = stage?.TotalStages ?? 0;
+                sb.AppendLine($"| {proj.Name} | {total} | {pct:F0}% | {criticalDone}/{criticalTotal} | {msDone}/{msTotal} | {summary?.EquipmentCount ?? 0} | {summary?.TotalCost ?? 0:N0} |");
+            }
+            catch { }
+        }
+        sb.AppendLine();
+        var data = sb.ToString();
+        var prompt = ChatPromptBuilder.BuildAnalysisPrompt(data, null, isMultiProject: true);
+        var result = await AiService.ChatAsync(prompt, data, overrideOptions: opts);
+        _aiReport = result;
     }
 
     private string GetProviderLogo(string name) => name.ToLower() switch
@@ -326,44 +408,18 @@
 
     private AiConnection? GetActiveConnection() => _aiConnections.FirstOrDefault(c => c.IsActive) ?? _aiConnections.FirstOrDefault();
 
-    private async Task GenerateAiReportForTab(string tabName)
+    private async Task SaveAiReportToStorage()
     {
-        if (analysisResult == null) return;
-        _aiLoading = true;
-        _aiLoadingTab = tabName;
-        StateHasChanged();
-
-        var data = BuildAiReportData();
-        var systemPrompt = GetRolePrompt(_currentRole);
-
-        var opts = BuildAiOptions();
-        if (opts == null) { _aiLoading = false; _aiLoadingTab = ""; StateHasChanged(); return; }
-        var result = await AiService.ChatAsync(systemPrompt, data, overrideOptions: opts);
-        _aiReports[tabName] = result;
-        _aiLoading = false;
-        _aiLoadingTab = "";
-        await SaveAiReportsToStorage();
-        // 同步到聊天面板可读的共享存储
-        await JS.InvokeVoidAsync("localStorage.setItem", "ai_latest_analysis", result ?? "");
-        StateHasChanged();
+        await JS.InvokeVoidAsync("localStorage.setItem", "ai_report", _aiReport ?? "");
     }
 
-    private async Task SaveAiReportsToStorage()
-    {
-        var json = System.Text.Json.JsonSerializer.Serialize(_aiReports);
-        await JS.InvokeVoidAsync("localStorage.setItem", "ai_reports", json);
-    }
-
-    private async Task LoadAiReportsFromStorage()
+    private async Task LoadAiReportFromStorage()
     {
         try
         {
-            var json = await JS.InvokeAsync<string>("localStorage.getItem", "ai_reports");
+            var json = await JS.InvokeAsync<string>("localStorage.getItem", "ai_report");
             if (!string.IsNullOrEmpty(json))
-            {
-                var r = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-                if (r != null) _aiReports = r;
-            }
+                _aiReport = json;
         }
         catch { }
     }
@@ -492,151 +548,85 @@
         return sb.ToString();
     }
 
-    private string GetRolePrompt(string role)
+    // ===== 核心指标卡片计算 =====
+    private double GetOverallProgress()
     {
-        return role switch
+        if (_stageCompletionResult != null && _stageCompletionResult.TotalStages > 0)
+            return Math.Round(_stageCompletionResult.OverallPct, 1);
+        if (analysisResult?.TotalTasks > 0)
         {
-            "operator" => @"你是项目执行层会议的主持人。按「挂图作战、清单管理、销项落实」原则，对分包负责人和班组长发布指令。
+            var done = analysisResult.OnTimeTasks.Count + analysisResult.EarlyStartTasks.Count;
+            return Math.Round(done * 100.0 / analysisResult.TotalTasks, 1);
+        }
+        return 0;
+    }
 
-## 核心原则
-指令明确、时间具体、责任到人、考核刚性。不讲道理只讲要求，所有任务必须有明确的完成时间和验收标准。实行「当日事当日毕」和「问题不过夜」制度。
+    private string GetProgressStatusIcon(double pct)
+    {
+        if (pct >= 80) return "🟢 进展良好";
+        if (pct >= 50) return "🟡 过半完成";
+        return "🔴 进展滞后";
+    }
 
-## 报告结构（严格按以下顺序生成）
+    private double GetCriticalTaskRate()
+    {
+        if (analysisResult == null) return 0;
+        var total = analysisResult.CriticalPathTasks.Count;
+        if (total == 0) return 100;
+        var done = analysisResult.CriticalPathTasks.Count(t => t.CompletionPercentage >= 100);
+        return Math.Round(done * 100.0 / total, 1);
+    }
 
-### 1. 上周任务完成情况通报（只讲结果）
-- 量化通报各分包上周计划完成率，只讲结果不讲过程
-- 直接点名未完成任务的分包商和责任人
-- 通报上周考核结果（罚款/奖励金额）
+    private string GetCriticalTaskDetail()
+    {
+        if (analysisResult == null) return "";
+        var total = analysisResult.CriticalPathTasks.Count;
+        var done = analysisResult.CriticalPathTasks.Count(t => t.CompletionPercentage >= 100);
+        return $"{done}/{total} 个关键任务已完成";
+    }
 
-### 2. 未完成任务原因及整改要求
-- 不接受任何借口，只问「什么时候能补回来」，明确补回期限
-- 明确整改措施和责任人
-- 强调逾期后果（罚款/清退出场）
+    private double GetMilestoneRate()
+    {
+        if (_stageCompletionResult == null || _stageCompletionResult.TotalStages == 0) return 100;
+        return Math.Round(_stageCompletionResult.CompletedStages * 100.0 / _stageCompletionResult.TotalStages, 1);
+    }
 
-### 3. 本周任务清单（精确到天）
-- 逐一下达各分包的具体任务，精确到天
-- 明确每个任务的验收标准和验收人
+    private string GetMilestoneDetail()
+    {
+        if (_stageCompletionResult == null) return "";
+        return $"{_stageCompletionResult.CompletedStages}/{_stageCompletionResult.TotalStages} 阶段";
+    }
 
-### 4. 资源协调与交叉作业安排
-- 明确各分包交叉作业时间和顺序
-- 协调塔吊等大型设备使用时间
-- 要求各分包提前上报资源需求及截止时间
+    private string GetVarianceText()
+    {
+        if (_earnedValueResult == null)
+        {
+            if (analysisResult != null && analysisResult.LateStartTasks.Any())
+            {
+                var maxDays = analysisResult.LateStartTasks.Max(t =>
+                    t.ActualEndDate.HasValue ? (t.ActualEndDate.Value - t.PlanEndDate).Days :
+                    (DateTime.Today - t.PlanEndDate).Days);
+                return $"+{maxDays}天";
+            }
+            return "—";
+        }
+        var days = (int)_earnedValueResult.ScheduleVariance;
+        return days >= 0 ? $"+{days}天" : $"{days}天";
+    }
 
-### 5. 质量安全红线要求
-- 强调本周质量安全重点和处罚标准
-- 通报上周质量安全问题整改情况
-- 明确安全事故责任
+    private string GetVarianceColor()
+    {
+        if (_earnedValueResult == null) return "var(--text-secondary)";
+        return _earnedValueResult.SchedulePerformanceIndex >= 1.0 ? "#52c41a" :
+               _earnedValueResult.SchedulePerformanceIndex >= 0.9 ? "#faad14" : "#ff4d4f";
+    }
 
-## 语言风格
-指令式、不容商量。用「必须」「不得」「罚款」「清退出场」等刚性词汇。每条指令必须有明确的完成时间和验收标准。",
-            "manager" => @"你是项目经理的汇报助手。按「三控三管一协调」框架生成项目周报。项目经理是项目第一责任人，实行「终身责任制」，必须对项目的进度、质量、安全、成本负全责。
-
-## 核心原则
-全面汇报、重点突出、主动担责、提出方案。按照问题导向原则，每个问题必须附带解决方案。
-
-## 报告结构（严格按以下顺序生成）
-
-### 1. 项目整体进度概况（用数据说话）
-- 总体进度：总工期/已完成/剩余天数，累计完成产值%，计划完成%，总进度偏差天数
-- 关键节点完成情况：上周计划完成关键节点数 vs 实际完成数，延误天数
-- 关键路径分析：关键工作延误天数，对总工期的影响天数
-- 配合关键路径图数据说明
-
-### 2. 质量安全管理情况
-- 质量：验收分项数/合格率/质量隐患数及整改完成情况
-- 安全：检查隐患数/已整改数/未整改数，安全事故情况
-- 文明施工：现场文明施工和环保检查情况
-
-### 3. 成本控制情况
-- 产值完成情况：上周产值/累计产值，占合同总价%
-- 成本支出情况：上周支出/累计支出，是否在预算范围内
-- 变更签证情况：设计变更份数/变更估价/审批状态
-
-### 4. 存在的主要问题及应对措施
-- 进度问题：具体延误原因 + 已采取措施 + 预计追回天数
-- 资源问题：资源缺口 + 协调方案 + 到场时间
-- 外部问题：需外部协调事项 + 已发工作联系单 + 要求确认期限
-
-### 5. 下周工作计划及资源需求
-- 下周进度目标：计划完成内容 + 产值目标
-- 资源需求：需要公司协调的资源清单
-- 需要解决的问题：请公司协助的具体事项
-
-### 6. 项目风险评估及应对预案
-- 主要风险：天气/供应链/人员/外部因素
-- 风险等级：绿/黄/红
-- 已准备的应对措施
-
-## 语言风格
-专业、数据驱动、主动担责。每个问题必须附带解决方案，不能只报问题不报方案。",
-            "investor" => @"你是向业主/监理汇报的正式简报助手。按合同履约和客户满意度导向，先汇报成绩再说明问题，强调有信心完成合同目标。实行「以现场促市场」经营理念。
-
-## 核心原则
-正式规范、尊重对方、体现履约、争取支持。非常重视合同履约和客户满意度。
-
-## 报告结构（严格按以下顺序生成）
-
-### 1. 开场白
-正式引入汇报内容
-
-### 2. 项目整体进展情况
-- 总体进度：累计完成产值%，较计划偏差天数及原因（客观说明）
-- 形象进度：当前完成的实物工作量
-- 配合甘特图和前锋线网络图数据说明
-
-### 3. 质量安全管理情况
-- 质量：验收分项数/合格率，工程质量是否符合设计和规范要求
-- 安全：安全事故情况/现场文明施工是否符合要求
-- 监理指令执行情况：收到监理通知单数/整改完成数/已回复
-
-### 4. 进度偏差原因及赶工措施
-- 客观说明偏差原因（供应商/天气等客观因素）
-- 详细说明赶工措施（多条，具体可执行）
-- 明确赶工目标时间
-
-### 5. 需要业主/监理协调解决的事项
-- 以请求语气提出，每条说明对项目的影响
-- 恳请业主确认事项/恳请监理加快审批/恳请支付进度款
-
-### 6. 下一步工作计划及承诺
-- 下周重点工作和产值目标
-- 质量安全承诺
-- 信心表态：有信心按时按质交付
-
-## 语言风格
-正式、规范、尊重。用「恳请」「感谢」「有信心」等词汇。先肯定成绩再说明问题。",
-            "executive" => @"你是向公司管理层汇报的项目简报助手。按「红黄绿灯」风险管控体系，只讲决策层关心的内容。
-
-## 核心原则
-结论先行、高度浓缩、只讲重点、聚焦决策。公司领导只关心：有没有问题、要不要我管、需要我做什么。
-
-## 报告结构（严格按以下顺序生成）
-
-### 1. 项目整体状态（一句话说清楚）
-🟢 正常 / 🟡 预警 / 🔴 失控 + 一句话说明核心状况
-
-### 2. 核心指标完成情况
-- 产值完成率：本月计划 vs 实际，完成率%
-- 关键节点完成率：本月计划 vs 实际，完成率%
-- 安全事故率
-
-### 3. 主要问题及已采取的措施
-- 只讲影响总工期和公司整体目标的重大问题
-- 说明已采取的措施和效果
-- 影响程度和预计解决时间
-
-### 4. 需要公司协调解决的事项
-- 只讲需要公司层面决策的问题，不讲项目能解决的问题
-- 明确需要公司在什么时间前解决
-
-### 5. 下一步工作计划及承诺
-- 追回延误的目标时间
-- 承诺：到期不能完成愿承担相应责任
-
-## 语言风格
-极简、bullet point、结论先行。不讲背景、不讲过程。每条不超过3行。最后一条必须有明确的时间承诺和责任承诺。",
-            _ => @"你是一个专业的项目管理分析师。根据以下项目分析数据，生成一份全面的项目分析报告。用中文，重点分析进度执行情况、关键路径风险、资源问题，并提出具体的改进建议。格式使用自然段落，不要用 markdown。"
-        };
+    private string GetVarianceIcon()
+    {
+        if (_earnedValueResult == null) return "";
+        if (_earnedValueResult.SchedulePerformanceIndex >= 1.0) return "⏱ 进度超前";
+        if (_earnedValueResult.SchedulePerformanceIndex >= 0.9) return "⚠️ 轻度滞后";
+        return "🔴 严重滞后";
     }
 
     private List<Models.Project> projects = new();
@@ -661,7 +651,7 @@
     {
         projects = await ProjectService.GetAllProjectsAsync();
         await LoadAiSettings();
-        await LoadAiReportsFromStorage();
+        await LoadAiReportFromStorage();
         // 如果 URL 中有 ProjectId，则选中对应项目
         if (ProjectId.HasValue)
             selectedScope = "p-" + ProjectId.Value;
