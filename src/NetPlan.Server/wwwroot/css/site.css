@@ -1210,6 +1210,62 @@ body {
     font-size: 12px;
 }
 
+/* ===== AI 分析报告样式 ===== */
+.ai-report h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 20px 0 12px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--primary);
+}
+
+.ai-report h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 16px 0 8px 0;
+}
+
+.ai-report p {
+    margin: 6px 0;
+    line-height: 1.7;
+}
+
+.ai-report ul {
+    margin: 6px 0;
+    padding-left: 20px;
+}
+
+.ai-report li {
+    margin: 4px 0;
+    line-height: 1.6;
+}
+
+.ai-report table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 13px;
+}
+
+.ai-report th {
+    background: var(--primary-light, #eef2ff);
+    font-weight: 600;
+    text-align: left;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+}
+
+.ai-report td {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+}
+
+.ai-report tr:nth-child(even) {
+    background: #f8f9fa;
+}
+
 /* ===== 首页仪表盘卡片 ===== */
 .dashboard-cards {
     display: grid;
