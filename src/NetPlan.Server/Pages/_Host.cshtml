@@ -22,8 +22,10 @@
         window.setCheckedProject = function(id) { localStorage.setItem('netplan_checked', id); };
         window.getCheckedProject = function() { return localStorage.getItem('netplan_checked') || 0; };
         window.navToChecked = function(page) {
-            var checked = localStorage.getItem('netplan_checked');
-            if (checked > 0) { window.location.href = '/project/' + checked + '/' + page; }
+            // 优先从当前 URL 提取项目 ID，fallback 到 localStorage
+            var m = window.location.pathname.match(/\/project\/(\d+)/);
+            var id = m ? m[1] : localStorage.getItem('netplan_checked');
+            if (id > 0) { window.location.href = '/project/' + id + '/' + page; }
             else { window.location.href = '/#select-project'; }
         };
     </script>

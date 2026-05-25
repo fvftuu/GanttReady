@@ -242,12 +242,16 @@ public class AiService : IAiService
                 foreach (var tc in toolCallsEl.EnumerateArray())
                 {
                     var fn = tc.GetProperty("function");
+                    var tcId = tc.TryGetProperty("id", out var idEl)
+                        ? idEl.GetString() ?? "" : "";
+                    if (string.IsNullOrEmpty(tcId))
+                        tcId = "call_fallback_" + Guid.NewGuid().ToString("N")[..12];
                     calls.Add(new AiToolCall
                     {
-                        Id = tc.GetProperty("id").GetString() ?? "",
-                        Type = tc.GetProperty("type").GetString() ?? "function",
-                        FunctionName = fn.GetProperty("name").GetString() ?? "",
-                        FunctionArguments = fn.GetProperty("arguments").GetString() ?? "{}"
+                        Id = tcId,
+                        Type = tc.TryGetProperty("type", out var typeEl) ? typeEl.GetString() ?? "function" : "function",
+                        FunctionName = fn.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? "" : "",
+                        FunctionArguments = fn.TryGetProperty("arguments", out var argsEl) ? argsEl.GetString() ?? "{}" : "{}"
                     });
                 }
                 return new AiChatResult
@@ -374,6 +378,8 @@ public class AiService : IAiService
                         if (!toolCallsAccumulator.ContainsKey(index))
                         {
                             var id = tc.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? "" : "";
+                            if (string.IsNullOrEmpty(id))
+                                id = "call_fallback_" + Guid.NewGuid().ToString("N")[..12];
                             var name = tc.TryGetProperty("function", out var fnEl) && fnEl.TryGetProperty("name", out var nameEl)
                                 ? nameEl.GetString() ?? "" : "";
                             toolCallsAccumulator[index] = (id, name, new StringBuilder());
