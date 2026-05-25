@@ -496,31 +496,52 @@ public class AnalysisService : IAnalysisService
     {
         var tasks = await _db.Tasks.Where(t => t.ProjectId == projectId).ToListAsync();
         var items = new List<ScheduleVarianceItem>();
+        var today = DateTime.Today;
 
         foreach (var task in tasks)
         {
             var actualEnd = task.ActualEndDate;
-            var variance = actualEnd.HasValue
-                ? (task.PlanEndDate - actualEnd.Value).Days  // 正=提前完成
-                : (task.PlanEndDate - DateTime.Today).Days;   // 未完成：剩余天数
-
+            int? varianceDays = null;
             string status;
-            if (!actualEnd.HasValue)
-                status = variance < 0 ? "behind" : "pending";
-            else if (variance > 0)
-                status = "ahead";
-            else if (variance == 0)
-                status = "ontime";
-            else
+
+            if (actualEnd.HasValue)
+            {
+                // 已完成任务
+                varianceDays = (task.PlanEndDate - actualEnd.Value).Days;
+                if (varianceDays > 0)
+                    status = "ahead";
+                else if (varianceDays == 0)
+                    status = "ontime";
+                else
+                    status = "behind";
+            }
+            else if (today > task.PlanEndDate)
+            {
+                // 未完成且已过计划结束日期 → 延后
+                varianceDays = (task.PlanEndDate - today).Days; // 负值
                 status = "behind";
+            }
+            else if (today < task.PlanStartDate)
+            {
+                // 尚未到开始日期 → 未开始，不纳入偏差统计
+                varianceDays = null;
+                status = "not_started";
+            }
+            else
+            {
+                // 进行中但未到期 → 不纳入偏差统计
+                varianceDays = null;
+                status = "in_progress";
+            }
 
             items.Add(new ScheduleVarianceItem
             {
                 TaskCode = task.Code,
                 TaskName = task.Name,
+                PlanStart = task.PlanStartDate,
                 PlanEnd = task.PlanEndDate,
                 ActualEnd = actualEnd,
-                VarianceDays = variance,
+                VarianceDays = varianceDays,
                 Status = status,
                 IsCritical = task.IsCritical
             });
@@ -528,11 +549,14 @@ public class AnalysisService : IAnalysisService
 
         return new ScheduleVarianceResult
         {
-            Items = items.OrderBy(i => i.VarianceDays).ToList(),
+            Items = items.OrderBy(i => i.VarianceDays ?? 0).ToList(),
             AheadCount = items.Count(i => i.Status == "ahead"),
             OnTimeCount = items.Count(i => i.Status == "ontime"),
             BehindCount = items.Count(i => i.Status == "behind"),
-            TotalVarianceDays = items.Sum(i => i.VarianceDays)
+            NotStartedCount = items.Count(i => i.Status == "not_started"),
+            InProgressCount = items.Count(i => i.Status == "in_progress"),
+            TotalDelayDays = items.Where(i => i.VarianceDays < 0).Sum(i => Math.Abs(i.VarianceDays ?? 0)),
+            TotalAheadDays = items.Where(i => i.VarianceDays > 0).Sum(i => i.VarianceDays ?? 0)
         };
     }
 

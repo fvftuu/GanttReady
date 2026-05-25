@@ -222,18 +222,25 @@ public class ScheduleVarianceResult
     public int OnTimeCount { get; set; }
     /// <summary>延后完成任务数</summary>
     public int BehindCount { get; set; }
-    /// <summary>总偏差天数（正=提前，负=延后）</summary>
-    public int TotalVarianceDays { get; set; }
+    /// <summary>尚未开始的任务数</summary>
+    public int NotStartedCount { get; set; }
+    /// <summary>进行中（未到期）任务数</summary>
+    public int InProgressCount { get; set; }
+    /// <summary>延后任务累计天数（绝对值之和）</summary>
+    public int TotalDelayDays { get; set; }
+    /// <summary>提前任务累计天数（绝对值之和）</summary>
+    public int TotalAheadDays { get; set; }
 }
 
 public class ScheduleVarianceItem
 {
     public string TaskCode { get; set; } = "";
     public string TaskName { get; set; } = "";
+    public DateTime PlanStart { get; set; }
     public DateTime PlanEnd { get; set; }
     public DateTime? ActualEnd { get; set; }
-    public int VarianceDays { get; set; }
-    public string Status { get; set; } = ""; // "ahead", "ontime", "behind"
+    public int? VarianceDays { get; set; } // null = 未开始/进行中（不纳入偏差统计）
+    public string Status { get; set; } = ""; // "ahead", "ontime", "behind", "not_started", "in_progress"
     public bool IsCritical { get; set; }
 }
 

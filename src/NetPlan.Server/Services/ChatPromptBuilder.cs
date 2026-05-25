@@ -30,6 +30,12 @@ public static class ChatPromptBuilder
 - create_project_with_tasks：创建项目+所有任务（只要有任务就用这个）
 - create_project：只创建项目（没有任务细节时用）
 - create_task / update_task / get_tasks / get_all_projects
+- **分析工具**（每次最多调用 1-2 个，不要全部调用）：
+  - get_project_overview(projectId)：获取项目概况（总任务/完成率/关键任务/延迟数）
+  - get_evm_analysis(projectId)：获取挣值分析（SPI/CPI/SV/CV/CSI/BAC/EAC）
+  - get_stage_completion(projectId)：获取阶段完成率（各阶段详情/整体进度）
+  - get_schedule_variance(projectId)：获取工期偏差（提前/按时/延后分类+TOP延迟）
+  - get_critical_path(projectId)：获取关键路径（任务列表+日期+时差）
 {{projectInfo}}
 - 当前项目ID：{{pid}}
 ";
@@ -38,34 +44,45 @@ public static class ChatPromptBuilder
 
 ## 核心能力
 1. **对话上下文** — 记住当前正在讨论哪个项目。如果用户前面提到了「数字城市」后又说「有多少个任务」，默认就是指那个项目。如果用户只输入数字（如「8」），理解为项目ID。
-2. **数据分析** — 优先使用「项目背景数据」中的任务完成率、完成数等数据来分析，不要只分析工期长短。例如看到「完成 2/13，平均完成率 15.4%」就应该指出进度滞后。
+2. **数据分析** — 优先调用分析工具获取实时数据。当用户询问进度、绩效、偏差、关键路径等分析性问题时，**主动调用对应的分析工具**，不要只依赖系统上下文中的背景数据。
 3. **主动补充** — 如果用户问的数据查不到（如资金、预算），不要只说「查不到」，同时主动提供系统已有的相关数据（如任务列表、完成率、负责人等）。
 4. **信息完整** — 先通过工具获取足够数据，再基于数据回答。数据不足时可以调用工具补充。
-5. **简洁高效** — 回答尽量精简，但不限制长度。该分析的时候分析，该对比的时候对比。
-6. **不要假装调用工具** — 系统会自动处理工具调用，不要在回复里写 XML 或伪代码。
-7. **诚实** — 如果数据不足以回答，诚实告知用户。
+5. **工具调用节制** — 一次最多调用 2 个工具。如果需要更多数据，先问用户想看哪个方面，再调下一个工具。**不要一次性调用所有分析工具。**
+6. **上下文保持** — 如果用户只输入日期、数字或简短词语，应该认为是在回答你的上一个问题，而不是开启新话题。例如你先问""开始日期是什么""，用户回复""2026-6-1""，你要知道这是在回答你的问题。
+7. **简洁高效** — 回答尽量精简，但不限制长度。该分析的时候分析，该对比的时候对比。
+8. **不要假装调用工具** — 系统会自动处理工具调用，不要在回复里写 XML 或伪代码。
+9. **诚实** — 如果数据不足以回答，诚实告知用户。
 
 ## 可用工具
 - find_project：按名称搜索项目，返回项目ID（用户只说了项目名时先调用此工具）
 - create_project_with_tasks：创建项目+所有任务
 - create_project：只创建项目
 - create_task / update_task / get_tasks / get_all_projects
+- **分析工具**（每次最多调用 1-2 个，不要全部调用）：
+  - get_project_overview(projectId)：获取项目概况（总任务/完成率/关键任务/延迟数）
+  - get_evm_analysis(projectId)：获取挣值分析（SPI/CPI/SV/CV/CSI/BAC/EAC/趋势）
+  - get_stage_completion(projectId)：获取阶段完成率（各阶段详情/整体进度）
+  - get_schedule_variance(projectId)：获取工期偏差（提前/按时/延后分类+TOP延迟）
+  - get_critical_path(projectId)：获取关键路径（任务列表+日期+时差）
 {{projectInfo}}
 - 当前项目ID：{{pid}}
+- 当前系统日期：{{today}}
 ";
 
     public static string BuildCreationPrompt(string projectInfo, int pid)
     {
         return CreationPrompt
-            .Replace("{{projectInfo}}", projectInfo)
-            .Replace("{{pid}}", pid.ToString());
+            .Replace("{projectInfo}", projectInfo)
+            .Replace("{pid}", pid.ToString())
+            .Replace("{today}", DateTime.Today.ToString("yyyy-MM-dd"));
     }
 
     public static string BuildQueryPrompt(string projectInfo, int pid)
     {
         return QueryPrompt
-            .Replace("{{projectInfo}}", projectInfo)
-            .Replace("{{pid}}", pid.ToString());
+            .Replace("{projectInfo}", projectInfo)
+            .Replace("{pid}", pid.ToString())
+            .Replace("{today}", DateTime.Today.ToString("yyyy-MM-dd"));
     }
 
     public static string BuildAnalysisPrompt(string data, int? projectId, bool isMultiProject)

@@ -51,36 +51,159 @@
         }
         else if (analysisResult != null)
         {
-            @* ===== 四张核心指标卡片 ===== *@
-            <div class="metric-cards" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
-                <div class="metric-card" style="background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:var(--radius-sm,8px);padding:14px;">
-                    <div style="font-size:12px;color:var(--text-secondary);">整体完成度</div>
-                    <div style="font-size:24px;font-weight:700;">@GetOverallProgress()%</div>
-                    <div style="font-size:12px;">@GetProgressStatusIcon(GetOverallProgress())</div>
+            @* ===== 四张核心指标卡片（CSS 美化版） ===== *@
+            <div class="analysis-metric-grid">
+                <div class="analysis-metric-card">
+                    <div class="metric-accent @GetProgressAccentClass(GetOverallProgress())"></div>
+                    <div class="metric-label">整体完成度</div>
+                    <div class="metric-value @GetProgressValueColor(GetOverallProgress())">@GetOverallProgress()%</div>
+                    <div class="metric-trend @GetProgressTrendClass(GetOverallProgress())">@GetProgressStatusIcon(GetOverallProgress())</div>
                 </div>
-                <div class="metric-card" style="background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:var(--radius-sm,8px);padding:14px;">
-                    <div style="font-size:12px;color:var(--text-secondary);">关键任务完成率</div>
-                    <div style="font-size:24px;font-weight:700;">@GetCriticalTaskRate()%</div>
-                    <div style="font-size:12px;">@GetCriticalTaskDetail()</div>
+                <div class="analysis-metric-card">
+                    <div class="metric-accent @GetCriticalAccentClass()"></div>
+                    <div class="metric-label">关键任务完成率</div>
+                    <div class="metric-value @GetCriticalValueColor()">@GetCriticalTaskRate()%</div>
+                    <div class="metric-trend flat">@GetCriticalTaskDetail()</div>
                 </div>
-                <div class="metric-card" style="background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:var(--radius-sm,8px);padding:14px;">
-                    <div style="font-size:12px;color:var(--text-secondary);">里程碑达成率</div>
-                    <div style="font-size:24px;font-weight:700;">@GetMilestoneRate()%</div>
-                    <div style="font-size:12px;">@GetMilestoneDetail()</div>
+                <div class="analysis-metric-card">
+                    <div class="metric-accent @GetMilestoneAccentClass()"></div>
+                    <div class="metric-label">里程碑达成率</div>
+                    <div class="metric-value @GetMilestoneValueColor()">@GetMilestoneRate()%</div>
+                    <div class="metric-trend flat">@GetMilestoneDetail()</div>
                 </div>
-                <div class="metric-card" style="background:var(--card-bg,#fff);border:1px solid var(--border);border-radius:var(--radius-sm,8px);padding:14px;">
-                    <div style="font-size:12px;color:var(--text-secondary);">进度偏差</div>
-                    <div style="font-size:24px;font-weight:700;color:@GetVarianceColor();">@GetVarianceText()</div>
-                    <div style="font-size:12px;">@GetVarianceIcon()</div>
+                <div class="analysis-metric-card">
+                    <div class="metric-accent @GetVarianceAccentClass()"></div>
+                    <div class="metric-label">进度偏差</div>
+                    <div class="metric-value @GetVarianceColor()">@GetVarianceText()</div>
+                    <div class="metric-trend @GetVarianceTrendClass()">@GetVarianceIcon()</div>
                 </div>
             </div>
 
+            @* ===== EVM 指标卡片（当有 EVM 数据时） ===== *@
+            @if (_earnedValueResult != null)
+            {
+                var evm = _earnedValueResult;
+                <div class="analysis-section-title"><span class="title-accent"></span>挣值分析指标</div>
+                <div class="analysis-evms">
+                    <div class="evm-item">
+                        <div class="evm-label">SPI（进度绩效）</div>
+                        <div class="evm-value @GetEVMColor(evm.SchedulePerformanceIndex, 1.0)">@evm.SchedulePerformanceIndex:F2</div>
+                        <span class="evm-tag @GetEVMTagClass(evm.SchedulePerformanceIndex, 1.0)">@GetEVMStatus(evm.SchedulePerformanceIndex, 1.0)</span>
+                    </div>
+                    <div class="evm-item">
+                        <div class="evm-label">CPI（成本绩效）</div>
+                        <div class="evm-value @GetEVMColor(evm.CostPerformanceIndex, 1.0)">@evm.CostPerformanceIndex:F2</div>
+                        <span class="evm-tag @GetEVMTagClass(evm.CostPerformanceIndex, 1.0)">@GetEVMStatus(evm.CostPerformanceIndex, 1.0)</span>
+                    </div>
+                    <div class="evm-item">
+                        <div class="evm-label">SV（进度偏差）</div>
+                        <div class="evm-value @GetEVMColor(evm.ScheduleVariance, 0)">@evm.ScheduleVariance:F0</div>
+                        <span class="evm-tag @GetEVMTagClass(evm.ScheduleVariance, 0)">@(evm.ScheduleVariance >= 0 ? "提前" : "滞后")</span>
+                    </div>
+                    <div class="evm-item">
+                        <div class="evm-label">CSI（综合绩效）</div>
+                        <div class="evm-value @GetEVMColor(evm.CostScheduleIndex, 0.9)">@evm.CostScheduleIndex:F2</div>
+                        <span class="evm-tag @GetEVMTagClass(evm.CostScheduleIndex, 0.9)">@(evm.CostScheduleIndex >= 0.9 ? "可控" : "关注")</span>
+                    </div>
+                </div>
+            }
+
+            @* ===== 阶段完成率进度条 ===== *@
+            @if (_stageCompletionResult != null && _stageCompletionResult.TotalStages > 0)
+            {
+                <div class="analysis-section-title"><span class="title-accent"></span>阶段完成率</div>
+                <div class="stage-progress-list">
+                    @foreach (var s in _stageCompletionResult.Stages.Take(7))
+                    {
+                        var icon = s.Status == "completed" ? "✅" : s.Status == "in_progress" ? "🔄" : s.Status == "delayed" ? "🔴" : "⏳";
+                        var barClass = s.Status == "completed" ? "ok" : s.Status == "in_progress" ? "warn" : s.Status == "delayed" ? "bad" : "pending";
+                        <div class="stage-progress-item">
+                            <span class="stage-status-icon">@icon</span>
+                            <span class="stage-name">@s.StageName</span>
+                            <div class="stage-bar-track">
+                                <div class="stage-bar-fill @barClass" style="width:@Math.Max(1, (int)s.ActualCompletionPct)%">
+                                    <span class="stage-pct">@((int)s.ActualCompletionPct)%</span>
+                                </div>
+                            </div>
+                            @if (s.DelayDays.HasValue && s.DelayDays != 0)
+                            {
+                                <span class="stage-delay">@(s.DelayDays > 0 ? $"+{s.DelayDays}天" : $"{s.DelayDays}天")</span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ===== 关键路径摘要 ===== *@
+            @if (analysisResult.CriticalPathTasks.Any())
+            {
+                <div class="analysis-section-title"><span class="title-accent"></span>关键路径（前 @Math.Min(analysisResult.CriticalPathTasks.Count, 8) 项）</div>
+                <ul class="critical-path-list">
+                    @foreach (var t in analysisResult.CriticalPathTasks.Take(8))
+                    {
+                        var floatStr = t.TotalFloat.HasValue ? $"{t.TotalFloat}天" : "-";
+                        <li>
+                            <span class="cp-code">@t.Code</span>
+                            <span class="cp-name">@t.Name</span>
+                            <span class="cp-dates">@t.PlanStartDate.ToString("MM/dd") → @t.PlanEndDate.ToString("MM/dd")</span>
+                            <span class="cp-float">@floatStr</span>
+                        </li>
+                    }
+                </ul>
+            }
+
+            @* ===== 里程碑时间轴 ===== *@
+            @if (analysisResult.Milestones.Any())
+            {
+                <div class="analysis-section-title"><span class="title-accent"></span>里程碑</div>
+                <div class="milestone-timeline">
+                    @{
+                        var today = DateTime.Today;
+                    }
+                    @foreach (var m in analysisResult.Milestones.OrderBy(m => m.Date))
+                    {
+                        var cls = m.Date <= today ? (m.Date >= today.AddDays(-30) ? "done" : "done") 
+                                : (m.Date <= today.AddDays(14) ? "upcoming" : "upcoming");
+                        var statusText = m.Date <= today ? "✅ 已完成" : (m.Date <= today.AddDays(14) ? "🔔 即将到期" : "📅");
+                        <div class="milestone-item @cls">
+                            <span class="milestone-date">@m.Date.ToString("yyyy-MM-dd")</span>
+                            <span class="milestone-name">@m.Name</span>
+                            <span class="milestone-status">@statusText</span>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ===== 资源冲突表 ===== *@
+            @if (resourceConflicts.Any())
+            {
+                <div class="analysis-section-title"><span class="title-accent"></span>资源冲突（@resourceConflicts.Count 项）</div>
+                <table class="resource-conflict-table">
+                    <thead>
+                        <tr><th>资源名称</th><th>冲突时段</th><th>涉及任务</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in resourceConflicts.Take(8))
+                        {
+                            <tr>
+                                <td class="resource-name">@c.ResourceName</td>
+                                <td><span class="conflict-badge">@c.ConflictPeriod</span></td>
+                                <td>@string.Join("、", c.ConflictTasks.Take(3))@(c.ConflictTasks.Count > 3 ? "…" : "")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
             @* ===== AI 分析报告 ===== *@
-            <div class="section">
-                <h3>📊 AI 进度分析报告</h3>
+            <div class="analysis-section-title" style="margin-top:24px;"><span class="title-accent"></span>AI 进度分析报告</div>
+            <div class="analysis-report-section">
                 @if (_aiLoading)
                 {
-                    <div class="loading">⏳ AI 正在分析项目数据...</div>
+                    <div class="report-loading">
+                        <div class="loading-spinner"></div>
+                        <div>AI 正在分析项目数据...</div>
+                    </div>
                 }
                 else if (!string.IsNullOrEmpty(_aiReport))
                 {
@@ -88,7 +211,7 @@
                 }
                 else
                 {
-                    <div style="color:var(--text-secondary);padding:12px 0;">点击上方「AI 分析」按钮生成进度分析报告。</div>
+                    <div class="report-placeholder">点击上方「AI 分析」按钮生成进度分析报告。</div>
                 }
             </div>
         }
@@ -607,8 +730,9 @@
             }
             return "—";
         }
-        var days = (int)_earnedValueResult.ScheduleVariance;
-        return days >= 0 ? $"+{days}天" : $"{days}天";
+        // SV = EV - PV，是金额差异而非天数；去除 "天" 后缀避免误解
+        var sv = _earnedValueResult.ScheduleVariance;
+        return sv >= 0 ? $"+{sv:N0}" : $"{sv:N0}";
     }
 
     private string GetVarianceColor()
@@ -624,6 +748,61 @@
         if (_earnedValueResult.SchedulePerformanceIndex >= 1.0) return "⏱ 进度超前";
         if (_earnedValueResult.SchedulePerformanceIndex >= 0.9) return "⚠️ 轻度滞后";
         return "🔴 严重滞后";
+    }
+
+    // ===== 新增 CSS 辅助方法（用于美化卡片） =====
+    private string GetProgressAccentClass(double pct) => pct >= 80 ? "green" : pct >= 50 ? "yellow" : "red";
+    private string GetProgressValueColor(double pct) => pct >= 80 ? "green" : pct >= 50 ? "yellow" : "red";
+    private string GetProgressTrendClass(double pct) => pct >= 80 ? "up" : pct >= 50 ? "flat" : "down";
+
+    private string GetCriticalAccentClass()
+    {
+        if (analysisResult == null) return "blue";
+        var total = analysisResult.CriticalPathTasks.Count;
+        if (total == 0) return "green";
+        var done = analysisResult.CriticalPathTasks.Count(t => t.CompletionPercentage >= 100);
+        var pct = done * 100.0 / total;
+        return pct >= 80 ? "green" : pct >= 50 ? "yellow" : "red";
+    }
+    private string GetCriticalValueColor() => GetCriticalAccentClass();
+
+    private string GetMilestoneAccentClass()
+    {
+        if (_stageCompletionResult == null || _stageCompletionResult.TotalStages == 0) return "green";
+        var pct = _stageCompletionResult.CompletedStages * 100.0 / _stageCompletionResult.TotalStages;
+        return pct >= 80 ? "green" : pct >= 50 ? "yellow" : "red";
+    }
+    private string GetMilestoneValueColor() => GetMilestoneAccentClass();
+
+    private string GetVarianceAccentClass()
+    {
+        if (_earnedValueResult == null) return "blue";
+        return _earnedValueResult.SchedulePerformanceIndex >= 1.0 ? "green" :
+               _earnedValueResult.SchedulePerformanceIndex >= 0.9 ? "yellow" : "red";
+    }
+    private string GetVarianceTrendClass()
+    {
+        if (_earnedValueResult == null) return "flat";
+        return _earnedValueResult.SchedulePerformanceIndex >= 1.0 ? "up" : "down";
+    }
+
+    private string GetEVMColor(double value, double threshold)
+    {
+        if (value >= threshold) return "green";
+        if (value >= threshold * 0.9) return "yellow";
+        return "red";
+    }
+    private string GetEVMTagClass(double value, double threshold)
+    {
+        if (value >= threshold) return "ok";
+        if (value >= threshold * 0.9) return "warn";
+        return "bad";
+    }
+    private string GetEVMStatus(double value, double threshold)
+    {
+        if (value >= threshold) return value >= 1.2 ? "优秀" : "正常";
+        if (value >= threshold * 0.9) return "预警";
+        return "异常";
     }
 
     private List<Models.Project> projects = new();

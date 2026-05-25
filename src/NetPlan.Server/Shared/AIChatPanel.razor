@@ -673,6 +673,9 @@ else
             _chainDepth = 0;
             _consecutiveParamErrors = 0;
 
+            // 清理历史消息中的孤儿 tool_calls（避免工具/tool 不匹配导致 API 400）
+            CleanupOrphanToolCalls();
+
             var tools = AiToolDefinitions.GetAllChainTools();
             var messages = new List<AiMessage>
             {
@@ -796,43 +799,29 @@ else
                 // 清理孤儿 tool_calls
                 CleanupOrphanToolCalls();
 
-                if (_chainDepth >= 20)
+                // 安全阀：确保最后一个 assistant 不带 tool_calls（避免 DeepSeek 严格校验问题）
+                EnsureLastAssistantHasNoToolCalls();
+
+                // 调试：打印消息序列结构
+                Console.Error.WriteLine("===== 链式调用消息序列 =====");
+                for (int di = 0; di < _chatMessages.Count; di++)
                 {
-                    // 强制文本总结
-                    await ForceSummaryAndFinish(opts);
+                    var mm = _chatMessages[di];
+                    var info = $"[{di}] role={mm.Role}";
+                    if (mm.ToolCalls?.Count > 0)
+                        info += $" tool_calls={string.Join(",", mm.ToolCalls.Select(t => $"{t.Id}:{t.FunctionName}"))}";
+                    if (!string.IsNullOrEmpty(mm.ToolCallId))
+                        info += $" tool_call_id={mm.ToolCallId}";
+                    if (!string.IsNullOrEmpty(mm.Content) && mm.Content.Length < 200)
+                        info += $" content=\"{mm.Content}\"";
+                    else if (!string.IsNullOrEmpty(mm.Content))
+                        info += $" content=<{mm.Content.Length} chars>";
+                    Console.Error.WriteLine(info);
                 }
-                else
-                {
-                    var chainTools = AiToolDefinitions.GetAllChainTools();
 
-                    // 流式响应链式调用结果
-                    var streamMsg = new AiMessage { Role = "assistant", Content = "" };
-                    _chatMessages.Add(streamMsg);
-                    StateHasChanged();
-
-                    var streamText = new System.Text.StringBuilder();
-                    var result = await AiService.ChatWithToolsStreamAsync(_chatMessages, chainTools, chunk =>
-                    {
-                        streamText.Append(chunk);
-                        streamMsg.Content = streamText.ToString();
-                        _ = InvokeAsync(StateHasChanged);
-                    }, temperature: 0.3, overrideOptions: opts);
-
-                    if (result.IsToolCall)
-                    {
-                        streamMsg.Content = result.Text ?? "";
-                        streamMsg.ToolCalls = result.ToolCalls;
-                        streamMsg.ReasoningContent = result.ReasoningContent;
-                        _pendingToolCalls = result.ToolCalls;
-                        _executingToolCall = false;
-                        await ExecutePendingToolCall();
-                    }
-                    else
-                    {
-                        if (string.IsNullOrEmpty(streamMsg.Content))
-                            streamMsg.Content = result.Text ?? "操作已完成。";
-                    }
-                }
+                // 链式总结：用纯文本 API 生成最终回复（避免 DeepSeek tool_calls 校验问题）
+                var summary = await GenerateToolSummary(opts);
+                _chatMessages.Add(new AiMessage { Role = "assistant", Content = summary ?? "操作已完成。" });
             }
         }
         catch (Exception ex)
@@ -858,14 +847,56 @@ else
 
     private void CleanupOrphanToolCalls()
     {
-        var toolCallIdsInHistory = new HashSet<string>();
+        // 1. 收集所有 assistant 消息中的 tool_call ID
+        var assistantToolCallIds = new HashSet<string>();
         for (int di = _sessionStartIndex; di < _chatMessages.Count; di++)
         {
-            if (_chatMessages[di].Role == "tool" && !string.IsNullOrEmpty(_chatMessages[di].ToolCallId))
-                toolCallIdsInHistory.Add(_chatMessages[di].ToolCallId);
+            var m = _chatMessages[di];
+            if (m.Role == "assistant" && m.ToolCalls?.Count > 0)
+            {
+                foreach (var tc in m.ToolCalls)
+                    if (!string.IsNullOrEmpty(tc.Id))
+                        assistantToolCallIds.Add(tc.Id);
+            }
         }
 
-        var orphanIndices = new List<int>();
+        // 2. 收集所有 tool 响应中的 tool_call ID
+        var toolResponseIds = new HashSet<string>();
+        for (int di = _sessionStartIndex; di < _chatMessages.Count; di++)
+        {
+            var m = _chatMessages[di];
+            if (m.Role == "tool" && !string.IsNullOrEmpty(m.ToolCallId))
+                toolResponseIds.Add(m.ToolCallId);
+        }
+
+        // 3. 移除孤立 tool 响应（有 tool 响应但无对应 assistant tool_calls）
+        var orphanToolIndices = new List<int>();
+        for (int di = _chatMessages.Count - 1; di >= _sessionStartIndex; di--)
+        {
+            var m = _chatMessages[di];
+            if (m.Role == "tool" && !string.IsNullOrEmpty(m.ToolCallId))
+            {
+                if (!assistantToolCallIds.Contains(m.ToolCallId))
+                    orphanToolIndices.Add(di);
+            }
+        }
+        foreach (var idx in orphanToolIndices.OrderByDescending(i => i))
+        {
+            Console.Error.WriteLine($"[CLEANUP] 删除孤立 tool 响应 {idx}（无对应 assistant.tool_calls）");
+            _chatMessages.RemoveAt(idx);
+        }
+
+        // 3b. 重新收集 tool 响应 ID（删除后的最新状态）
+        toolResponseIds.Clear();
+        for (int di = _sessionStartIndex; di < _chatMessages.Count; di++)
+        {
+            var m = _chatMessages[di];
+            if (m.Role == "tool" && !string.IsNullOrEmpty(m.ToolCallId))
+                toolResponseIds.Add(m.ToolCallId);
+        }
+
+        // 4. 移除孤立 assistant tool_calls（有 tool_calls 但无对应 tool 响应）
+        var orphanAssistantIndices = new List<int>();
         for (int di = _chatMessages.Count - 1; di >= _sessionStartIndex; di--)
         {
             var m = _chatMessages[di];
@@ -873,19 +904,38 @@ else
             {
                 foreach (var tc in m.ToolCalls)
                 {
-                    if (!toolCallIdsInHistory.Contains(tc.Id))
+                    if (!toolResponseIds.Contains(tc.Id))
                     {
-                        orphanIndices.Add(di);
+                        orphanAssistantIndices.Add(di);
                         break;
                     }
                 }
             }
         }
-
-        foreach (var idx in orphanIndices.OrderByDescending(i => i))
+        foreach (var idx in orphanAssistantIndices.OrderByDescending(i => i))
         {
             Console.Error.WriteLine($"[CLEANUP] 删除孤儿 assistant {idx}（tool_calls 无匹配 tool 响应）");
             _chatMessages.RemoveAt(idx);
+        }
+    }
+
+    /// <summary>
+    /// 确保最后一个 assistant 消息不带有 tool_calls（DeepSeek 要求每个 assistant tool_calls 必须紧跟 tool 响应）
+    /// </summary>
+    private void EnsureLastAssistantHasNoToolCalls()
+    {
+        for (int di = _chatMessages.Count - 1; di >= 0; di--)
+        {
+            var m = _chatMessages[di];
+            if (m.Role == "assistant")
+            {
+                if (m.ToolCalls?.Count > 0)
+                {
+                    Console.Error.WriteLine($"[SAFETY] 剥离最后 assistant {di} 的 tool_calls（{m.ToolCalls.Count} 个）");
+                    m.ToolCalls = null;
+                }
+                break;
+            }
         }
     }
 
@@ -925,11 +975,60 @@ else
         StateHasChanged();
     }
 
+    /// <summary>
+    /// 用纯文本 API 生成工具执行结果的总结（避免 DeepSeek tool_calls 校验问题）
+    /// </summary>
+    private async Task<string?> GenerateToolSummary(AiOptions opts)
+    {
+        try
+        {
+            // 将工具结果拼成纯文本（避免 ChatAsync 序列化不支持 tool_call_id 的问题）
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("请根据以下工具返回结果，给出简洁的总结和回答。当前用户的问题是：");
+            
+            // 找最后一条用户消息
+            for (int i = _chatMessages.Count - 1; i >= _sessionStartIndex; i--)
+            {
+                if (_chatMessages[i].Role == "user")
+                {
+                    sb.AppendLine($"「{_chatMessages[i].Content}」");
+                    break;
+                }
+            }
+
+            sb.AppendLine("\n## 工具返回结果");
+            for (int i = _sessionStartIndex; i < _chatMessages.Count; i++)
+            {
+                var m = _chatMessages[i];
+                if (m.Role == "tool" && !string.IsNullOrEmpty(m.Content))
+                {
+                    sb.AppendLine(m.Content);
+                    sb.AppendLine("---");
+                }
+            }
+
+            sb.AppendLine("请根据以上数据分析结果，给出用户想要的回答。");
+
+            var result = await AiService.ChatAsync(
+                "你是一个项目管理系统 AI 助手。用简洁的结构化格式回答。",
+                sb.ToString(),
+                temperature: 0.3,
+                overrideOptions: opts
+            );
+            return result;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[SUMMARY] 生成总结失败：{ex.Message}");
+            return null;
+        }
+    }
+
     private async Task<string> ExecuteToolCall(AiToolCall tc)
     {
         try
         {
-            var args = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(tc.FunctionArguments);
+            var args = TryDeserializeArgs(tc.FunctionArguments);
             if (args == null) return $"❌ 无法解析参数：{tc.FunctionArguments}";
 
             return tc.FunctionName switch
@@ -941,6 +1040,12 @@ else
                 "get_tasks" => await ExecuteGetTasks(args),
                 "create_task" => await ExecuteCreateTask(args),
                 "update_task" => await ExecuteUpdateTask(args),
+                // 分析工具
+                "get_project_overview" => await ExecuteGetProjectOverview(args),
+                "get_evm_analysis" => await ExecuteGetEvmAnalysis(args),
+                "get_stage_completion" => await ExecuteGetStageCompletion(args),
+                "get_schedule_variance" => await ExecuteGetScheduleVariance(args),
+                "get_critical_path" => await ExecuteGetCriticalPath(args),
                 _ => $"❌ 未知操作：{tc.FunctionName}"
             };
         }
@@ -1345,6 +1450,176 @@ else
         await ProjectService.UpdateTaskAsync(task);
 
         return $"✅ 已更新任务「{task.Name}」：{string.Join("、", changes)}";
+    }
+
+    // ===== 分析工具实现 =====
+
+    private async Task<string> ExecuteGetProjectOverview(Dictionary<string, object> args)
+    {
+        var pid = GetArgInt(args, "projectId") ?? 0;
+        if (pid <= 0) return "❌ 缺少 projectId 参数";
+        try
+        {
+            var overview = await AnalysisService.GetProjectOverviewAsync(pid);
+            var tasks = await ProjectService.GetTasksByProjectIdAsync(pid);
+            var total = tasks.Count;
+            var done = tasks.Count(t => t.CompletionPercentage >= 100);
+            var overallPct = total > 0 ? Math.Round(done * 100.0 / total, 1) : 0;
+            if (overview == null) return $"❌ 项目 ID={pid} 无概况数据";
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"📊 **项目概况：{overview.ProjectName}**");
+            sb.AppendLine($"- 总任务数：{overview.TotalTasks}");
+            sb.AppendLine($"- 关键路径任务：{overview.CriticalTasks}（总时差 {overview.TotalFloat ?? 0}天）");
+            sb.AppendLine($"- 项目工期：{overview.CriticalPathLength:F0}天");
+            sb.AppendLine($"- 计划工期：{overview.PlanStartDate:yyyy-MM-dd} → {overview.PlanEndDate:yyyy-MM-dd}");
+            sb.AppendLine($"- 整体进度：{overallPct}%（{done}/{total}任务已完成）");
+            sb.AppendLine($"- 延迟任务：{overview.DelayedTasks}个 ／ 提前任务：{overview.AcceleratedTasks}个");
+            return sb.ToString();
+        }
+        catch (Exception ex) { return $"❌ 获取概况失败：{ex.Message}"; }
+    }
+
+    private async Task<string> ExecuteGetEvmAnalysis(Dictionary<string, object> args)
+    {
+        var pid = GetArgInt(args, "projectId") ?? 0;
+        if (pid <= 0) return "❌ 缺少 projectId 参数";
+        try
+        {
+            var evm = await AnalysisService.GetEarnedValueAsync(pid);
+            if (evm == null) return $"❌ 项目 ID={pid} 无 EVM 数据";
+            var sb = new System.Text.StringBuilder();
+            var spiStatus = evm.SchedulePerformanceIndex >= 1.0 ? "🟢 正常" : evm.SchedulePerformanceIndex >= 0.9 ? "🟡 预警" : "🔴 滞后";
+            var cpiStatus = evm.CostPerformanceIndex >= 1.0 ? "🟢 正常" : evm.CostPerformanceIndex >= 0.9 ? "🟡 预警" : "🔴 超支";
+            sb.AppendLine($"💰 **挣值分析（EVM）**");
+            sb.AppendLine($"- 计划价值 PV：{evm.PlannedValue:N0} | 挣值 EV：{evm.EarnedValue:N0} | 实际成本 AC：{evm.ActualCost:N0}");
+            sb.AppendLine($"- **SPI（进度绩效）**：{evm.SchedulePerformanceIndex:F2}（{spiStatus}）");
+            sb.AppendLine($"- **CPI（成本绩效）**：{evm.CostPerformanceIndex:F2}（{cpiStatus}）");
+            sb.AppendLine($"- **CSI（综合绩效）**：{evm.CostScheduleIndex:F2}（{(evm.CostScheduleIndex >= 0.9 ? "✅ 可控" : "⚠️ 关注")}）");
+            sb.AppendLine($"- 进度偏差 SV：{evm.ScheduleVariance:F0} | 成本偏差 CV：{evm.CostVariance:F0}");
+            sb.AppendLine($"- 总预算 BAC：{evm.BudgetAtCompletion:N0} | 估算完工 EAC：{evm.EstimateAtCompletion:N0}");
+            if (evm.MonthlyTrend.Count > 1)
+            {
+                var trend = evm.MonthlyTrend.OrderByDescending(m => m.Month).Take(3).ToList();
+                sb.AppendLine($"- SPI 近期趋势：{string.Join(" → ", trend.Select(m => $"{m.Month}({m.SPI:F2})"))}");
+            }
+            return sb.ToString();
+        }
+        catch (Exception ex) { return $"❌ 获取 EVM 分析失败：{ex.Message}"; }
+    }
+
+    private async Task<string> ExecuteGetStageCompletion(Dictionary<string, object> args)
+    {
+        var pid = GetArgInt(args, "projectId") ?? 0;
+        if (pid <= 0) return "❌ 缺少 projectId 参数";
+        try
+        {
+            var sc = await AnalysisService.GetStageCompletionAsync(pid);
+            if (sc == null) return $"❌ 项目 ID={pid} 无阶段数据";
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"📋 **阶段完成率（{sc.DetectionMethod}）**");
+            sb.AppendLine($"- 整体：{sc.CompletedStages}/{sc.TotalStages} 阶段完成，完成率 {sc.OverallPct:F1}%");
+            foreach (var s in sc.Stages.Take(8))
+            {
+                var icon = s.Status == "completed" ? "✅" : s.Status == "in_progress" ? "🔄" : s.Status == "delayed" ? "🔴" : "⏳";
+                var delay = s.DelayDays.HasValue && s.DelayDays != 0 ? $"，偏差 {s.DelayDays}天" : "";
+                sb.AppendLine($"  {icon} {s.StageName}：计划 {s.PlannedCompletionPct}% / 实际 {s.ActualCompletionPct}%（{s.CompletedTasks}/{s.TotalTasks}任务）{delay}");
+            }
+            return sb.ToString();
+        }
+        catch (Exception ex) { return $"❌ 获取阶段完成率失败：{ex.Message}"; }
+    }
+
+    private async Task<string> ExecuteGetScheduleVariance(Dictionary<string, object> args)
+    {
+        var pid = GetArgInt(args, "projectId") ?? 0;
+        if (pid <= 0) return "❌ 缺少 projectId 参数";
+        try
+        {
+            var sv = await AnalysisService.GetScheduleVarianceAsync(pid);
+            if (sv == null) return $"❌ 项目 ID={pid} 无偏差数据";
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"⏱ **工期偏差分析**");
+            sb.AppendLine($"- ✅ 提前完成：{sv.AheadCount}个 | ⏱ 按时完成：{sv.OnTimeCount}个 | 🔴 延后完成：{sv.BehindCount}个 | ⏳ 进行中：{sv.InProgressCount}个 | 📋 未开始：{sv.NotStartedCount}个");
+            if (sv.TotalDelayDays > 0)
+                sb.AppendLine($"- 累计延后天数：{sv.TotalDelayDays}天");
+            if (sv.TotalAheadDays > 0)
+                sb.AppendLine($"- 累计提前天数：{sv.TotalAheadDays}天");
+            if (sv.Items.Any(i => i.Status == "behind"))
+            {
+                sb.AppendLine($"\n**延后任务 TOP5：**");
+                foreach (var item in sv.Items.Where(i => i.Status == "behind").OrderByDescending(i => Math.Abs(i.VarianceDays ?? 0)).Take(5))
+                {
+                    var planEnd = item.PlanEnd.ToString("MM/dd");
+                    var actualEnd = item.ActualEnd?.ToString("MM/dd") ?? "未完成";
+                    var delayDays = Math.Abs(item.VarianceDays ?? 0);
+                    sb.AppendLine($"  🔴 {item.TaskCode} {item.TaskName}：计划 {planEnd}，实际 {actualEnd}，延后 {delayDays}天{(item.IsCritical ? " ⚠️ 关键路径" : "")}");
+                }
+            }
+            return sb.ToString();
+        }
+        catch (Exception ex) { return $"❌ 获取工期偏差失败：{ex.Message}"; }
+    }
+
+    private async Task<string> ExecuteGetCriticalPath(Dictionary<string, object> args)
+    {
+        var pid = GetArgInt(args, "projectId") ?? 0;
+        if (pid <= 0) return "❌ 缺少 projectId 参数";
+        try
+        {
+            var project = await ProjectService.GetProjectByIdAsync(pid);
+            if (project == null) return $"❌ 项目 ID={pid} 不存在";
+            var tasks = await ProjectService.GetTasksByProjectIdAsync(pid);
+            var analysis = AnalysisService.AnalyzeProject(project, tasks);
+            if (analysis == null || !analysis.CriticalPathTasks.Any())
+                return $"项目 ID={pid} 无关键路径数据";
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"🔴 **关键路径（共 {analysis.CriticalPathTasks.Count} 个任务）**");
+            foreach (var t in analysis.CriticalPathTasks.Take(10))
+            {
+                var floatStr = t.TotalFloat.HasValue ? $"时差={t.TotalFloat}天" : "";
+                var respStr = string.IsNullOrEmpty(t.ResponsiblePerson) ? "" : $"负责人={t.ResponsiblePerson}";
+                sb.AppendLine($"  🔴 {t.Code} {t.Name}：{t.PlanStartDate:MM/dd}→{t.PlanEndDate:MM/dd}（{t.PlanDuration}天）{floatStr} {respStr}");
+            }
+            if (analysis.CriticalPathTasks.Count > 10)
+                sb.AppendLine($"  ... 还有 {analysis.CriticalPathTasks.Count - 10} 个关键任务");
+            sb.AppendLine($"\n- 项目工期：{analysis.ProjectDurationDays}天");
+            sb.AppendLine($"- 关键路径长度：{analysis.CriticalPathTasks.Count}个任务");
+            return sb.ToString();
+        }
+        catch (Exception ex) { return $"❌ 获取关键路径失败：{ex.Message}"; }
+    }
+
+    // ===== JSON 解析容错 =====
+
+    private static Dictionary<string, object>? TryDeserializeArgs(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            // 1. 标准解析
+            return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+        }
+        catch
+        {
+            try
+            {
+                // 2. 宽松解析：将未加引号的键名加引号
+                var fixedJson = System.Text.RegularExpressions.Regex.Replace(json,
+                    @"(?<=[\{\,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:", m => $"\"{m.Groups[1].Value}\":");
+                return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(fixedJson);
+            }
+            catch
+            {
+                try
+                {
+                    // 3. 进一步宽松：处理单引号键名
+                    var fixedJson2 = System.Text.RegularExpressions.Regex.Replace(json,
+                        @"'([^']+)'\s*:", m => $"\"{m.Groups[1].Value}\":");
+                    return System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(fixedJson2);
+                }
+                catch { return null; }
+            }
+        }
     }
 
     // ===== 参数获取辅助方法 =====
