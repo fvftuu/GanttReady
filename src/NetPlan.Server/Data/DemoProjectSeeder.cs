@@ -47,6 +47,7 @@ public static class DemoProjectSeeder
                     PlanEndDate = td.Start.AddDays(td.Duration - 1),
                     PlanDuration = td.Duration,
                     CompletionPercentage = td.Completion,
+                    ActualStartDate = td.Completion > 0 ? td.Start : (DateTime?)null,
                     ActualEndDate = td.Completion >= 100 ? td.Start.AddDays(td.Duration - 1) : null,
                     BudgetCost = td.Budget,
                     IsMilestone = td.IsMilestone,

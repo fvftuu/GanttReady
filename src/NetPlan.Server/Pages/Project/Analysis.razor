@@ -551,6 +551,9 @@
 
         var projName = string.IsNullOrEmpty(_currentProjectName) ? "当前项目" : _currentProjectName;
 
+        // 分析基准日期
+        sb.AppendLine($"- **分析基准日期**：{DateTime.Today:yyyy-MM-dd}");
+
         // 1. 项目概况
         sb.AppendLine($"## 项目基本信息");
         sb.AppendLine($"- **项目名称**：{projName}");

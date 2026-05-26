@@ -449,13 +449,14 @@ else
         }
         catch { }
 
-        try
-        {
-            var analysisJson = await JS.InvokeAsync<string>("localStorage.getItem", "ai_latest_analysis");
-            if (!string.IsNullOrEmpty(analysisJson))
-                ctx.AppendLine($"【最新 AI 分析报告】\n{analysisJson}\n");
-        }
-        catch { }
+        // 已禁用：localStorage 中的旧分析报告可能含过期日期，混淆 AI 对当前日期的判断
+        // try
+        // {
+        //     var analysisJson = await JS.InvokeAsync<string>("localStorage.getItem", "ai_latest_analysis");
+        //     if (!string.IsNullOrEmpty(analysisJson))
+        //         ctx.AppendLine($"【最新 AI 分析报告】\n{analysisJson}\n");
+        // }
+        // catch { }
 
         try
         {
@@ -1327,9 +1328,12 @@ else
                 continue;
             }
             var statusIcon = t.CompletionPercentage >= 100 ? "✅" : t.CompletionPercentage > 0 ? "🔄" : "⏳";
+            var startInfo = t.ActualStartDate.HasValue
+                ? $"实际开工 {t.ActualStartDate:yyyy-MM-dd}"
+                : t.CompletionPercentage > 0 ? "已开工（日期未录）" : "尚未开工";
             var costInfo = t.BudgetCost > 0 ? $" 预算¥{t.BudgetCost:N0}" : "";
             if (t.ActualCost > 0) costInfo += $" 实际¥{t.ActualCost:N0}";
-            sb.AppendLine($"  {statusIcon} {t.Name} | 工期 {t.PlanDuration}天 | {t.PlanStartDate:yyyy-MM-dd} → {t.PlanEndDate:yyyy-MM-dd} | 负责人 {t.ResponsiblePerson ?? "-"} | {t.CompletionPercentage}%{costInfo}");
+            sb.AppendLine($"  {statusIcon} {t.Name} | 工期 {t.PlanDuration}天 | {t.PlanStartDate:yyyy-MM-dd} → {t.PlanEndDate:yyyy-MM-dd} | 负责人 {t.ResponsiblePerson ?? "-"} | {t.CompletionPercentage}% | {startInfo}{costInfo}");
             totalBudget += t.BudgetCost;
             if (t.ActualCost > 0) totalActual += t.ActualCost.Value;
         }
@@ -1516,13 +1520,14 @@ else
             var sc = await AnalysisService.GetStageCompletionAsync(pid);
             if (sc == null) return $"❌ 项目 ID={pid} 无阶段数据";
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"📋 **阶段完成率（{sc.DetectionMethod}）**");
+            sb.AppendLine($"📋 **阶段/分组完成率（{sc.DetectionMethod}）**");
+            sb.AppendLine($"- ⚠️ 注意：以下每个阶段包含多个任务，百分比和计数为阶段总统计，非单个任务数据");
             sb.AppendLine($"- 整体：{sc.CompletedStages}/{sc.TotalStages} 阶段完成，完成率 {sc.OverallPct:F1}%");
             foreach (var s in sc.Stages.Take(8))
             {
                 var icon = s.Status == "completed" ? "✅" : s.Status == "in_progress" ? "🔄" : s.Status == "delayed" ? "🔴" : "⏳";
                 var delay = s.DelayDays.HasValue && s.DelayDays != 0 ? $"，偏差 {s.DelayDays}天" : "";
-                sb.AppendLine($"  {icon} {s.StageName}：计划 {s.PlannedCompletionPct}% / 实际 {s.ActualCompletionPct}%（{s.CompletedTasks}/{s.TotalTasks}任务）{delay}");
+                sb.AppendLine($"  {icon} 【阶段】{s.StageName}：计划 {s.PlannedCompletionPct}% / 实际 {s.ActualCompletionPct}%（阶段内 {s.CompletedTasks}/{s.TotalTasks}任务已完成）{delay}");
             }
             return sb.ToString();
         }

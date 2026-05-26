@@ -49,7 +49,25 @@ public static class AiToolDefinitions
     public static List<AiToolDefinition> GetAllChainTools()
     {
         // 为每个项目工具手动创建定义，避免不能与具体 projectId 绑定
-        return GetGlobalTools().Concat(GetProjectTools(0)).ToList();
+        var tools = GetGlobalTools().Concat(GetProjectTools(0)).ToList();
+        // 分析工具在所有场景下可用
+        tools.AddRange(GetAnalysisTools());
+        return tools;
+    }
+
+    /// <summary>
+    /// 分析工具（不依赖 projectId 绑定，由工具参数指定）
+    /// </summary>
+    public static List<AiToolDefinition> GetAnalysisTools()
+    {
+        return new List<AiToolDefinition>
+        {
+            ProjectOverviewTool(),
+            EvmAnalysisTool(),
+            StageCompletionTool(),
+            ScheduleVarianceTool(),
+            CriticalPathTool(),
+        };
     }
 
     // ==================== 工具定义 ====================
@@ -226,6 +244,98 @@ public static class AiToolDefinitions
                 properties = new
                 {
                     projectId = new { type = "integer", description = "所属项目ID" }
+                },
+                required = new[] { "projectId" }
+            }
+        };
+    }
+
+    // ==================== 分析工具定义 ====================
+
+    public static AiToolDefinition ProjectOverviewTool()
+    {
+        return new AiToolDefinition
+        {
+            Name = "get_project_overview",
+            Description = "获取项目概况：总任务数、完成率、关键路径任务数、延迟任务数、资源分配数。在用户询问项目整体状况时优先使用。",
+            Parameters = new
+            {
+                type = "object",
+                properties = new
+                {
+                    projectId = new { type = "integer", description = "项目ID" }
+                },
+                required = new[] { "projectId" }
+            }
+        };
+    }
+
+    public static AiToolDefinition EvmAnalysisTool()
+    {
+        return new AiToolDefinition
+        {
+            Name = "get_evm_analysis",
+            Description = "获取挣值分析（EVM）结果：计划价值PV、挣值EV、实际成本AC、进度绩效SPI、成本绩效CPI、进度偏差SV、成本偏差CV、综合绩效CSI、总预算BAC、估算完工EAC、月度SPI趋势。在用户询问进度绩效、成本绩效时使用。",
+            Parameters = new
+            {
+                type = "object",
+                properties = new
+                {
+                    projectId = new { type = "integer", description = "项目ID" }
+                },
+                required = new[] { "projectId" }
+            }
+        };
+    }
+
+    public static AiToolDefinition StageCompletionTool()
+    {
+        return new AiToolDefinition
+        {
+            Name = "get_stage_completion",
+            Description = "【阶段分组数据】获取按里程碑/WBS分组的阶段完成率。⚠️ 每个阶段包含多个任务，阶段统计（任务数/完成率）不能引用到单个任务上。返回各阶段名称、计划完成%、实际完成%、阶段内任务总数/已完成数、延迟天数、状态。在用户询问各阶段或分组完成情况时使用。",
+            Parameters = new
+            {
+                type = "object",
+                properties = new
+                {
+                    projectId = new { type = "integer", description = "项目ID" }
+                },
+                required = new[] { "projectId" }
+            }
+        };
+    }
+
+    public static AiToolDefinition ScheduleVarianceTool()
+    {
+        return new AiToolDefinition
+        {
+            Name = "get_schedule_variance",
+            Description = "获取工期偏差分析：提前/按时/延后任务数量及列表、总偏差天数。在用户询问哪些任务滞后、进度偏差时使用。",
+            Parameters = new
+            {
+                type = "object",
+                properties = new
+                {
+                    projectId = new { type = "integer", description = "项目ID" }
+                },
+                required = new[] { "projectId" }
+            }
+        };
+    }
+
+    public static AiToolDefinition CriticalPathTool()
+    {
+        return new AiToolDefinition
+        {
+            Name = "get_critical_path",
+            Description = "获取关键路径：所有关键路径任务的代码、名称、计划起止日期、工期、时差、负责人。在用户询问关键路径、瓶颈任务时使用。",
+            Parameters = new
+            {
+                type = "object",
+                properties = new
+                {
+                    projectId = new { type = "integer", description = "项目ID" }
                 },
                 required = new[] { "projectId" }
             }

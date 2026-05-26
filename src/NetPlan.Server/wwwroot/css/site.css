@@ -2393,3 +2393,335 @@ body {
 .report-annual .cover .overall { font-size: 48px; margin: 10px 0; }
 .report-annual .cover h1 { font-size: 22px; color: var(--text); }
 .report-annual .cover .meta { font-size: 13px; color: var(--text-secondary); line-height: 2; }
+
+/* ===== 分析页指标卡片 ===== */
+.analysis-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.analysis-metric-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.2s, transform 0.15s;
+    position: relative;
+    overflow: hidden;
+}
+
+.analysis-metric-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.analysis-metric-card .metric-accent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.analysis-metric-card .metric-accent.green { background: var(--success); }
+.analysis-metric-card .metric-accent.yellow { background: var(--warning); }
+.analysis-metric-card .metric-accent.red { background: var(--danger); }
+.analysis-metric-card .metric-accent.blue { background: var(--primary); }
+
+.analysis-metric-card .metric-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.analysis-metric-card .metric-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 4px;
+}
+
+.analysis-metric-card .metric-value.green { color: var(--success); }
+.analysis-metric-card .metric-value.yellow { color: var(--warning); }
+.analysis-metric-card .metric-value.red { color: var(--danger); }
+
+.analysis-metric-card .metric-trend {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.analysis-metric-card .metric-trend.up { color: var(--success); }
+.analysis-metric-card .metric-trend.down { color: var(--danger); }
+.analysis-metric-card .metric-trend.flat { color: var(--text-secondary); }
+
+/* ===== 分析页 EVM 指标条 ===== */
+.analysis-evms {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.analysis-evms .evm-item {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    text-align: center;
+}
+
+.analysis-evms .evm-item .evm-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+}
+
+.analysis-evms .evm-item .evm-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.analysis-evms .evm-item .evm-value.green { color: var(--success); }
+.analysis-evms .evm-item .evm-value.yellow { color: var(--warning); }
+.analysis-evms .evm-item .evm-value.red { color: var(--danger); }
+
+.analysis-evms .evm-item .evm-tag {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 8px;
+    border-radius: 8px;
+    margin-top: 2px;
+    font-weight: 500;
+}
+
+.analysis-evms .evm-item .evm-tag.ok { background: #eefaf3; color: var(--success); }
+.analysis-evms .evm-item .evm-tag.warn { background: #fef7ed; color: var(--warning); }
+.analysis-evms .evm-item .evm-tag.bad { background: #fef0f0; color: var(--danger); }
+
+/* ===== 阶段完成率进度条 ===== */
+.stage-progress-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.stage-progress-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.stage-progress-item .stage-name {
+    width: 100px;
+    font-size: 13px;
+    color: var(--text);
+    flex-shrink: 0;
+    text-align: right;
+    font-weight: 500;
+}
+
+.stage-progress-item .stage-bar-track {
+    flex: 1;
+    height: 20px;
+    background: var(--bg);
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.stage-progress-item .stage-bar-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.5s ease;
+    position: relative;
+}
+
+.stage-progress-item .stage-bar-fill.ok { background: linear-gradient(90deg, #52c41a, #73d13d); }
+.stage-progress-item .stage-bar-fill.warn { background: linear-gradient(90deg, #faad14, #ffc53d); }
+.stage-progress-item .stage-bar-fill.bad { background: linear-gradient(90deg, #ff4d4f, #ff7875); }
+.stage-progress-item .stage-bar-fill.pending { background: linear-gradient(90deg, #d9d9d9, #e8e8e8); }
+
+.stage-progress-item .stage-bar-fill .stage-pct {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.stage-progress-item .stage-status-icon {
+    font-size: 16px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.stage-progress-item .stage-delay {
+    font-size: 11px;
+    color: var(--danger);
+    flex-shrink: 0;
+    min-width: 50px;
+}
+
+/* ===== 里程碑时间轴 ===== */
+.milestone-timeline {
+    position: relative;
+    padding-left: 24px;
+}
+
+.milestone-timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--border);
+    border-radius: 1px;
+}
+
+.milestone-item {
+    position: relative;
+    padding: 8px 0 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.milestone-item::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: #fff;
+}
+
+.milestone-item.done::before { background: var(--success); border-color: var(--success); }
+.milestone-item.done .milestone-name { color: var(--text); }
+.milestone-item.overdue::before { background: var(--danger); border-color: var(--danger); }
+.milestone-item.overdue .milestone-name { color: var(--danger); }
+.milestone-item.upcoming::before { border-color: var(--primary); background: var(--primary-light); }
+.milestone-item .milestone-date { font-size: 12px; color: var(--text-secondary); flex-shrink: 0; min-width: 90px; }
+.milestone-item .milestone-name { font-size: 13px; flex: 1; }
+.milestone-item .milestone-status { font-size: 11px; }
+
+/* ===== 资源冲突小表格 ===== */
+.resource-conflict-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.resource-conflict-table th {
+    padding: 8px 12px;
+    background: var(--bg);
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-align: left;
+    border-bottom: 2px solid var(--border);
+}
+.resource-conflict-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+}
+.resource-conflict-table tr:hover td {
+    background: #f8f9fb;
+}
+.resource-conflict-table .resource-name { font-weight: 500; }
+.resource-conflict-table .conflict-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 8px;
+    font-size: 11px;
+    background: #fef0f0;
+    color: var(--danger);
+}
+
+/* ===== 关键路径小摘要 ===== */
+.critical-path-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.critical-path-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: 13px;
+}
+.critical-path-list li:last-child { border-bottom: none; }
+.critical-path-list .cp-code { font-weight: 600; color: var(--danger); font-size: 12px; min-width: 60px; }
+.critical-path-list .cp-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.critical-path-list .cp-dates { font-size: 12px; color: var(--text-secondary); flex-shrink: 0; }
+.critical-path-list .cp-float { font-size: 12px; color: var(--text-secondary); min-width: 40px; text-align: right; }
+
+/* ===== AI 报告区域 ===== */
+.analysis-report-section {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 32px;
+    box-shadow: var(--shadow-sm);
+    max-width: 960px;
+}
+.analysis-report-section .report-loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-secondary);
+}
+.analysis-report-section .report-loading .loading-spinner {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 12px;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+.analysis-report-section .report-placeholder {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+/* ===== 分析页子标题 ===== */
+.analysis-section-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.analysis-section-title .title-accent {
+    display: inline-block;
+    width: 3px;
+    height: 16px;
+    background: var(--primary);
+    border-radius: 2px;
+}
