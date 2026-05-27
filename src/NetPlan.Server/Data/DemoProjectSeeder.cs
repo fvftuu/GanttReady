@@ -59,6 +59,26 @@ public static class DemoProjectSeeder
             }
             db.SaveChanges();
 
+            // 设置父子层级关系（ParentTaskId）
+            foreach (var task in taskList)
+            {
+                var td = tasks[taskList.IndexOf(task)];
+                if (!string.IsNullOrEmpty(td.ParentTaskCode))
+                {
+                    var parent = taskList.FirstOrDefault(t => t.Code == td.ParentTaskCode);
+                    if (parent != null)
+                    {
+                        task.ParentTaskId = parent.Id;
+                        task.OutlineLevel = td.OutlineLevel;
+                    }
+                }
+                else
+                {
+                    task.OutlineLevel = td.OutlineLevel;
+                }
+            }
+            db.SaveChanges();
+
             // 添加资源分配
             if (assignments != null)
             {
@@ -741,6 +761,61 @@ public static class DemoProjectSeeder
                 (11, 12, 0), // 归档 → 项目总结
             };
         }
+        else if (projectCode.StartsWith("WIND-"))
+        {
+            plan = new()
+            {
+                (2, 3, 0),   (2, 4, 0),   (3, 6, 0),   (4, 6, 0),   (6, 7, 0),
+                (7, 10, 0),  (7, 13, 0),
+                (10, 11, 0), (13, 17, 0), (14, 20, 0), (11, 21, 0),
+                (18, 24, 0), (17, 24, 0), (20, 27, 0), (21, 28, 0),
+                (24, 25, 0), (24, 31, 0), (25, 31, 0),
+                (27, 28, 0), (31, 32, 0),
+                (32, 34, 0), (32, 35, 0), (34, 36, 0), (35, 36, 0), (36, 37, 0),
+                (37, 39, 0), (39, 40, 0),
+            };
+        }
+        else if (projectCode.StartsWith("SHIP-"))
+        {
+            plan = new()
+            {
+                (2, 3, 0),   (3, 5, 0),   (3, 6, 0),
+                (5, 9, 0),   (6, 12, 0),  (6, 13, 0),  (9, 10, 0),
+                (9, 15, 0),  (10, 15, 0),
+                (15, 16, 0), (16, 18, 0), (18, 19, 0), (19, 20, 0),
+                (20, 23, 0), (23, 24, 0), (24, 25, 0),
+                (25, 27, 0), (27, 28, 0), (27, 29, 0), (28, 29, 0),
+                (29, 31, 0), (31, 32, 0), (32, 33, 0), (33, 34, 0),
+            };
+        }
+        else if (projectCode.StartsWith("NEV-"))
+        {
+            plan = new()
+            {
+                (2, 3, 0),   (3, 5, 0),   (3, 8, 0),   (3, 12, 0),
+                (5, 6, 0),   (6, 7, 0),
+                (5, 16, 0),  (8, 16, 0),
+                (12, 13, 0), (13, 14, 0),
+                (16, 18, 0), (18, 19, 0), (19, 20, 0),
+                (3, 22, 10), (22, 23, 0),
+                (20, 25, 0), (23, 25, 0),
+                (25, 26, 0), (26, 27, 0),
+            };
+        }
+        else if (projectCode.StartsWith("AIDC-"))
+        {
+            plan = new()
+            {
+                (1, 2, 0),   (2, 4, 0),
+                (4, 5, 0),
+                (5, 7, 0),   (5, 9, 0),
+                (7, 8, 0),   (8, 10, 0),
+                (9, 12, 0),  (11, 12, 0),
+                (12, 13, 0), (13, 14, 0),
+                (10, 15, 0), (14, 15, 0),
+                (15, 16, 0), (16, 17, 0),
+            };
+        }
 
         return plan;
     }
@@ -1033,6 +1108,307 @@ public static class DemoProjectSeeder
                 new() { Code = "GOV-QA", Name = "质量监督员", Type = ResourceType.Labor, Unit = "人", Quantity = 2, HourlyCost = 80m, Notes = "工程监理" },
             },
             null),
+
+            // ===== 海上风电项目 (WIND-2024) =====
+            (new Project
+            {
+                Code = "WIND-2024",
+                Name = "XX海域海上风电项目",
+                Description = "500MW 海上风电场建设，含 50 台 10MW 风机、海上升压站、送出工程",
+                PlanStartDate = new DateTime(2024, 1, 15),
+                PlanEndDate = new DateTime(2026, 6, 30),
+                WorkingHoursPerDay = 8, WorkdaysPerWeek = 5,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            },
+            new List<TaskDef>
+            {
+                // === Level 1: 前期准备与审批 ===
+                new("WP-01", "前期准备与审批", 0, new DateTime(2024, 1, 15), "", 100, 0, false, null, 1, "前期工作阶段"),
+                new("WP-01.1", "可行性研究", 0, new DateTime(2024, 1, 15), "赵总工", 100, 0, false, "WP-01", 2),
+                new("WP-01.1.1", "风资源评估", 45, new DateTime(2024, 1, 15), "刘测风", 100, 200000, false, "WP-01.1", 3, "测风塔数据分析/风资源图谱/Windographer 报告"),
+                new("WP-01.1.2", "地质勘察", 60, new DateTime(2024, 2, 15), "王地质", 100, 350000, false, "WP-01.1", 3, "钻孔取样/静力触探/地层分析"),
+                new("WP-01.1.3", "海洋环评", 90, new DateTime(2024, 1, 20), "赵总工", 100, 150000, false, "WP-01.1", 3, "生态环境现状调查/影响预测/环保措施"),
+                new("WP-01.2", "项目核准", 0, new DateTime(2024, 4, 15), "赵总工", 100, 0, false, "WP-01", 2),
+                new("WP-01.2.1", "可研报告编制", 45, new DateTime(2024, 4, 15), "赵总工", 100, 400000, false, "WP-01.2", 3, "风机选型/发电量计算/经济评价"),
+                new("WP-01.2.2", "项目核准获批", 0, new DateTime(2024, 6, 1), "张总经理", 100, 50000, true, "WP-01.2", 3, "里程碑—省发改委核准批复"),
+                // === Level 1: 工程设计 ===
+                new("WP-02", "工程设计", 0, new DateTime(2024, 6, 15), "", 80, 0, false, null, 1),
+                new("WP-02.1", "风机基础设计", 0, new DateTime(2024, 6, 15), "李设计", 90, 0, false, "WP-02", 2),
+                new("WP-02.1.1", "单桩基础设计", 60, new DateTime(2024, 6, 15), "李设计", 90, 500000, false, "WP-02.1", 3, "地质条件/波浪荷载/疲劳分析"),
+                new("WP-02.1.2", "海上升压站设计", 75, new DateTime(2024, 7, 15), "周电气", 85, 600000, false, "WP-02.1", 3, "主接线/设备布置/结构设计"),
+                new("WP-02.2", "风机与电气设计", 0, new DateTime(2024, 8, 1), "周电气", 70, 0, false, "WP-02", 2),
+                new("WP-02.2.1", "风机招标技术规范", 30, new DateTime(2024, 8, 1), "周电气", 100, 80000, false, "WP-02.2", 3, "10MW 风机技术参数/招标文件"),
+                new("WP-02.2.2", "海缆路由设计", 45, new DateTime(2024, 9, 1), "陈海缆", 60, 300000, false, "WP-02.2", 3, "路由勘察/埋设深度/登陆点"),
+                // === Level 1: 物资采购 ===
+                new("WP-03", "物资采购", 0, new DateTime(2024, 9, 1), "", 40, 0, false, null, 1),
+                new("WP-03.1", "风机采购", 0, new DateTime(2024, 9, 1), "王采购", 50, 0, false, "WP-03", 2),
+                new("WP-03.1.1", "风机公开招标", 60, new DateTime(2024, 9, 1), "王采购", 80, 100000, false, "WP-03.1", 3, "50 台 10MW 风机国际招标"),
+                new("WP-03.1.2", "风机合同签订", 15, new DateTime(2024, 11, 1), "张总经理", 100, 30000, true, "WP-03.1", 3, "里程碑—风机采购合同签署"),
+                new("WP-03.2", "海缆与电气采购", 0, new DateTime(2024, 10, 1), "王采购", 30, 0, false, "WP-03", 2),
+                new("WP-03.2.1", "主海缆采购", 45, new DateTime(2024, 10, 1), "王采购", 40, 8000000, false, "WP-03.2", 3, "220kV 海底电缆约 30km"),
+                new("WP-03.2.2", "升压站主设备采购", 60, new DateTime(2024, 11, 1), "王采购", 30, 15000000, false, "WP-03.2", 3, "主变/GIS/开关柜等"),
+                // === Level 1: 海上施工 ===
+                new("WP-04", "海上施工", 0, new DateTime(2025, 3, 1), "", 20, 0, false, null, 1),
+                new("WP-04.1", "基础施工", 0, new DateTime(2025, 3, 1), "刘施工", 25, 0, false, "WP-04", 2),
+                new("WP-04.1.1", "单桩沉桩施工", 120, new DateTime(2025, 3, 1), "刘施工", 30, 25000000, false, "WP-04.1", 3, "50 根单桩液压锤沉桩/垂直度检测"),
+                new("WP-04.1.2", "基础冲刷防护", 90, new DateTime(2025, 5, 1), "刘施工", 20, 5000000, false, "WP-04.1", 3, "抛石防护/砂被铺设"),
+                new("WP-04.2", "海缆敷设", 0, new DateTime(2025, 4, 1), "陈海缆", 15, 0, false, "WP-04", 2),
+                new("WP-04.2.1", "阵列海缆敷设", 90, new DateTime(2025, 4, 1), "陈海缆", 15, 8000000, false, "WP-04.2", 3, "35kV 阵列海缆/敷设船施工"),
+                new("WP-04.2.2", "送出海缆敷设", 75, new DateTime(2025, 5, 15), "陈海缆", 10, 12000000, false, "WP-04.2", 3, "220kV 主海缆/登陆段施工"),
+                // === Level 1: 风机安装 ===
+                new("WP-05", "风机安装与调试", 0, new DateTime(2025, 6, 1), "", 10, 0, false, null, 1),
+                new("WP-05.1", "风机安装", 0, new DateTime(2025, 6, 1), "刘施工", 10, 0, false, "WP-05", 2),
+                new("WP-05.1.1", "塔筒安装", 90, new DateTime(2025, 6, 1), "刘施工", 10, 10000000, false, "WP-05.1", 3, "50 台塔筒分段吊装/高强螺栓紧固"),
+                new("WP-05.1.2", "机舱与叶片安装", 120, new DateTime(2025, 7, 1), "刘施工", 8, 20000000, false, "WP-05.1", 3, "机舱吊装/三叶片轮毂组装/整体吊装"),
+                new("WP-05.2", "调试并网", 0, new DateTime(2025, 10, 1), "周电气", 0, 0, false, "WP-05", 2),
+                new("WP-05.2.1", "海上升压站调试", 60, new DateTime(2025, 10, 1), "周电气", 0, 2000000, false, "WP-05.2", 3, "分系统调试/整站联调"),
+                new("WP-05.2.2", "风机静态调试", 45, new DateTime(2025, 11, 1), "周电气", 0, 1500000, false, "WP-05.2", 3, "安全链测试/变桨测试/偏航测试"),
+                new("WP-05.2.3", "风机动态调试", 60, new DateTime(2025, 12, 1), "周电气", 0, 2000000, false, "WP-05.2", 3, "发电测试/功率曲线/电网适应性"),
+                new("WP-05.2.4", "全容量并网发电", 0, new DateTime(2026, 2, 1), "张总经理", 0, 100000, true, "WP-05.2", 3, "里程碑—50 台风机全部并网"),
+                // === Level 1: 竣工验收 ===
+                new("WP-06", "竣工验收", 0, new DateTime(2026, 2, 15), "", 0, 0, false, null, 1),
+                new("WP-06.0.1", "240h 试运行", 30, new DateTime(2026, 2, 15), "赵总工", 0, 500000, false, "WP-06", 2, "连续运行考核/可利用率≥95%"),
+                new("WP-06.0.2", "竣工验收", 30, new DateTime(2026, 3, 15), "张总经理", 0, 300000, true, "WP-06", 2, "里程碑—专家组验收/移交生产"),
+            },
+            new List<Resource>
+            {
+                new() { Code = "W-PM", Name = "项目经理", Type = ResourceType.Labor, Unit = "人", Quantity = 1, HourlyCost = 180m, Notes = "项目管理" },
+                new() { Code = "W-ENG", Name = "结构工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 3, HourlyCost = 120m, Notes = "基础设计/施工" },
+                new() { Code = "W-ELEC", Name = "电气工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 2, HourlyCost = 120m, Notes = "电气/调试" },
+                new() { Code = "W-GEO", Name = "地质工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 1, HourlyCost = 130m, Notes = "岩土勘察" },
+                new() { Code = "W-PRO", Name = "采购经理", Type = ResourceType.Labor, Unit = "人", Quantity = 1, HourlyCost = 100m, Notes = "风机/海缆采购" },
+                new() { Code = "W-CON", Name = "施工队长", Type = ResourceType.Labor, Unit = "人", Quantity = 2, HourlyCost = 110m, Notes = "海上施工管理" },
+                new() { Code = "W-QC", Name = "质量检验员", Type = ResourceType.Labor, Unit = "人", Quantity = 2, HourlyCost = 80m, Notes = "焊接/防腐检验" },
+                new() { Code = "W-CRA", Name = "大型浮吊", Type = ResourceType.Equipment, Unit = "艘", Quantity = 1, HourlyCost = 2500m, Notes = "800t 起重船" },
+                new() { Code = "W-PIL", Name = "液压打桩锤", Type = ResourceType.Equipment, Unit = "台", Quantity = 1, HourlyCost = 1800m, Notes = "IHC S-800" },
+                new() { Code = "W-CAB", Name = "海缆敷设船", Type = ResourceType.Equipment, Unit = "艘", Quantity = 1, HourlyCost = 2000m, Notes = "DP 动力定位" },
+                new() { Code = "W-STL", Name = "钢材(Q355)", Type = ResourceType.Material, Unit = "吨", Quantity = 5000, UnitPrice = 4500m, Notes = "钢管桩/塔筒" },
+                new() { Code = "W-CAB-M", Name = "海底电缆", Type = ResourceType.Material, Unit = "km", Quantity = 80, UnitPrice = 150000m, Notes = "35kV+220kV海缆" },
+            },
+            new List<(int taskIdx, string resCode, decimal qty, string notes)>
+            {
+                (2, "W-GEO", 1, "风资源评估"), (3, "W-GEO", 2, "地质勘察"), (4, "W-ENG", 1, "环评支持"),
+                (6, "W-PM", 1, "可研报告"), (10, "W-ENG", 3, "基础设计"), (11, "W-ELEC", 2, "升压站设计"),
+                (13, "W-ELEC", 1, "风机技术"), (14, "W-ENG", 1, "海缆路由"),
+                (16, "W-PRO", 2, "风机招标"), (19, "W-PRO", 2, "海缆采购"),
+                (22, "W-CON", 2, "沉桩施工"), (22, "W-PIL", 1, "沉桩"), (22, "W-CRA", 1, "吊装"),
+                (23, "W-CON", 1, "防护施工"), (25, "W-CAB", 1, "阵列海缆"), (26, "W-CAB", 1, "送出海缆"),
+                (28, "W-CRA", 1, "塔筒吊装"), (29, "W-CRA", 1, "机舱吊装"),
+                (30, "W-ELEC", 2, "升压站调试"), (31, "W-ELEC", 1, "静态调试"), (32, "W-ELEC", 2, "动态调试"),
+                (34, "W-PM", 1, "试运行"), (35, "W-PM", 1, "竣工验收"),
+            }),
+            // ===== 船舶制造项目 (SHIP-2024) =====
+            (new Project
+            {
+                Code = "SHIP-2024",
+                Name = "XX型 10000TEU 集装箱船建造",
+                Description = "万箱级集装箱船建造，含分段建造/船台合拢/舾装/试航全流程",
+                PlanStartDate = new DateTime(2024, 3, 1),
+                PlanEndDate = new DateTime(2026, 8, 31),
+                WorkingHoursPerDay = 8, WorkdaysPerWeek = 6,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            },
+            new List<TaskDef>
+            {
+                // === Level 1: 项目启动与设计 ===
+                new("SH-01", "项目启动与设计", 0, new DateTime(2024, 3, 1), "", 100, 0, false, null, 1),
+                new("SH-01.1", "项目启动", 0, new DateTime(2024, 3, 1), "陈总建造师", 100, 0, false, "SH-01", 2),
+                new("SH-01.1.1", "项目立项评审", 20, new DateTime(2024, 3, 1), "陈总建造师", 100, 100000, false, "SH-01.1", 3, "船东需求确认/技术规格书"),
+                new("SH-01.1.2", "合同设计", 45, new DateTime(2024, 3, 15), "钱设计", 100, 300000, false, "SH-01.1", 3, "总布置图/主要参数/设备选型"),
+                new("SH-01.2", "详细设计", 0, new DateTime(2024, 5, 1), "钱设计", 85, 0, false, "SH-01", 2),
+                new("SH-01.2.1", "船体结构详细设计", 90, new DateTime(2024, 5, 1), "钱设计", 85, 800000, false, "SH-01.2", 3, "有限元分析/结构图/分段划分"),
+                new("SH-01.2.2", "轮机与电气详细设计", 75, new DateTime(2024, 5, 15), "孙轮机", 80, 600000, false, "SH-01.2", 3, "机舱布置/管路系统/电气系统"),
+                // === Level 1: 物资与设备采购 ===
+                new("SH-02", "物资采购", 0, new DateTime(2024, 6, 1), "", 70, 0, false, null, 1),
+                new("SH-02.1", "钢材采购", 0, new DateTime(2024, 6, 1), "李采购", 80, 0, false, "SH-02", 2),
+                new("SH-02.1.1", "船板采购", 30, new DateTime(2024, 6, 1), "李采购", 100, 50000000, false, "SH-02.1", 3, "CCS-AH36 船板约 25000 吨"),
+                new("SH-02.1.2", "型材采购", 20, new DateTime(2024, 7, 1), "李采购", 80, 8000000, false, "SH-02.1", 3, "球扁钢/角钢/槽钢"),
+                new("SH-02.2", "主要设备采购", 0, new DateTime(2024, 7, 1), "李采购", 50, 0, false, "SH-02", 2),
+                new("SH-02.2.1", "主机采购", 60, new DateTime(2024, 7, 1), "李采购", 60, 60000000, false, "SH-02.2", 3, "MAN B&W 10S90ME-C 低速机"),
+                new("SH-02.2.2", "甲板机械采购", 45, new DateTime(2024, 8, 1), "李采购", 40, 15000000, false, "SH-02.2", 3, "锚机/绞车/舵机/舱盖"),
+                // === Level 1: 分段建造 ===
+                new("SH-03", "分段建造", 0, new DateTime(2024, 8, 1), "", 45, 0, false, null, 1),
+                new("SH-03.1", "钢材预处理", 0, new DateTime(2024, 8, 1), "吴车间", 60, 0, false, "SH-03", 2),
+                new("SH-03.1.1", "钢材预处理线", 30, new DateTime(2024, 8, 1), "吴车间", 80, 2000000, false, "SH-03.1", 3, "抛丸除锈/喷底漆/烘干"),
+                new("SH-03.1.2", "数控切割", 60, new DateTime(2024, 8, 15), "吴车间", 60, 3000000, false, "SH-03.1", 3, "等离子切割/零件分拣"),
+                new("SH-03.2", "小组立→大组立", 0, new DateTime(2024, 9, 1), "吴车间", 40, 0, false, "SH-03", 2),
+                new("SH-03.2.1", "小组立焊接", 75, new DateTime(2024, 9, 1), "吴车间", 45, 5000000, false, "SH-03.2", 3, "T 型材/肋板/框架组立"),
+                new("SH-03.2.2", "中组立", 60, new DateTime(2024, 11, 1), "吴车间", 35, 6000000, false, "SH-03.2", 3, "分段模块化组立"),
+                new("SH-03.2.3", "大组立成型", 75, new DateTime(2025, 1, 1), "吴车间", 25, 8000000, false, "SH-03.2", 3, "双层底/舷侧/甲板分段成型"),
+                // === Level 1: 船台合拢 ===
+                new("SH-04", "船台合拢", 0, new DateTime(2025, 4, 1), "", 15, 0, false, null, 1),
+                new("SH-04.0.1", "分段吊装定位", 60, new DateTime(2025, 4, 1), "刘船台", 20, 10000000, false, "SH-04", 2, "600t 龙门吊/分段总组/定位焊"),
+                new("SH-04.0.2", "大合拢焊接", 90, new DateTime(2025, 5, 1), "刘船台", 15, 8000000, false, "SH-04", 2, "主船体环形大接缝焊接/NDT 检测"),
+                new("SH-04.0.3", "船体下水", 0, new DateTime(2025, 7, 15), "陈总建造师", 0, 500000, true, "SH-04", 2, "里程碑—气囊/滑道下水"),
+                // === Level 1: 舾装工程 ===
+                new("SH-05", "舾装工程", 0, new DateTime(2025, 7, 15), "", 0, 0, false, null, 1),
+                new("SH-05.0.1", "管系安装", 90, new DateTime(2025, 7, 15), "孙轮机", 0, 12000000, false, "SH-05", 2, "管路预制/安装/压力试验"),
+                new("SH-05.0.2", "电气安装", 75, new DateTime(2025, 8, 15), "黄电气", 0, 10000000, false, "SH-05", 2, "电缆敷设/配电板安装/设备接线"),
+                new("SH-05.0.3", "内装工程", 90, new DateTime(2025, 9, 1), "周内装", 0, 15000000, false, "SH-05", 2, "绝缘敷设/舱室装修/家具安装"),
+                // === Level 1: 调试与试航 ===
+                new("SH-06", "调试与试航", 0, new DateTime(2025, 11, 1), "", 0, 0, false, null, 1),
+                new("SH-06.0.1", "码头系泊调试", 60, new DateTime(2025, 11, 1), "黄电气", 0, 3000000, false, "SH-06", 2, "主机动车/发电机/锅炉/舵机调试"),
+                new("SH-06.0.2", "倾斜试验", 7, new DateTime(2026, 1, 5), "陈总建造师", 0, 200000, false, "SH-06", 2, "重心计算/稳性校核"),
+                new("SH-06.0.3", "航海试验", 15, new DateTime(2026, 1, 15), "陈总建造师", 0, 1500000, false, "SH-06", 2, "航速测试/回转试验/Z 形操纵"),
+                new("SH-06.0.4", "交船", 0, new DateTime(2026, 2, 1), "陈总建造师", 0, 200000, true, "SH-06", 2, "里程碑—船东签字交船"),
+            },
+            new List<Resource>
+            {
+                new() { Code = "S-PM", Name = "总建造师", Type = ResourceType.Labor, Unit = "人", Quantity = 1, HourlyCost = 200m, Notes = "项目管理" },
+                new() { Code = "S-DES", Name = "船舶设计师", Type = ResourceType.Labor, Unit = "人", Quantity = 4, HourlyCost = 130m, Notes = "结构/轮机/电气设计" },
+                new() { Code = "S-PRO", Name = "采购专员", Type = ResourceType.Labor, Unit = "人", Quantity = 2, HourlyCost = 90m, Notes = "钢材/设备采购" },
+                new() { Code = "S-WLD", Name = "高级焊工", Type = ResourceType.Labor, Unit = "人", Quantity = 20, HourlyCost = 85m, Notes = "CO2/埋弧焊" },
+                new() { Code = "S-FIT", Name = "装配工", Type = ResourceType.Labor, Unit = "人", Quantity = 15, HourlyCost = 70m, Notes = "小组立/大组立" },
+                new() { Code = "S-PIP", Name = "管工", Type = ResourceType.Labor, Unit = "人", Quantity = 8, HourlyCost = 80m, Notes = "管系安装" },
+                new() { Code = "S-ELEC", Name = "电气安装工", Type = ResourceType.Labor, Unit = "人", Quantity = 6, HourlyCost = 80m, Notes = "电缆/设备安装" },
+                new() { Code = "S-QC", Name = "质量检验员", Type = ResourceType.Labor, Unit = "人", Quantity = 3, HourlyCost = 90m, Notes = "NDT/焊缝检验" },
+                new() { Code = "S-CRA", Name = "龙门吊(600t)", Type = ResourceType.Equipment, Unit = "台", Quantity = 1, HourlyCost = 3000m, Notes = "分段吊装" },
+                new() { Code = "S-CUT", Name = "等离子切割机", Type = ResourceType.Equipment, Unit = "台", Quantity = 4, HourlyCost = 200m, Notes = "钢板切割" },
+                new() { Code = "S-STL", Name = "船板(AH36)", Type = ResourceType.Material, Unit = "吨", Quantity = 25000, UnitPrice = 4800m, Notes = "船体结构钢" },
+                new() { Code = "S-PNT", Name = "船舶涂料", Type = ResourceType.Material, Unit = "吨", Quantity = 80, UnitPrice = 35000m, Notes = "环氧/防污漆" },
+            },
+            new List<(int taskIdx, string resCode, decimal qty, string notes)>
+            {
+                (2, "S-PM", 1, "立项评审"), (3, "S-DES", 4, "合同设计"),
+                (5, "S-DES", 4, "结构设计"), (6, "S-DES", 2, "轮机电气设计"),
+                (9, "S-PRO", 2, "船板采购"), (10, "S-PRO", 1, "型材采购"),
+                (12, "S-PRO", 2, "主机采购"), (13, "S-PRO", 1, "甲板机械采购"),
+                (15, "S-FIT", 5, "预处理线"), (15, "S-CUT", 2, "钢板切割"),
+                (16, "S-FIT", 8, "切割"), (16, "S-CUT", 4, "数控切割"),
+                (18, "S-WLD", 10, "小组立焊接"), (18, "S-FIT", 6, "小组立装配"),
+                (19, "S-WLD", 8, "中组立"), (20, "S-WLD", 12, "大组立"),
+                (22, "S-CRA", 1, "分段吊装"), (22, "S-FIT", 8, "定位装配"),
+                (23, "S-WLD", 15, "合拢焊接"), (23, "S-QC", 3, "NDT检验"),
+                (26, "S-PIP", 8, "管系安装"), (27, "S-ELEC", 6, "电气安装"),
+                (28, "S-FIT", 4, "内装"), (30, "S-ELEC", 4, "系泊调试"),
+                (31, "S-PM", 1, "倾斜试验"), (32, "S-PM", 1, "航海试验"),
+            }),
+
+            // ===== 新能源汽车制造项目 (NEV-2024) =====
+            (new Project
+            {
+                Code = "NEV-2024",
+                Name = "N9 智能纯电SUV研发与量产",
+                Description = "全新纯电平台中大型SUV，续航800km+，L2+级智能驾驶，2025年SOP",
+                PlanStartDate = new DateTime(2024, 4, 1),
+                PlanEndDate = new DateTime(2026, 3, 31),
+                WorkingHoursPerDay = 8, WorkdaysPerWeek = 5,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            },
+            new List<TaskDef>
+            {
+                // === Level 1: 研发与产品定义 ===
+                new("NEV-01", "研发与产品定义", 0, new DateTime(2024, 4, 1), "", 100, 0, false, null, 1),
+                new("NEV-01.1", "市场与产品定义", 0, new DateTime(2024, 4, 1), "王产品", 100, 0, false, "NEV-01", 2),
+                new("NEV-01.1.1", "市场调研与竞品分析", 45, new DateTime(2024, 4, 1), "王产品", 100, 800000, false, "NEV-01.1", 3, "12城市3000样本/竞品拆解/TMG分析"),
+                new("NEV-01.1.2", "产品定义与造型设计", 60, new DateTime(2024, 5, 15), "王产品", 90, 1500000, false, "NEV-01.1", 3, "CMF定义/油泥模型/A面数模冻结"),
+                new("NEV-01.2", "三电系统研发", 0, new DateTime(2024, 5, 15), "张三电", 75, 0, false, "NEV-01", 2),
+                new("NEV-01.2.1", "电池系统研发", 120, new DateTime(2024, 5, 15), "张三电", 70, 50000000, false, "NEV-01.2", 3, "NCM811电芯/CTP3.0/热管理系统/100kWh"),
+                new("NEV-01.2.2", "电驱系统研发", 90, new DateTime(2024, 6, 1), "李电驱", 75, 30000000, false, "NEV-01.2", 3, "800V SiC/三合一电驱/250kW"),
+                new("NEV-01.2.3", "电控系统研发", 75, new DateTime(2024, 7, 1), "李电驱", 70, 20000000, false, "NEV-01.2", 3, "VCU/BMS/MCU 全栈自研"),
+                new("NEV-01.3", "整车集成设计", 0, new DateTime(2024, 6, 1), "赵整车", 80, 0, false, "NEV-01", 2),
+                new("NEV-01.3.1", "车身与底盘设计", 90, new DateTime(2024, 6, 1), "赵整车", 80, 25000000, false, "NEV-01.3", 3, "钢铝混合车身/前双叉臂后五连杆/CDC空悬"),
+                new("NEV-01.3.2", "内外饰设计", 75, new DateTime(2024, 7, 1), "陈内饰", 85, 18000000, false, "NEV-01.3", 3, "智能座舱/HUD/零重力座椅/氛围灯"),
+                // === Level 1: 供应链与采购 ===
+                new("NEV-02", "供应链与采购", 0, new DateTime(2024, 7, 1), "", 60, 0, false, null, 1),
+                new("NEV-02.1", "供应商定点", 60, new DateTime(2024, 7, 1), "周采购", 80, 2000000, false, "NEV-02", 2, "327个零件/80家潜在供应商/定点会议"),
+                new("NEV-02.2", "模具与夹具开发", 120, new DateTime(2024, 9, 1), "周采购", 50, 35000000, false, "NEV-02", 2, "冲压模具/焊接夹具/检具共3000套"),
+                new("NEV-02.3", "长交期设备采购", 150, new DateTime(2024, 8, 1), "周采购", 45, 80000000, false, "NEV-02", 2, "压铸岛/涂装线/总装线/电池pack线"),
+                // === Level 1: 试制与试验 ===
+                new("NEV-03", "试制与试验", 0, new DateTime(2025, 1, 1), "", 30, 0, false, null, 1),
+                new("NEV-03.1", "骡车(PT)试制", 75, new DateTime(2025, 1, 1), "吴试制", 40, 15000000, false, "NEV-03", 2, "50台骡车/手工焊接/三电系统集成"),
+                new("NEV-03.2", "试验验证", 0, new DateTime(2025, 4, 1), "吴试制", 25, 0, false, "NEV-03", 2),
+                new("NEV-03.2.1", "耐久与可靠性试验", 120, new DateTime(2025, 4, 1), "吴试制", 25, 12000000, false, "NEV-03.2", 3, "等效30万km/高环/强化路/热区寒区"),
+                new("NEV-03.2.2", "碰撞安全试验", 60, new DateTime(2025, 6, 1), "吴试制", 20, 8000000, false, "NEV-03.2", 3, "C-NCAP五星/正面40%/侧面/柱碰"),
+                new("NEV-03.2.3", "整车公告与认证", 90, new DateTime(2025, 7, 1), "吴试制", 10, 5000000, false, "NEV-03.2", 3, "工信部公告/3C/环保信息公开"),
+                // === Level 1: 产线与量产准备 ===
+                new("NEV-04", "产线与量产准备", 0, new DateTime(2025, 2, 1), "", 15, 0, false, null, 1),
+                new("NEV-04.1", "四大工艺产线建设", 180, new DateTime(2025, 2, 1), "刘厂长", 20, 250000000, false, "NEV-04", 2, "冲压/焊装/涂装/总装线安装调试"),
+                new("NEV-04.2", "工艺验证与预生产", 90, new DateTime(2025, 8, 1), "刘厂长", 10, 20000000, false, "NEV-04", 2, "PPAP/过程审核/小批量试产100台"),
+                // === Level 1: SOP与交付 ===
+                new("NEV-05", "SOP与交付", 0, new DateTime(2025, 11, 1), "", 0, 0, false, null, 1),
+                new("NEV-05.0.1", "SOP 批准", 0, new DateTime(2025, 11, 1), "赵总裁", 0, 500000, true, "NEV-05", 2, "里程碑—SOP签字/首批量产车下线"),
+                new("NEV-05.0.2", "产能爬坡", 90, new DateTime(2025, 11, 1), "刘厂长", 0, 15000000, false, "NEV-05", 2, "0→5000台/月 爬坡计划"),
+                new("NEV-05.0.3", "首批用户交付", 0, new DateTime(2026, 2, 1), "赵总裁", 0, 2000000, true, "NEV-05", 2, "里程碑—首批1000台交付车主"),
+            },
+            new List<Resource>
+            {
+                new() { Code = "N-PM", Name = "项目经理", Type = ResourceType.Labor, Unit = "人", Quantity = 2, HourlyCost = 180m, Notes = "整车项目管理" },
+                new() { Code = "N-DES", Name = "车身设计师", Type = ResourceType.Labor, Unit = "人", Quantity = 8, HourlyCost = 130m, Notes = "CATIA/UG" },
+                new() { Code = "N-EE", Name = "三电工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 6, HourlyCost = 140m, Notes = "电池/电驱/电控" },
+                new() { Code = "N-INT", Name = "内饰设计师", Type = ResourceType.Labor, Unit = "人", Quantity = 4, HourlyCost = 120m, Notes = "造型/色彩面料" },
+                new() { Code = "N-PRO", Name = "采购工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 5, HourlyCost = 100m, Notes = "供应链开发" },
+                new() { Code = "N-TST", Name = "测试工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 6, HourlyCost = 110m, Notes = "耐久/碰撞/认证" },
+                new() { Code = "N-MFG", Name = "制造工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 8, HourlyCost = 110m, Notes = "工艺/产线" },
+                new() { Code = "N-WLD", Name = "焊接机器人", Type = ResourceType.Equipment, Unit = "台", Quantity = 30, HourlyCost = 80m, Notes = "白车身焊装线" },
+                new() { Code = "N-ASM", Name = "总装线", Type = ResourceType.Equipment, Unit = "条", Quantity = 1, HourlyCost = 500m, Notes = "柔性总装线" },
+                new() { Code = "N-BAT", Name = "电池包(NCM811)", Type = ResourceType.Material, Unit = "套", Quantity = 5000, UnitPrice = 60000m, Notes = "CTP3.0 100kWh" },
+                new() { Code = "N-STL", Name = "高强钢/铝合金", Type = ResourceType.Material, Unit = "吨", Quantity = 1200, UnitPrice = 25000m, Notes = "热成型钢/6系铝" },
+            },
+            new List<(int taskIdx, string resCode, decimal qty, string notes)>
+            {
+                (2, "N-DES", 2, "市场调研"), (3, "N-DES", 4, "造型设计"),
+                (5, "N-EE", 6, "电池研发"), (6, "N-EE", 4, "电驱研发"), (7, "N-EE", 3, "电控研发"),
+                (9, "N-DES", 6, "车身设计"), (10, "N-INT", 4, "内外饰设计"),
+                (12, "N-PRO", 5, "供应商定点"), (13, "N-PRO", 4, "模具开发"), (14, "N-PRO", 3, "设备采购"),
+                (16, "N-TST", 3, "骡车试制"), (18, "N-TST", 4, "耐久试验"), (19, "N-TST", 3, "碰撞试验"),
+                (20, "N-TST", 2, "公告认证"),
+                (22, "N-MFG", 6, "产线建设"), (22, "N-ASM", 1, "总装线"), (22, "N-WLD", 15, "焊接线"),
+                (23, "N-MFG", 4, "工艺验证"), (26, "N-MFG", 4, "产能爬坡"),
+            }),
+            // ===== AI数据中心项目 (AIDC-2024) =====
+            (new Project
+            {
+                Code = "AIDC-2024",
+                Name = "华东GPU智算中心（千P级）",
+                Description = "总算力1000PFLOPS的AI训练推理数据中心，含5000张H100 GPU、液冷系统、高速网络",
+                PlanStartDate = new DateTime(2024, 6, 1),
+                PlanEndDate = new DateTime(2025, 12, 31),
+                WorkingHoursPerDay = 24, WorkdaysPerWeek = 7,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            },
+            new List<TaskDef>
+            {
+                // === Level 1: 选址与规划 ===
+                new("AI-01", "选址与规划", 0, new DateTime(2024, 6, 1), "", 100, 0, false, null, 1),
+                new("AI-01.0.1", "选址评估与能评", 30, new DateTime(2024, 6, 1), "林总监", 100, 500000, false, "AI-01", 2, "3省5址比选/电力容量/网络延迟/PUE目标"),
+                new("AI-01.0.2", "规划设计", 45, new DateTime(2024, 7, 1), "林总监", 100, 800000, false, "AI-01", 2, "总平图/机房布局/冷热通道/UPS容量/柴发"),
+                // === Level 1: 土建工程 ===
+                new("AI-02", "土建工程", 0, new DateTime(2024, 8, 15), "", 80, 0, false, null, 1),
+                new("AI-02.0.1", "基础与主体施工", 120, new DateTime(2024, 8, 15), "刘工", 85, 35000000, false, "AI-02", 2, "桩基/承台/钢结构/楼板加固(15kN/m²)"),
+                new("AI-02.0.2", "屋面与外墙工程", 60, new DateTime(2024, 12, 1), "刘工", 60, 15000000, false, "AI-02", 2, "金属屋面/保温/防水/幕墙"),
+                // === Level 1: 机电安装 ===
+                new("AI-03", "机电系统安装", 0, new DateTime(2025, 1, 1), "", 40, 0, false, null, 1),
+                new("AI-03.1", "供配电系统", 0, new DateTime(2025, 1, 1), "孙电气", 45, 0, false, "AI-03", 2),
+                new("AI-03.1.1", "高压配电系统", 60, new DateTime(2025, 1, 1), "孙电气", 50, 12000000, false, "AI-03.1", 3, "110kV变配电站/2路独立电源/柴油发电机"),
+                new("AI-03.1.2", "低压配电与UPS", 60, new DateTime(2025, 3, 1), "孙电气", 40, 15000000, false, "AI-03.1", 3, "列头柜/智能PDU/2N UPS/蓄电池组"),
+                new("AI-03.2", "暖通与液冷系统", 75, new DateTime(2025, 2, 1), "周暖通", 35, 25000000, false, "AI-03", 2, "冷冻水系统/CDU液冷/列间空调/PUE≤1.2"),
+                new("AI-03.3", "弱电与消防", 60, new DateTime(2025, 3, 1), "周暖通", 40, 8000000, false, "AI-03", 2, "BMS/动环监控/极早期烟雾探测/气体灭火"),
+                // === Level 1: 设备安装与调试 ===
+                new("AI-04", "IT设备安装", 0, new DateTime(2025, 4, 1), "", 15, 0, false, null, 1),
+                new("AI-04.0.1", "机柜安装与综合布线", 45, new DateTime(2025, 4, 1), "陈IT", 20, 5000000, false, "AI-04", 2, "500台42U机柜/光纤布线/MPO预端接"),
+                new("AI-04.0.2", "GPU服务器上架", 60, new DateTime(2025, 5, 15), "陈IT", 15, 150000000, false, "AI-04", 2, "5000张H100 GPU/1000台DGX/液冷管路对接"),
+                new("AI-04.0.3", "高速网络部署", 45, new DateTime(2025, 6, 1), "陈IT", 10, 20000000, false, "AI-04", 2, "400G IB/RoCEv2/Spine-Leaf架构/时延优化"),
+                // === Level 1: 调试与运营 ===
+                new("AI-05", "调试与运营", 0, new DateTime(2025, 7, 15), "", 0, 0, false, null, 1),
+                new("AI-05.0.1", "系统联调", 45, new DateTime(2025, 7, 15), "陈IT", 0, 5000000, false, "AI-05", 2, "满负荷带载测试/冗余切换/PUE验收"),
+                new("AI-05.0.2", "AI算力测试", 30, new DateTime(2025, 9, 1), "陈IT", 0, 2000000, false, "AI-05", 2, "LLM训练基准/HPL/MLPerf/multi-node扩展性"),
+                new("AI-05.0.3", "正式投入运营", 0, new DateTime(2025, 10, 1), "林总监", 0, 1000000, true, "AI-05", 2, "里程碑—智算中心揭牌/首批算力租赁合同签署"),
+            },
+            new List<Resource>
+            {
+                new() { Code = "A-PM", Name = "项目总监", Type = ResourceType.Labor, Unit = "人", Quantity = 1, HourlyCost = 200m, Notes = "数据中心项目管理" },
+                new() { Code = "A-CON", Name = "土建工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 3, HourlyCost = 110m, Notes = "基建管理" },
+                new() { Code = "A-ELE", Name = "电气工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 3, HourlyCost = 130m, Notes = "供配电/UPS" },
+                new() { Code = "A-HVAC", Name = "暖通工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 2, HourlyCost = 120m, Notes = "液冷/空调" },
+                new() { Code = "A-IT", Name = "IT架构师", Type = ResourceType.Labor, Unit = "人", Quantity = 4, HourlyCost = 150m, Notes = "GPU集群/网络" },
+                new() { Code = "A-TST", Name = "测试工程师", Type = ResourceType.Labor, Unit = "人", Quantity = 2, HourlyCost = 120m, Notes = "算力测试/联调" },
+                new() { Code = "A-GEN", Name = "柴油发电机(2MW)", Type = ResourceType.Equipment, Unit = "台", Quantity = 6, HourlyCost = 300m, Notes = "N+1冗余" },
+                new() { Code = "A-CDU", Name = "液冷CDU", Type = ResourceType.Equipment, Unit = "台", Quantity = 50, HourlyCost = 50m, Notes = "GPU冷板液冷" },
+                new() { Code = "A-GPU", Name = "H100 GPU模组", Type = ResourceType.Material, Unit = "张", Quantity = 5000, UnitPrice = 250000m, Notes = "NVIDIA H100 SXM" },
+                new() { Code = "A-CAB", Name = "高速光模块(400G)", Type = ResourceType.Material, Unit = "个", Quantity = 8000, UnitPrice = 5000m, Notes = "400G QSFP-DD" },
+            },
+            null),
         };
     }
 
@@ -1049,11 +1425,14 @@ public static class DemoProjectSeeder
         public int Completion { get; }
         public decimal Budget { get; }
         public bool IsMilestone { get; }
+        public string? ParentTaskCode { get; }
+        public int OutlineLevel { get; }
         public string? Notes { get; }
 
         public TaskDef(string code, string name, int duration, DateTime start,
                        string? responsible, int completion, decimal budget,
-                       bool isMilestone, string? notes)
+                       bool isMilestone, string? parentTaskCode = null,
+                       int outlineLevel = 1, string? notes = null)
         {
             Code = code;
             Name = name;
@@ -1063,6 +1442,8 @@ public static class DemoProjectSeeder
             Completion = completion;
             Budget = budget;
             IsMilestone = isMilestone;
+            ParentTaskCode = parentTaskCode;
+            OutlineLevel = outlineLevel;
             Notes = notes;
         }
     }

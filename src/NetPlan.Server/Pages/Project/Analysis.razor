@@ -348,7 +348,7 @@
     private async Task GenerateSingleProjectReport(AiOptions opts)
     {
         var data = BuildAiReportData();
-        var prompt = ChatPromptBuilder.BuildAnalysisPrompt(data, selectedProjectId, isMultiProject: false);
+        var prompt = ChatPromptBuilder.BuildAnalysisPrompt(selectedProjectId, isMultiProject: false);
         var result = await AiService.ChatAsync(prompt, data, overrideOptions: opts);
         _aiReport = result;
         if (selectedProjectId.HasValue)
@@ -387,7 +387,7 @@
         }
         sb.AppendLine();
         var data = sb.ToString();
-        var prompt = ChatPromptBuilder.BuildAnalysisPrompt(data, null, isMultiProject: true);
+        var prompt = ChatPromptBuilder.BuildAnalysisPrompt(null, isMultiProject: true);
         var result = await AiService.ChatAsync(prompt, data, overrideOptions: opts);
         _aiReport = result;
         _multiProjectReport = result;

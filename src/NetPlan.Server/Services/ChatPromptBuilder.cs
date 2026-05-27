@@ -85,7 +85,7 @@ public static class ChatPromptBuilder
             .Replace("{today}", DateTime.Today.ToString("yyyy-MM-dd"));
     }
 
-    public static string BuildAnalysisPrompt(string data, int? projectId, bool isMultiProject)
+    public static string BuildAnalysisPrompt(/* string data, */ int? projectId, bool isMultiProject)
     {
         if (isMultiProject)
         {

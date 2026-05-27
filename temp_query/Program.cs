@@ -1,22 +1,12 @@
 ﻿using Microsoft.Data.Sqlite;
-
-var conn = new SqliteConnection("Data Source=I:\\NetPlan\\src\\NetPlan.Server\\netplan.db");
-conn.Open();
-
-// Check ALL projects for extreme small BudgetCost values
+var conn = new SqliteConnection("Data Source=I:\\NetPlan\\src\\NetPlan.Server\\netplan.db"); conn.Open();
 var cmd = conn.CreateCommand();
-cmd.CommandText = @"
-SELECT p.Name, t.Code, t.Name, t.BudgetCost
-FROM Tasks t
-JOIN Projects p ON t.ProjectId = p.Id
-WHERE t.BudgetCost > 0 AND t.BudgetCost < 100
-ORDER BY t.BudgetCost";
-var rdr = cmd.ExecuteReader();
-bool found = false;
-while (rdr.Read())
-{
-    found = true;
-    Console.WriteLine($"{rdr["Name"]} | {rdr["Code"]} | {rdr["TaskName"]} | Budget={rdr["BudgetCost"]}");
-}
-if (!found) Console.WriteLine("NO tasks with BudgetCost between 1 and 100");
+cmd.CommandText = "SELECT Id, Code, Name FROM Projects ORDER BY Id";
+var rdr = cmd.ExecuteReader(); Console.WriteLine("项目列表：");
+while (rdr.Read()) Console.WriteLine($"  [{rdr["Id"]}] {rdr["Code"]} — {rdr["Name"]}");
+rdr.Close();
+cmd.CommandText = "SELECT COUNT(*) AS T, SUM(CASE WHEN ParentTaskId IS NOT NULL THEN 1 ELSE 0 END) AS H FROM Tasks";
+rdr = cmd.ExecuteReader();
+while (rdr.Read()) Console.WriteLine($"\n总任务: {rdr["T"]} | 有层级: {rdr["H"]}");
+rdr.Close();
 conn.Close();
