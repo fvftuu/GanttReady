@@ -10,13 +10,15 @@
 
 <div class="page-header">
     <div class="header-left">
-        <select class="form-control" @bind="selectedScope" @bind:after="OnScopeChanged" style="width:220px;">
-            <option value="all">🌐 所有项目（共享资源）</option>
-            @foreach (var project in projects)
-            {
-                <option value="@("p-"+project.Id)">📁 @project.Name</option>
-            }
-        </select>
+        @if (isAllProjects)
+        {
+            <span style="font-size:16px;font-weight:600;color:var(--text);">🌐 多项目分析</span>
+        }
+        else if (selectedProjectId.HasValue)
+        {
+            var proj = projects.FirstOrDefault(p => p.Id == selectedProjectId.Value);
+            <span style="font-size:16px;font-weight:600;color:var(--text);">📁 @(proj?.Name ?? "项目")</span>
+        }
         <span class="page-title">进度分析报告</span>
         <button class="btn btn-default" @onclick="ShowAiSettings">🤖 AI 设置</button>
         <button class="btn btn-primary" @onclick="GenerateAiReport" disabled="@_aiLoading">
@@ -51,27 +53,28 @@
         }
         else if (analysisResult != null)
         {
-            @* ===== 四张核心指标卡片（CSS 美化版） ===== *@
+            @* ===== 核心指标卡片（四张） ===== *@
+            <div class="analysis-section-title"><span class="title-accent"></span>核心指标</div>
             <div class="analysis-metric-grid">
-                <div class="analysis-metric-card">
+                <div class="analysis-metric-card" title="已完成任务数 / 总任务数，反映项目整体完成比例">
                     <div class="metric-accent @GetProgressAccentClass(GetOverallProgress())"></div>
                     <div class="metric-label">整体完成度</div>
                     <div class="metric-value @GetProgressValueColor(GetOverallProgress())">@GetOverallProgress()%</div>
                     <div class="metric-trend @GetProgressTrendClass(GetOverallProgress())">@GetProgressStatusIcon(GetOverallProgress())</div>
                 </div>
-                <div class="analysis-metric-card">
+                <div class="analysis-metric-card" title="关键路径上已完成的关键任务数占比，关键任务延误会影响总工期">
                     <div class="metric-accent @GetCriticalAccentClass()"></div>
                     <div class="metric-label">关键任务完成率</div>
                     <div class="metric-value @GetCriticalValueColor()">@GetCriticalTaskRate()%</div>
                     <div class="metric-trend flat">@GetCriticalTaskDetail()</div>
                 </div>
-                <div class="analysis-metric-card">
+                <div class="analysis-metric-card" title="已到达的里程碑数 / 总里程碑数，里程碑代表阶段性的关键节点">
                     <div class="metric-accent @GetMilestoneAccentClass()"></div>
                     <div class="metric-label">里程碑达成率</div>
                     <div class="metric-value @GetMilestoneValueColor()">@GetMilestoneRate()%</div>
                     <div class="metric-trend flat">@GetMilestoneDetail()</div>
                 </div>
-                <div class="analysis-metric-card">
+                <div class="analysis-metric-card" title="计划工期 vs 实际工期，正数=延后，负数=提前，反映项目整体偏差">
                     <div class="metric-accent @GetVarianceAccentClass()"></div>
                     <div class="metric-label">进度偏差</div>
                     <div class="metric-value @GetVarianceColor()">@GetVarianceText()</div>
@@ -84,26 +87,30 @@
             {
                 var evm = _earnedValueResult;
                 <div class="analysis-section-title"><span class="title-accent"></span>挣值分析指标</div>
-                <div class="analysis-evms">
-                    <div class="evm-item">
-                        <div class="evm-label">SPI（进度绩效）</div>
-                        <div class="evm-value @GetEVMColor(evm.SchedulePerformanceIndex, 1.0)">@evm.SchedulePerformanceIndex:F2</div>
-                        <span class="evm-tag @GetEVMTagClass(evm.SchedulePerformanceIndex, 1.0)">@GetEVMStatus(evm.SchedulePerformanceIndex, 1.0)</span>
+                <div class="analysis-metric-grid">
+                    <div class="analysis-metric-card" title="SPI（进度绩效指数）= EV / PV，>1=进度超前，<1=进度滞后">
+                        <div class="metric-accent @GetEVMColor(evm.SchedulePerformanceIndex, 1.0)"></div>
+                        <div class="metric-label">SPI（进度绩效）</div>
+                        <div class="metric-value @GetEVMColor(evm.SchedulePerformanceIndex, 1.0)">@evm.SchedulePerformanceIndex.ToString("F2")</div>
+                        <div class="metric-trend @GetEVMTagClass(evm.SchedulePerformanceIndex, 1.0)">@GetEVMStatus(evm.SchedulePerformanceIndex, 1.0)</div>
                     </div>
-                    <div class="evm-item">
-                        <div class="evm-label">CPI（成本绩效）</div>
-                        <div class="evm-value @GetEVMColor(evm.CostPerformanceIndex, 1.0)">@evm.CostPerformanceIndex:F2</div>
-                        <span class="evm-tag @GetEVMTagClass(evm.CostPerformanceIndex, 1.0)">@GetEVMStatus(evm.CostPerformanceIndex, 1.0)</span>
+                    <div class="analysis-metric-card" title="CPI（成本绩效指数）= EV / AC，>1=成本节约，<1=成本超支">
+                        <div class="metric-accent @GetEVMColor(evm.CostPerformanceIndex, 1.0)"></div>
+                        <div class="metric-label">CPI（成本绩效）</div>
+                        <div class="metric-value @GetEVMColor(evm.CostPerformanceIndex, 1.0)">@evm.CostPerformanceIndex.ToString("F2")</div>
+                        <div class="metric-trend @GetEVMTagClass(evm.CostPerformanceIndex, 1.0)">@GetEVMStatus(evm.CostPerformanceIndex, 1.0)</div>
                     </div>
-                    <div class="evm-item">
-                        <div class="evm-label">SV（进度偏差）</div>
-                        <div class="evm-value @GetEVMColor(evm.ScheduleVariance, 0)">@evm.ScheduleVariance:F0</div>
-                        <span class="evm-tag @GetEVMTagClass(evm.ScheduleVariance, 0)">@(evm.ScheduleVariance >= 0 ? "提前" : "滞后")</span>
+                    <div class="analysis-metric-card" title="SV（进度偏差）= EV - PV，正数=进度提前，负数=进度滞后（单位：元）">
+                        <div class="metric-accent @GetEVMColor(evm.ScheduleVariance, 0)"></div>
+                        <div class="metric-label">SV（进度偏差）</div>
+                        <div class="metric-value @GetEVMColor(evm.ScheduleVariance, 0)">@evm.ScheduleVariance.ToString("F0")</div>
+                        <div class="metric-trend @GetEVMTagClass(evm.ScheduleVariance, 0)">@(evm.ScheduleVariance >= 0 ? "提前" : "滞后")</div>
                     </div>
-                    <div class="evm-item">
-                        <div class="evm-label">CSI（综合绩效）</div>
-                        <div class="evm-value @GetEVMColor(evm.CostScheduleIndex, 0.9)">@evm.CostScheduleIndex:F2</div>
-                        <span class="evm-tag @GetEVMTagClass(evm.CostScheduleIndex, 0.9)">@(evm.CostScheduleIndex >= 0.9 ? "可控" : "关注")</span>
+                    <div class="analysis-metric-card" title="CSI（综合绩效）= SPI × CPI，综合评估进度与成本，≥0.9=可控，<0.9=需关注">
+                        <div class="metric-accent @GetEVMColor(evm.CostScheduleIndex, 0.9)"></div>
+                        <div class="metric-label">CSI（综合绩效）</div>
+                        <div class="metric-value @GetEVMColor(evm.CostScheduleIndex, 0.9)">@evm.CostScheduleIndex.ToString("F2")</div>
+                        <div class="metric-trend @GetEVMTagClass(evm.CostScheduleIndex, 0.9)">@(evm.CostScheduleIndex >= 0.9 ? "可控" : "关注")</div>
                     </div>
                 </div>
             }
@@ -287,11 +294,14 @@
     // AI 增强数据
     private string? _currentProjectName;
     private EarnedValueResult? _earnedValueResult;
+    private ScheduleVarianceResult? _scheduleVariance;
     private StageCompletionResult? _stageCompletionResult;
     private ResourceSummary? _resourceSummary;
 
     // AI 报告
     private string? _aiReport;
+    private Dictionary<int, string> _aiReportCache = new();
+    private string? _multiProjectReport;
     private bool _aiLoading = false;
     private bool _showAiSettings = false;
     private int _aiSelectedIdx = 0;
@@ -341,8 +351,11 @@
         var prompt = ChatPromptBuilder.BuildAnalysisPrompt(data, selectedProjectId, isMultiProject: false);
         var result = await AiService.ChatAsync(prompt, data, overrideOptions: opts);
         _aiReport = result;
-        await SaveAiReportToStorage();
-        await JS.InvokeVoidAsync("localStorage.setItem", "ai_latest_analysis", result ?? "");
+        if (selectedProjectId.HasValue)
+        {
+            _aiReportCache[selectedProjectId.Value] = result;
+            await SaveAiReportToStorage(selectedProjectId.Value, result);
+        }
     }
 
     private async Task GenerateMultiProjectReport(AiOptions opts)
@@ -377,6 +390,8 @@
         var prompt = ChatPromptBuilder.BuildAnalysisPrompt(data, null, isMultiProject: true);
         var result = await AiService.ChatAsync(prompt, data, overrideOptions: opts);
         _aiReport = result;
+        _multiProjectReport = result;
+        await SaveAiReportToStorage(null, result);
     }
 
     private string GetProviderLogo(string name) => name.ToLower() switch
@@ -528,18 +543,34 @@
 
     private AiConnection? GetActiveConnection() => _aiConnections.FirstOrDefault(c => c.IsActive) ?? _aiConnections.FirstOrDefault();
 
-    private async Task SaveAiReportToStorage()
+    private async Task SaveAiReportToStorage(int? projectId, string report)
     {
-        await JS.InvokeVoidAsync("localStorage.setItem", "ai_report", _aiReport ?? "");
+        var key = projectId.HasValue ? $"ai_report_p{projectId}" : "ai_report_multi";
+        await JS.InvokeVoidAsync("localStorage.setItem", key, report ?? "");
     }
 
     private async Task LoadAiReportFromStorage()
     {
         try
         {
-            var json = await JS.InvokeAsync<string>("localStorage.getItem", "ai_report");
-            if (!string.IsNullOrEmpty(json))
-                _aiReport = json;
+            // 加载多项目缓存
+            var multi = await JS.InvokeAsync<string>("localStorage.getItem", "ai_report_multi");
+            if (!string.IsNullOrEmpty(multi))
+                _multiProjectReport = multi;
+
+            // 加载每个已分析项目的缓存
+            foreach (var p in projects)
+            {
+                var json = await JS.InvokeAsync<string>("localStorage.getItem", $"ai_report_p{p.Id}");
+                if (!string.IsNullOrEmpty(json))
+                    _aiReportCache[p.Id] = json;
+            }
+
+            // 设置当前显示
+            if (isAllProjects)
+                _aiReport = _multiProjectReport;
+            else if (selectedProjectId.HasValue && _aiReportCache.TryGetValue(selectedProjectId.Value, out var cached))
+                _aiReport = cached;
         }
         catch { }
     }
@@ -564,6 +595,22 @@
         if (_resourceSummary != null)
         {
             sb.AppendLine($"- **总资源数**：人工{_resourceSummary.LaborCount}/材料{_resourceSummary.MaterialCount}/设备{_resourceSummary.EquipmentCount}，**总预算成本**：{_resourceSummary.TotalCost:N0}元");
+        }
+        sb.AppendLine();
+
+        // 1.5 任务完成状态明细表
+        sb.AppendLine("## 任务完成状态明细");
+        sb.AppendLine("| 编码 | 名称 | 完成率 | 计划周期 | 实际完成 | 状态 |");
+        sb.AppendLine("|------|------|:----:|:--------:|:--------:|:----:|");
+        var today = DateTime.Today;
+        foreach (var t in analysisResult.Tasks.OrderBy(t => t.PlanStartDate))
+        {
+            var status = t.CompletionPercentage >= 100 ? "✅ 已完成" :
+                         t.CompletionPercentage > 0 ? "🔄 进行中" :
+                         today > t.PlanEndDate ? "🔴 超期未开始" : "⏳ 未开始";
+            var actualEnd = t.ActualEndDate?.ToString("MM/dd") ?? "—";
+            var earlyTag = t.CompletionPercentage >= 100 && t.ActualEndDate.HasValue && t.ActualEndDate.Value.Date < t.PlanEndDate.Date ? " ⏱提前" : "";
+            sb.AppendLine($"| {t.Code} | {t.Name} | {t.CompletionPercentage}% | {t.PlanStartDate:MM/dd}-{t.PlanEndDate:MM/dd} | {actualEnd}{earlyTag} | {status} |");
         }
         sb.AppendLine();
 
@@ -722,34 +769,40 @@
 
     private string GetVarianceText()
     {
-        if (_earnedValueResult == null)
-        {
-            if (analysisResult != null && analysisResult.LateStartTasks.Any())
-            {
-                var maxDays = analysisResult.LateStartTasks.Max(t =>
-                    t.ActualEndDate.HasValue ? (t.ActualEndDate.Value - t.PlanEndDate).Days :
-                    (DateTime.Today - t.PlanEndDate).Days);
-                return $"+{maxDays}天";
-            }
+        if (_scheduleVariance == null)
             return "—";
-        }
-        // SV = EV - PV，是金额差异而非天数；去除 "天" 后缀避免误解
-        var sv = _earnedValueResult.ScheduleVariance;
-        return sv >= 0 ? $"+{sv:N0}" : $"{sv:N0}";
+
+        var delay = _scheduleVariance.TotalDelayDays;
+        var ahead = _scheduleVariance.TotalAheadDays;
+
+        if (delay > 0 && ahead > 0)
+            return $"延后 {delay}天 / 提前 {ahead}天";
+        if (delay > 0)
+            return $"延后 {delay}天";
+        if (ahead > 0)
+            return $"提前 {ahead}天";
+
+        return "按时";
     }
 
     private string GetVarianceColor()
     {
-        if (_earnedValueResult == null) return "var(--text-secondary)";
-        return _earnedValueResult.SchedulePerformanceIndex >= 1.0 ? "#52c41a" :
-               _earnedValueResult.SchedulePerformanceIndex >= 0.9 ? "#faad14" : "#ff4d4f";
+        if (_scheduleVariance == null) return "var(--text-secondary)";
+        var delay = _scheduleVariance.TotalDelayDays;
+        var ahead = _scheduleVariance.TotalAheadDays;
+        if (delay == 0 && ahead == 0) return "#52c41a";
+        if (delay <= ahead * 2) return "#faad14";
+        return "#ff4d4f";
     }
 
     private string GetVarianceIcon()
     {
-        if (_earnedValueResult == null) return "";
-        if (_earnedValueResult.SchedulePerformanceIndex >= 1.0) return "⏱ 进度超前";
-        if (_earnedValueResult.SchedulePerformanceIndex >= 0.9) return "⚠️ 轻度滞后";
+        if (_scheduleVariance == null) return "";
+        var delay = _scheduleVariance.TotalDelayDays;
+        var ahead = _scheduleVariance.TotalAheadDays;
+        if (delay == 0 && ahead == 0) return "✅ 按时";
+        if (ahead > 0 && delay == 0) return "⏱ 提前完成";
+        if (ahead >= delay) return "⚠️ 部分滞后";
         return "🔴 严重滞后";
     }
 
@@ -837,9 +890,22 @@
         await LoadAnalysis();
     }
 
-    private async Task OnScopeChanged()
+    protected override async Task OnParametersSetAsync()
     {
-        await LoadAnalysis();
+        if (ProjectId.HasValue)
+        {
+            var newScope = "p-" + ProjectId.Value;
+            if (selectedScope != newScope)
+            {
+                selectedScope = newScope;
+                await LoadAnalysis();
+            }
+        }
+        else if (selectedScope != "all")
+        {
+            selectedScope = "all";
+            await LoadAnalysis();
+        }
     }
 
     private async Task LoadAnalysis()
@@ -857,10 +923,13 @@
             if (isAllProjects)
             {
                 await LoadAllProjectsAnalysis();
+                _aiReport = _multiProjectReport;
             }
             else if (selectedProjectId.HasValue)
             {
                 await LoadSingleProjectAnalysis(selectedProjectId.Value);
+                var pid = selectedProjectId.Value;
+                _aiReport = _aiReportCache.TryGetValue(pid, out var cached) ? cached : null;
             }
         }
         finally
@@ -950,6 +1019,7 @@
             await AnalyzeResourceConflicts(tasks, project);
             // 加载 AI 增强数据
             try { _earnedValueResult = await AnalysisService.GetEarnedValueAsync(projectId); } catch { _earnedValueResult = null; }
+            try { _scheduleVariance = await AnalysisService.GetScheduleVarianceAsync(projectId); } catch { _scheduleVariance = null; }
             try { _stageCompletionResult = await AnalysisService.GetStageCompletionAsync(projectId); } catch { _stageCompletionResult = null; }
             try { _resourceSummary = await AnalysisService.GetResourceSummaryAsync(projectId); } catch { _resourceSummary = null; }
         }

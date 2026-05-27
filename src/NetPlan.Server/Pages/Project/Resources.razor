@@ -9,13 +9,13 @@
 
 <div class="page-header">
     <div class="header-left">
-        <select class="form-control" @bind="currentProjectId" @bind:after="OnProjectChanged">
-            <option value="0">选择项目</option>
-            @foreach (var project in projects)
-            {
-                <option value="@project.Id">@project.Name</option>
-            }
-        </select>
+        @{
+            var resProj = projects.FirstOrDefault(p => p.Id == currentProjectId);
+        }
+        @if (resProj != null)
+        {
+            <span style="font-size:16px;font-weight:600;color:var(--text);">📁 @resProj.Name</span>
+        }
         <span class="page-title">资源管理</span>
     </div>
 </div>
@@ -296,12 +296,6 @@
             currentProjectId = ProjectId.Value;
             await LoadResources();
         }
-    }
-
-    private async Task OnProjectChanged()
-    {
-        ClearSelection();
-        await LoadResources();
     }
 
     private async Task LoadResources()

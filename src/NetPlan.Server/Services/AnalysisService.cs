@@ -185,14 +185,19 @@ public class AnalysisService : IAnalysisService
 
     public ProjectAnalysisResult AnalyzeProject(Project project, List<TaskItem> tasks)
     {
+        var today = DateTime.Today;
         var result = new ProjectAnalysisResult
         {
             TotalTasks = tasks.Count,
             Tasks = tasks,
             CriticalPathTasks = tasks.Where(t => t.IsCritical).ToList(),
-            OnTimeTasks = tasks.Where(t => t.TotalFloat is > 0 and <= 5).ToList(),
-            EarlyStartTasks = tasks.Where(t => t.TotalFloat > 5).ToList(),
-            LateStartTasks = tasks.Where(t => t.TotalFloat < 0).ToList(),
+            // 按实际完成状态分类，不再使用 TotalFloat
+            EarlyStartTasks = tasks.Where(t => t.CompletionPercentage >= 100
+                && t.ActualEndDate.HasValue && t.ActualEndDate.Value.Date < t.PlanEndDate.Date).ToList(),
+            OnTimeTasks = tasks.Where(t => t.CompletionPercentage >= 100
+                && (!t.ActualEndDate.HasValue || t.ActualEndDate.Value.Date == t.PlanEndDate.Date)).ToList(),
+            LateStartTasks = tasks.Where(t => t.CompletionPercentage < 100
+                && today > t.PlanEndDate).ToList(),
             Milestones = tasks.Where(t => t.IsMilestone)
                 .Select(t => new MilestoneInfo { Name = t.Name, Date = t.PlanEndDate })
                 .ToList()
@@ -295,8 +300,8 @@ public class AnalysisService : IAnalysisService
             .Where(a => a.Task.ProjectId == projectId)
             .ToListAsync();
 
-        // BAC = 所有资源分配的总预算 (quantity × unitPrice)
-        double bac = assignments.Sum(a => (double)(a.Quantity * a.Resource.UnitPrice));
+        // BAC = 所有任务计划预算之和（使用系统已计算的 BudgetCost）
+        double bac = tasks.Sum(t => (double)t.BudgetCost);
         var statusDate = DateTime.Today;
 
         double pv = 0; // 计划价值
@@ -304,10 +309,9 @@ public class AnalysisService : IAnalysisService
 
         foreach (var task in tasks)
         {
-            // 该任务的资源预算
-            var taskAssignments = assignments.Where(a => a.TaskId == task.Id).ToList();
-            double taskBudget = taskAssignments.Sum(a => (double)(a.Quantity * a.Resource.UnitPrice));
-            if (taskBudget <= 0) taskBudget = 1; // 无资源分配时视为1单位工作量
+            // 该任务预算：使用系统已计算的 BudgetCost，包含人工/材料/设备全部成本
+            double taskBudget = (double)task.BudgetCost;
+            if (taskBudget <= 0) taskBudget = 1;
 
             // PV: 到状态日期为止，计划应完成的比例
             double plannedPct = CalcPlannedPct(task, statusDate);
@@ -321,10 +325,14 @@ public class AnalysisService : IAnalysisService
         var spi = pv > 0 ? ev / pv : 1.0;
         var sv = ev - pv;
 
-        // 实际成本：优先用 TaskItem.ActualCost，否则用 BudgetCost（假设未超支）
-        double ac = tasks.Sum(t => (double)(t.ActualCost ?? t.BudgetCost));
-        // 如果没有任何成本数据，AC 退化为 EV（模拟按预算完成）
-        if (ac <= 0) ac = ev;
+        // 实际成本：优先用 TaskItem.ActualCost，有部分数据时回退到 BudgetCost
+        // 如果没有任何 ActualCost 数据，AC 退化为 EV（假设按预算执行，CPI=1.0）
+        bool hasActualCostData = tasks.Any(t => t.ActualCost.HasValue && t.ActualCost.Value > 0);
+        double ac;
+        if (hasActualCostData)
+            ac = tasks.Sum(t => (double)(t.ActualCost ?? t.BudgetCost));
+        else
+            ac = ev;
 
         var cpi = ac > 0 ? ev / ac : 1.0;
         var cv = ev - ac;
@@ -343,8 +351,7 @@ public class AnalysisService : IAnalysisService
                 var monthEnd = cursor.AddMonths(1).AddDays(-1);
                 foreach (var task in tasks)
                 {
-                    var ta = assignments.Where(a => a.TaskId == task.Id).ToList();
-                    double tb = ta.Sum(a => (double)(a.Quantity * a.Resource.UnitPrice));
+                    double tb = (double)task.BudgetCost;
                     if (tb <= 0) tb = 1;
                     mpv += tb * CalcPlannedPct(task, monthEnd);
                     mev += tb * (task.CompletionPercentage / 100.0);

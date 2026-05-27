@@ -111,7 +111,7 @@ public class AiService : IAiService
 
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
             var response = await SendWithRetryAsync(request, cts.Token);
             var body = await response.Content.ReadAsStringAsync(cts.Token);
 
@@ -221,7 +221,7 @@ public class AiService : IAiService
 
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
             var response = await SendWithRetryAsync(request, cts.Token);
             var responseBody = await response.Content.ReadAsStringAsync(cts.Token);
 
@@ -323,7 +323,7 @@ public class AiService : IAiService
 
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
 
             if (!response.IsSuccessStatusCode)
@@ -534,7 +534,7 @@ public class AiService : IAiService
         // 4. 发送请求并解析响应
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
             var response = await SendWithRetryAsync(request, cts.Token);
             var responseBody = await response.Content.ReadAsStringAsync(cts.Token);
 

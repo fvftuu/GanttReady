@@ -130,9 +130,7 @@ public static class ChatPromptBuilder
 - 适当使用 🟢🟡🔴 标注状态
 
 **只输出 HTML 内容，不要用 ```html 包裹。不要有 html/head/body 标签。**
-
-数据如下：
-{data}";
+";
         }
         else
         {
@@ -191,9 +189,7 @@ public static class ChatPromptBuilder
 - 适当使用 🟢🟡🔴 标注状态
 
 **只输出 HTML 内容，不要用 ```html 包裹。不要有 html/head/body 标签。**
-
-数据如下：
-{data}";
+";
         }
     }
 }

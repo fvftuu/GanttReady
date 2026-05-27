@@ -2395,22 +2395,30 @@ body {
 .report-annual .cover .meta { font-size: 13px; color: var(--text-secondary); line-height: 2; }
 
 /* ===== 分析页指标卡片 ===== */
+/* ===== 统一卡片网格 ===== */
 .analysis-metric-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
-    margin-bottom: 20px;
+    gap: 12px;
+    margin: 0 0 20px 0;
+    max-width: 860px;
 }
 
 .analysis-metric-card {
     background: #fff;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 18px 20px;
     box-shadow: var(--shadow-sm);
     transition: box-shadow 0.2s, transform 0.15s;
     position: relative;
     overflow: hidden;
+    height: 100px;
+    padding: 0 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0;
 }
 
 .analysis-metric-card:hover {
@@ -2418,6 +2426,7 @@ body {
     transform: translateY(-1px);
 }
 
+/* 左侧彩色竖条 */
 .analysis-metric-card .metric-accent {
     position: absolute;
     top: 0;
@@ -2432,86 +2441,72 @@ body {
 .analysis-metric-card .metric-accent.red { background: var(--danger); }
 .analysis-metric-card .metric-accent.blue { background: var(--primary); }
 
+/* 标签行 */
 .analysis-metric-card .metric-label {
-    font-size: 12px;
+    font-size: 15px;
     color: var(--text-secondary);
-    margin-bottom: 6px;
     font-weight: 500;
+    line-height: 22px;
+    height: 22px;
 }
 
+/* 数值行 */
 .analysis-metric-card .metric-value {
-    font-size: 28px;
+    font-size: 20px;
     font-weight: 700;
     color: var(--text);
-    line-height: 1.2;
-    margin-bottom: 4px;
+    line-height: 28px;
+    height: 28px;
 }
 
 .analysis-metric-card .metric-value.green { color: var(--success); }
 .analysis-metric-card .metric-value.yellow { color: var(--warning); }
 .analysis-metric-card .metric-value.red { color: var(--danger); }
 
+/* 底部状态行（共用结构） */
 .analysis-metric-card .metric-trend {
-    font-size: 12px;
+    font-size: 15px;
+    line-height: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
+    font-weight: 500;
+    padding: 0;
 }
 
+/* 核心指标趋势颜色（无背景） */
 .analysis-metric-card .metric-trend.up { color: var(--success); }
 .analysis-metric-card .metric-trend.down { color: var(--danger); }
 .analysis-metric-card .metric-trend.flat { color: var(--text-secondary); }
 
-/* ===== 分析页 EVM 指标条 ===== */
-.analysis-evms {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 20px;
+/* EVM 状态标签（带背景色 + 圆角） */
+.analysis-metric-card .metric-trend.ok {
+    color: var(--success);
+    background: #eefaf3;
+    padding: 0 12px;
+    border-radius: 10px;
 }
-
-.analysis-evms .evm-item {
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 12px 16px;
-    text-align: center;
+.analysis-metric-card .metric-trend.warn {
+    color: var(--warning);
+    background: #fef7ed;
+    padding: 0 12px;
+    border-radius: 10px;
 }
-
-.analysis-evms .evm-item .evm-label {
-    font-size: 11px;
-    color: var(--text-secondary);
-    margin-bottom: 2px;
+.analysis-metric-card .metric-trend.bad {
+    color: var(--danger);
+    background: #fef0f0;
+    padding: 0 12px;
+    border-radius: 10px;
 }
-
-.analysis-evms .evm-item .evm-value {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--text);
-}
-
-.analysis-evms .evm-item .evm-value.green { color: var(--success); }
-.analysis-evms .evm-item .evm-value.yellow { color: var(--warning); }
-.analysis-evms .evm-item .evm-value.red { color: var(--danger); }
-
-.analysis-evms .evm-item .evm-tag {
-    display: inline-block;
-    font-size: 10px;
-    padding: 1px 8px;
-    border-radius: 8px;
-    margin-top: 2px;
-    font-weight: 500;
-}
-
-.analysis-evms .evm-item .evm-tag.ok { background: #eefaf3; color: var(--success); }
-.analysis-evms .evm-item .evm-tag.warn { background: #fef7ed; color: var(--warning); }
-.analysis-evms .evm-item .evm-tag.bad { background: #fef0f0; color: var(--danger); }
 
 /* ===== 阶段完成率进度条 ===== */
 .stage-progress-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    max-width: 860px;
 }
 
 .stage-progress-item {
@@ -2579,6 +2574,7 @@ body {
 .milestone-timeline {
     position: relative;
     padding-left: 24px;
+    max-width: 860px;
 }
 
 .milestone-timeline::before {
@@ -2625,6 +2621,7 @@ body {
 /* ===== 资源冲突小表格 ===== */
 .resource-conflict-table {
     width: 100%;
+    max-width: 860px;
     border-collapse: collapse;
     font-size: 13px;
 }
@@ -2659,6 +2656,7 @@ body {
     list-style: none;
     padding: 0;
     margin: 0;
+    max-width: 860px;
 }
 .critical-path-list li {
     display: flex;
@@ -2681,7 +2679,7 @@ body {
     border-radius: var(--radius);
     padding: 24px 32px;
     box-shadow: var(--shadow-sm);
-    max-width: 960px;
+    max-width: 860px;
 }
 .analysis-report-section .report-loading {
     text-align: center;
