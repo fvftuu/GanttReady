@@ -3510,6 +3510,60 @@ var NetPlan = (() => {
     _netInsertBlankRow(_layerNum) {
     },
     _netDeleteBlankRow(_layerNum) {
+    },
+    exportGanttToPng() {
+      var container = document.querySelector('.gantt-container');
+      var statusbar = document.querySelector('.gantt-statusbar');
+      if (!container) return;
+      // 用 onclone 来克隆完整展开的 DOM，不修改可见页面
+      html2canvas(container, {
+        useCORS: true, scale: 2, backgroundColor: '#fff',
+        onclone: function(doc) {
+          // 展开所有限制高度的容器
+          var all = [doc.querySelector('.gantt-container'), doc.querySelector('.gantt-main'),
+                     doc.querySelector('.gantt-right'), doc.querySelector('.gantt-chart')];
+          all.forEach(function(el) {
+            if (!el) return;
+            el.style.height = 'auto';
+            el.style.maxHeight = 'none';
+            el.style.overflow = 'visible';
+            el.style.flex = 'none';
+          });
+          // 展开条形图区
+          var bars = doc.querySelector('.gantt-bars');
+          if (bars) { bars.style.height = 'auto'; bars.style.overflow = 'visible'; }
+        }
+      }).then(function(canvas) {
+        if (statusbar) {
+          html2canvas(statusbar, { useCORS: true, scale: 2, backgroundColor: '#fff' }).then(function(sbCanvas) {
+            var combined = document.createElement('canvas');
+            combined.width = canvas.width;
+            combined.height = canvas.height + sbCanvas.height;
+            var ctx = combined.getContext('2d');
+            ctx.drawImage(canvas, 0, 0);
+            ctx.drawImage(sbCanvas, 0, canvas.height);
+            var link = document.createElement('a');
+            link.download = '甘特图_' + new Date().toISOString().slice(0,10) + '.png';
+            link.href = combined.toDataURL('image/png');
+            link.click();
+          });
+        } else {
+          var link = document.createElement('a');
+          link.download = '甘特图_' + new Date().toISOString().slice(0,10) + '.png';
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        }
+      });
+    },
+    positionColumnPanel(btnId) {
+      var btn = document.getElementById(btnId);
+      var panel = document.querySelector('.column-panel');
+      if (!btn || !panel) return;
+      var rect = btn.getBoundingClientRect();
+      panel.style.position = 'fixed';
+      panel.style.top = (rect.bottom + 4) + 'px';
+      panel.style.left = rect.left + 'px';
+      panel.style.zIndex = 9999;
     }
   };
   for (const [key, fn] of Object.entries(api)) {

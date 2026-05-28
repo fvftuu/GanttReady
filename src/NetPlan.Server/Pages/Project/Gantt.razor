@@ -8,143 +8,89 @@
 @implements IDisposable
 
 <div class="page-header">
-    <div class="header-left">
+    <div class="header-scroll">
+    <div class="header-left" style="gap:6px;flex-wrap:nowrap;">
         @{
             var ganttProj = projects.FirstOrDefault(p => p.Id == currentProjectId);
         }
         @if (ganttProj != null)
         {
-            <span style="font-size:16px;font-weight:600;color:var(--text);">📁 @ganttProj.Name</span>
+            <span style="font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;">📁 @ganttProj.Name</span>
         }
-        <span class="page-title">甘特图</span>
-        <div class="task-actions">
-            <button class="btn btn-primary btn-icon" @onclick="ShowAddTaskModal" title="添加任务">
-                <span class="oi oi-plus"></span>
-            </button>
-            <button class="btn btn-danger btn-icon" @onclick="DeleteSelectedTask" title="删除任务" disabled="@(selectedTaskId == null && selectedTasks.Count == 0)">
-                <span class="oi oi-trash"></span>
-            </button>
-            <button class="btn btn-default btn-icon" @onclick="MoveTaskUp" title="上移" disabled="@(selectedTaskId == null)">
-                <span class="oi oi-caret-top"></span>
-            </button>
-            <button class="btn btn-default btn-icon" @onclick="MoveTaskDown" title="下移" disabled="@(selectedTaskId == null)">
-                <span class="oi oi-caret-bottom"></span>
-            </button>
-            <div style="position:relative; display:inline-block;">
-                <button class="btn btn-default btn-icon" @onclick="ToggleColumnPanel" title="列设置">
-                    <span class="oi oi-list"></span>
-                </button>
-                @if (showColumnPanel)
-                {
-                    <div class="column-panel" @onclick:stopPropagation="true">
-                        @for (int i = 0; i < columnTemp.Count; i++)
-                        {
-                            var idx = i;
-                            var col = columnTemp[i];
-                            var disabled = col.Key == "name";
-                            <label class="column-check">
-                                <input type="checkbox" checked="@col.Visible"
-                                       disabled="@disabled"
-                                       @onchange="(ChangeEventArgs e) => OnColumnCheckChange(idx, (bool)(e.Value ?? false))" />
-                                <span>@col.Label</span>
-                            </label>
-                        }
-                        <div style="display:flex; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">
-                            <button class="btn btn-default btn-sm" style="flex:1;" @onclick="CancelColumnVisibility">取消</button>
-                            <button class="btn btn-primary btn-sm" style="flex:1;" @onclick="ApplyColumnVisibility">确定</button>
-                        </div>
-                    </div>
-                }
-            </div>
+        <span class="page-title" style="font-size:14px;">甘特图</span>
+        <span class="toolbar-sep"></span>
+        <button class="btn btn-sm btn-primary" @onclick="ShowAddTaskModal" title="添加任务">＋</button>
+        <button class="btn btn-sm btn-danger" @onclick="DeleteSelectedTask" title="删除任务" disabled="@(selectedTaskId == null && selectedTasks.Count == 0)">🗑</button>
+        <button class="btn btn-sm btn-default" @onclick="MoveTaskUp" title="上移" disabled="@(selectedTaskId == null)">↑</button>
+        <button class="btn btn-sm btn-default" @onclick="MoveTaskDown" title="下移" disabled="@(selectedTaskId == null)">↓</button>
+        <div style="position:relative;display:inline-block;">
+            <button class="btn btn-sm btn-default" @onclick="ToggleColumnPanel" title="列设置" id="btn-column-settings">☰</button>
         </div>
-        <div class="display-toggles">
-            <label class="toggle-switch" title="关键工作标红">
-                <input type="checkbox" @bind="showCriticalLine" @bind:after="SaveGanttSettings" />
-                <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label">关键线</span>
-            <label class="toggle-switch" title="显示今日线">
-                <input type="checkbox" @bind="showTodayLine" @bind:after="SaveGanttSettings" />
-                <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label">今日线</span>
-            <label class="toggle-switch" title="显示关系线">
-                <input type="checkbox" @bind="showRelationLine" @bind:after="SaveGanttSettings" />
-                <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label">关系线</span>
-
-            <label class="toggle-switch" title="资源投入直方图">
-                <input type="checkbox" @bind="showResourceHistogram" @bind:after="OnHistogramToggled" />
-                <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label">资源投入</span>
-        </div>
-    </div>
-    <div class="header-right">
-        <div class="gantt-toolbar-group">
-            <label class="toggle-label" style="font-size:12px;">行高</label>
-            <input type="range" class="gantt-row-height-slider" min="28" max="80" 
-                   value="@rowHeightSetting"
-                   @oninput="OnRowHeightChange" 
-                   title="调整行高" />
-            <span class="toggle-label" style="min-width:28px;font-size:12px;">@rowHeightSetting</span>
-            <span class="toolbar-sep"></span>
-            <label class="toggle-switch" title="水平网格线">
-                <input type="checkbox" @bind="showHorizontalGrid" @bind:after="ToggleHorizontalGrid" />
-                <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label" style="font-size:12px;">横线</span>
-            <label class="toggle-switch" title="竖直网格线">
-                <input type="checkbox" @bind="showVerticalGrid" @bind:after="ToggleVerticalGrid" />
-                <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label" style="font-size:12px;">竖线</span>
-            <span class="toolbar-sep"></span>
-        </div>
-        <div class="scale-switch">
-            <button class="scale-btn @(timeScaleMode == 0 ? "active" : "")" @onclick="() => SetTimeScaleMode(0)" title="标准模式">标准</button>
-            <button class="scale-btn @(timeScaleMode == 1 ? "active" : "")" @onclick="() => SetTimeScaleMode(1)" title="模式1:月日平均分布">模式1</button>
-            <button class="scale-btn @(timeScaleMode == 2 ? "active" : "")" @onclick="() => SetTimeScaleMode(2)" title="模式2:第X年第X天">模式2</button>
-        </div>
-        <button class="btn btn-default" @onclick="ExportToExcel" title="导出Excel">
-            <span class="oi oi-file"></span> 导出
-        </button>
-        <button class="btn btn-default" @onclick="DownloadTemplate" title="下载导入模板">
-            <span class="oi oi-cloud-download"></span> 模板
-        </button>
+        <span class="toolbar-sep"></span>
+        <button class="gantt-toggle-btn @(showCriticalLine ? "active" : "")" @onclick="() => { showCriticalLine = !showCriticalLine; SaveGanttSettings(); }" title="关键工作标红">🔴</button>
+        <button class="gantt-toggle-btn @(showTodayLine ? "active" : "")" @onclick="() => { showTodayLine = !showTodayLine; SaveGanttSettings(); }" title="显示今日线">📅</button>
+        <button class="gantt-toggle-btn @(showRelationLine ? "active" : "")" @onclick="() => { showRelationLine = !showRelationLine; SaveGanttSettings(); }" title="显示关系线">🔗</button>
+        <button class="gantt-toggle-btn @(showResourceHistogram ? "active" : "")" @onclick="() => { showResourceHistogram = !showResourceHistogram; OnHistogramToggled(); }" title="资源投入直方图">📊</button>
+        <select class="form-control" style="width:100px;height:26px;font-size:12px;padding:0 4px;" @onchange="OnFilterStatusChange">
+            <option value="all">全部</option>
+            <option value="not-started">⏳未开始</option>
+            <option value="in-progress">🔄进行中</option>
+            <option value="completed">✅已完成</option>
+            <option value="critical">🔴关键</option>
+        </select>
+        @if (_filteredTasks.Count < tasks.Count)
+        {
+            <span style="font-size:11px;color:var(--text-secondary);white-space:nowrap;">@_filteredTasks.Count/@tasks.Count</span>
+        }
+        <span class="toolbar-sep"></span>
+        <label style="font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:2px;white-space:nowrap;">行高<input type="range" class="gantt-row-height-slider" style="width:50px;" min="28" max="80" value="@rowHeightSetting" @oninput="OnRowHeightChange" title="调整行高" /><span style="min-width:18px;font-size:11px;">@rowHeightSetting</span></label>
+        <button class="gantt-toggle-btn @(showHorizontalGrid ? "active" : "")" @onclick="() => { showHorizontalGrid = !showHorizontalGrid; ToggleHorizontalGrid(); }" title="水平网格线">━</button>
+        <button class="gantt-toggle-btn @(showVerticalGrid ? "active" : "")" @onclick="() => { showVerticalGrid = !showVerticalGrid; ToggleVerticalGrid(); }" title="竖直网格线">┃</button>
+        <span class="toolbar-sep"></span>
+        <button class="scale-btn @(timeScaleMode == 0 ? "active" : "")" @onclick="() => SetTimeScaleMode(0)" title="标准模式" style="padding:1px 6px;font-size:11px;">标准</button>
+        <button class="scale-btn @(timeScaleMode == 1 ? "active" : "")" @onclick="() => SetTimeScaleMode(1)" title="月日平均分布" style="padding:1px 6px;font-size:11px;">M1</button>
+        <button class="scale-btn @(timeScaleMode == 2 ? "active" : "")" @onclick="() => SetTimeScaleMode(2)" title="第X年第X天" style="padding:1px 6px;font-size:11px;">M2</button>
+        <span class="toolbar-sep"></span>
+        <button class="btn btn-sm btn-default" @onclick="ExportToExcel" title="导出Excel">📥</button>
+        <button class="btn btn-sm btn-default" @onclick="ExportGanttToPng" title="导出PNG图片" style="color:#2e7d32;">🖼</button>
+        <button class="btn btn-sm btn-default" @onclick="DownloadTemplate" title="下载导入模板">📋</button>
         <InputFile id="ganttFileInput" OnChange="HandleGanttFileSelected" accept=".xlsx,.xls" style="display:none" />
-        <button class="btn btn-default" @onclick="TriggerGanttImport" title="从Excel导入">
-            <span class="oi oi-cloud-upload"></span> 导入
-        </button>
+        <button class="btn btn-sm btn-default" @onclick="TriggerGanttImport" title="从Excel导入">📤</button>
         <InputFile id="projectXmlInput" OnChange="HandleProjectXmlSelected" accept=".xml" style="display:none" />
-        <button class="btn btn-default" @onclick="TriggerProjectXmlImport" title="从MS Project XML导入">
-            <span class="oi oi-project"></span> Project
-        </button>
-        <div class="zoom-control">
-            <button class="zoom-btn" @onclick="ZoomOut" title="缩小(1%)">
-                <span class="oi oi-minus"></span>
-            </button>
-            <input type="range" class="zoom-slider" min="1" max="300" step="5"
-                   @bind="zoomLevel" @bind:after="OnZoomSliderChanged" />
-            <span class="zoom-label">@zoomLevel%</span>
-            <button class="zoom-btn" @onclick="ZoomIn" title="放大(1%)">
-                <span class="oi oi-plus"></span>
-            </button>
+        <button class="btn btn-sm btn-default" @onclick="TriggerProjectXmlImport" title="从MS Project XML导入">📄</button>
+        <span class="toolbar-sep"></span>
+        <div class="zoom-control" style="display:flex;align-items:center;gap:2px;">
+            <button class="zoom-btn" style="padding:0 4px;font-size:12px;" @onclick="ZoomOut" title="缩小">−</button>
+            <input type="range" class="zoom-slider" style="width:50px;height:4px;" min="1" max="300" step="5" @bind="zoomLevel" @bind:after="OnZoomSliderChanged" />
+            <span style="font-size:11px;min-width:30px;">@zoomLevel%</span>
+            <button class="zoom-btn" style="padding:0 4px;font-size:12px;" @onclick="ZoomIn" title="放大">+</button>
         </div>
-        <button class="btn btn-default btn-icon" @onclick="ZoomToFit" title="适应页面（全部显示）">
-            <span class="oi oi-magnifying-glass"></span>
-        </button>
-        <button class="btn btn-default" @onclick="RecalculateSchedule">重算计划</button>
+        <button class="btn btn-sm btn-default" @onclick="ZoomToFit" title="适应页面">⊡</button>
+        <button class="btn btn-sm btn-default" @onclick="RecalculateSchedule" title="重算计划">⟳</button>
     </div>
 </div>
+</div>
 
-
+@if (showColumnPanel)
+{
+    <div class="backdrop" @onclick="ToggleColumnPanel"></div>
+    <div class="column-panel" id="column-panel" @onclick:stopPropagation="true" style="top:54px;left:260px;">
+    @for (int i = 0; i < columnTemp.Count; i++)
+    {
+        var idx = i; var col = columnTemp[i]; var disabled = col.Key == "name";
+        <label class="column-check"><input type="checkbox" checked="@col.Visible" disabled="@disabled" @onchange="(ChangeEventArgs e) => OnColumnCheckChange(idx, (bool)(e.Value ?? false))" /><span>@col.Label</span></label>
+    }
+    <div style="display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+        <button class="btn btn-default btn-sm" style="flex:1;" @onclick="CancelColumnVisibility">取消</button>
+        <button class="btn btn-primary btn-sm" style="flex:1;" @onclick="ApplyColumnVisibility">确定</button>
+    </div>
+</div>
+}
 
 <div class="gantt-container">
     <div class="gantt-main">
     @* ========== 冻结窗格：左侧任务列表 ========== *@
-    <GanttTable Tasks="tasks" SelectedTaskId="selectedTaskId" SelectedTaskIds="selectedTasks"
+    <GanttTable Tasks="_filteredTasks" SelectedTaskId="selectedTaskId" SelectedTaskIds="selectedTasks"
                 Loading="loading" TaskRelations="taskRelations" ProjectResources="projectResources"
                 ResourceAssignments="taskAssignments" IsColumnVisible="GetColumnVisible"
                 OnTaskSelected="id => { selectedTaskId = id; ToggleTaskSelect(id, !selectedTasks.Contains(id)); }" OnTaskEdit="EditTask"
@@ -371,7 +317,7 @@
         </div>
     }
 </div>
-@* 时间标尺竖线层 *@            <div class="gantt-grid-lines" style="height: @(tasks.Count * rowHeight)px;">
+@* 时间标尺竖线层 *@            <div class="gantt-grid-lines" style="height: @(_filteredTasks.Count * rowHeight)px;">
                 @{
                     var gridMode = dayWidth > 20 ? "day" : (dayWidth >= 10 ? "week" : "month");
                     // 计算年份边界线位置
@@ -445,7 +391,7 @@
                 {
                     var todayOffset = Math.Max(0, (DateTime.Today - projectStartDate).Days) * dayWidth;
                     var todayX = todayOffset + dayWidth / 2;
-                    <line class="gantt-today-line" x1="@todayX" y1="0" x2="@todayX" y2="@(tasks.Count * rowHeight)" 
+                    <line class="gantt-today-line" x1="@todayX" y1="0" x2="@todayX" y2="@(_filteredTasks.Count * rowHeight)" 
                           stroke="#e74c3c" stroke-width="2" stroke-dasharray="5,3"/>
                 }
 
@@ -515,9 +461,9 @@
             </svg>
             @* 甘特条形图（重构：蓝上绿下 共享边框） *@
             <div class="gantt-bars">
-                @foreach (var task in tasks)
+                @foreach (var task in _filteredTasks)
                 {
-                    var rowIndex = tasks.IndexOf(task);
+                    var rowIndex = _filteredTasks.IndexOf(task);
                     var planStart = Math.Max(0, (task.PlanStartDate - projectStartDate).Days) * dayWidth;
                     var planW = task.PlanDuration * dayWidth;
                     var actStart = 0.0; var actW = 0.0; var hasActual = false;
@@ -924,6 +870,32 @@
 
     private List<Models.Project> projects = new();
     private List<TaskItem> tasks = new();
+    private List<TaskItem> _filteredTasks => ApplyFilter(tasks);
+    private string _filterStatus = "all";
+
+    private List<TaskItem> ApplyFilter(List<TaskItem> source)
+    {
+        var query = source.AsEnumerable();
+        if (_filterStatus != "all")
+        {
+            query = _filterStatus switch
+            {
+                "not-started" => query.Where(t => t.CompletionPercentage <= 0),
+                "in-progress" => query.Where(t => t.CompletionPercentage > 0 && t.CompletionPercentage < 100),
+                "completed" => query.Where(t => t.CompletionPercentage >= 100),
+                "critical" => query.Where(t => t.IsCritical),
+                _ => query,
+            };
+        }
+        return query.ToList();
+    }
+
+    private void OnFilterStatusChange(ChangeEventArgs e)
+    {
+        _filterStatus = e.Value?.ToString() ?? "all";
+        StateHasChanged();
+    }
+
     private List<TaskRelation> taskRelations = new();
     private int currentProjectId { get; set; }
     private bool loading = true;
@@ -1221,13 +1193,16 @@
         }
     }
 
-    private void ToggleColumnPanel()
+    private async Task ToggleColumnPanel()
     {
         showColumnPanel = !showColumnPanel;
         if (showColumnPanel)
         {
             // 深拷贝当前列可见状态到临时列表
             columnTemp = columnDefs.Select(c => new ColumnInfo { Key = c.Key, Label = c.Label, Visible = c.Visible }).ToList();
+            // 在渲染后定位弹窗到按钮下方
+            await Task.Delay(1);
+            await JS.InvokeVoidAsync("positionColumnPanel", "btn-column-settings");
         }
     }
 
@@ -1997,6 +1972,11 @@
     {
         // 滑块 step=5，绑定 zoomLevel 后自动更新
         StateHasChanged();
+    }
+
+    private async Task ExportGanttToPng()
+    {
+        await JS.InvokeVoidAsync("exportGanttToPng");
     }
 
     private async Task ZoomToFit()
