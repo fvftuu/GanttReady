@@ -29,6 +29,7 @@ public class AiService : IAiService
     // 重试配置：429/502/503 自动重试 1 次，间隔 1 秒
     private static readonly int[] _retryStatusCodes = { 429, 502, 503 };
     private static readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(1);
+    private const int _timeoutSec = 180; // AI 请求超时（秒）
 
     public AiService(HttpClient http, IOptions<AiOptions> options)
     {
@@ -111,7 +112,7 @@ public class AiService : IAiService
 
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSec));
             var response = await SendWithRetryAsync(request, cts.Token);
             var body = await response.Content.ReadAsStringAsync(cts.Token);
 
@@ -125,7 +126,7 @@ public class AiService : IAiService
         }
         catch (OperationCanceledException)
         {
-            return "⚠️ AI 服务请求超时（30秒），请检查网络或 API 地址。";
+            return $"⚠️ AI 服务请求超时（{_timeoutSec}秒），请检查网络或 API 地址。";
         }
         catch (Exception ex)
         {
@@ -221,7 +222,7 @@ public class AiService : IAiService
 
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSec));
             var response = await SendWithRetryAsync(request, cts.Token);
             var responseBody = await response.Content.ReadAsStringAsync(cts.Token);
 
@@ -266,7 +267,7 @@ public class AiService : IAiService
         }
         catch (OperationCanceledException)
         {
-            return new AiChatResult { Text = "⚠️ AI 服务请求超时（30秒），请检查网络或 API 地址。" };
+            return new AiChatResult { Text = $"⚠️ AI 服务请求超时（{_timeoutSec}秒），请检查网络或 API 地址。" };
         }
         catch (Exception ex)
         {
@@ -323,7 +324,7 @@ public class AiService : IAiService
 
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSec));
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token);
 
             if (!response.IsSuccessStatusCode)
@@ -423,7 +424,7 @@ public class AiService : IAiService
         }
         catch (OperationCanceledException)
         {
-            return new AiChatResult { Text = "⚠️ AI 服务请求超时（30秒），请检查网络或 API 地址。" };
+            return new AiChatResult { Text = $"⚠️ AI 服务请求超时（{_timeoutSec}秒），请检查网络或 API 地址。" };
         }
         catch (Exception ex)
         {
@@ -534,7 +535,7 @@ public class AiService : IAiService
         // 4. 发送请求并解析响应
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSec));
             var response = await SendWithRetryAsync(request, cts.Token);
             var responseBody = await response.Content.ReadAsStringAsync(cts.Token);
 
@@ -579,7 +580,7 @@ public class AiService : IAiService
         }
         catch (OperationCanceledException)
         {
-            return new AiChatResult { Text = "⚠️ Anthropic API 请求超时（30秒），请检查网络或 API 地址。" };
+            return new AiChatResult { Text = $"⚠️ Anthropic API 请求超时（{_timeoutSec}秒），请检查网络或 API 地址。" };
         }
         catch (Exception ex)
         {
