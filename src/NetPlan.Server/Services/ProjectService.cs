@@ -258,13 +258,24 @@ public class ProjectService : IProjectService
         if (project == null)
             throw new InvalidOperationException($"Project {projectId} not found");
 
-        var tasks = await GetTasksByProjectIdAsync(projectId);
+        var allTasks = await GetTasksByProjectIdAsync(projectId);
         var relations = await GetRelationsByProjectIdAsync(projectId);
 
-        int projectDuration = _scheduleEngine.Calculate(tasks, relations, project.PlanStartDate);
+        // 父任务（有子任务的任务）不参与 CPM 计算，只由 RecalculateParentTaskDates 汇总
+        var parentTaskIds = allTasks.Where(t => t.ParentTaskId.HasValue)
+                                    .Select(t => t.ParentTaskId.Value)
+                                    .ToHashSet();
+        var leafTasks = allTasks.Where(t => !parentTaskIds.Contains(t.Id)).ToList();
 
-        // 将调度结果（ES/EF偏移天数）写入任务的实际日期
-        foreach (var task in tasks)
+        // 也过滤掉涉及父任务的关系（CPM 只计算叶子任务之间的依赖）
+        var leafTaskIds = leafTasks.Select(t => t.Id).ToHashSet();
+        var leafRelations = relations.Where(r => leafTaskIds.Contains(r.PredecessorTaskId)
+                                               && leafTaskIds.Contains(r.SuccessorTaskId)).ToList();
+
+        int projectDuration = _scheduleEngine.Calculate(leafTasks, leafRelations, project.PlanStartDate);
+
+        // 将调度结果（ES/EF偏移天数）写入叶子任务的实际日期（父任务由 RecalculateParentTaskDates 汇总）
+        foreach (var task in leafTasks)
         {
             if (task.EarlyStart.HasValue && task.EarlyFinish.HasValue)
             {
@@ -274,7 +285,7 @@ public class ProjectService : IProjectService
         }
 
         // 重新计算父任务日期：父任务的 PlanStartDate = 子任务最早开始, PlanEndDate = 子任务最晚完成
-        RecalculateParentTaskDates(tasks);
+        RecalculateParentTaskDates(allTasks);
 
         // 更新项目结束日期
         project.PlanEndDate = project.PlanStartDate.AddDays(projectDuration);

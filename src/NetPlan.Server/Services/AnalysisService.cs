@@ -294,13 +294,17 @@ public class AnalysisService : IAnalysisService
     /// </summary>
     public async Task<EarnedValueResult> GetEarnedValueAsync(int projectId)
     {
-        var tasks = await _db.Tasks.Where(t => t.ProjectId == projectId).ToListAsync();
+        var allTasks = await _db.Tasks.Where(t => t.ProjectId == projectId).ToListAsync();
         var assignments = await _db.ResourceAssignments
             .Include(a => a.Resource)
             .Where(a => a.Task.ProjectId == projectId)
             .ToListAsync();
 
-        // BAC = 所有任务计划预算之和（使用系统已计算的 BudgetCost）
+        // 只取叶子任务（排除有子任务的父任务，避免预算重复计算）
+        var parentIds = allTasks.Where(t => t.ParentTaskId.HasValue).Select(t => t.ParentTaskId.Value).ToHashSet();
+        var tasks = allTasks.Where(t => !parentIds.Contains(t.Id)).ToList();
+
+        // BAC = 所有叶子任务计划预算之和
         double bac = tasks.Sum(t => (double)t.BudgetCost);
         var statusDate = DateTime.Today;
 
@@ -311,7 +315,7 @@ public class AnalysisService : IAnalysisService
         {
             // 该任务预算：使用系统已计算的 BudgetCost，包含人工/材料/设备全部成本
             double taskBudget = (double)task.BudgetCost;
-            if (taskBudget <= 0) taskBudget = 1;
+            if (taskBudget <= 0) continue; // 里程碑/零预算任务不参与 EVM 计算
 
             // PV: 到状态日期为止，计划应完成的比例
             double plannedPct = CalcPlannedPct(task, statusDate);
@@ -352,7 +356,7 @@ public class AnalysisService : IAnalysisService
                 foreach (var task in tasks)
                 {
                     double tb = (double)task.BudgetCost;
-                    if (tb <= 0) tb = 1;
+                    if (tb <= 0) continue;
                     mpv += tb * CalcPlannedPct(task, monthEnd);
                     mev += tb * (task.CompletionPercentage / 100.0);
                 }
@@ -399,9 +403,12 @@ public class AnalysisService : IAnalysisService
     /// </summary>
     public async Task<ProgressCurveResult> GetProgressCurveAsync(int projectId)
     {
-        var tasks = await _db.Tasks.Where(t => t.ProjectId == projectId).ToListAsync();
-        if (!tasks.Any())
+        var allTasks = await _db.Tasks.Where(t => t.ProjectId == projectId).ToListAsync();
+        if (!allTasks.Any())
             return new ProgressCurveResult();
+        // 只取叶子任务（父任务不参与进度曲线计算）
+        var parentIds = allTasks.Where(t => t.ParentTaskId.HasValue).Select(t => t.ParentTaskId.Value).ToHashSet();
+        var tasks = allTasks.Where(t => !parentIds.Contains(t.Id)).ToList();
 
         var minDate = tasks.Min(t => t.PlanStartDate);
         var maxDate = tasks.Max(t => t.PlanEndDate);
@@ -501,7 +508,9 @@ public class AnalysisService : IAnalysisService
     /// </summary>
     public async Task<ScheduleVarianceResult> GetScheduleVarianceAsync(int projectId)
     {
-        var tasks = await _db.Tasks.Where(t => t.ProjectId == projectId).ToListAsync();
+        var allTasks = await _db.Tasks.Where(t => t.ProjectId == projectId).ToListAsync();
+        var parentIds = allTasks.Where(t => t.ParentTaskId.HasValue).Select(t => t.ParentTaskId.Value).ToHashSet();
+        var tasks = allTasks.Where(t => !parentIds.Contains(t.Id)).ToList();
         var items = new List<ScheduleVarianceItem>();
         var today = DateTime.Today;
 
