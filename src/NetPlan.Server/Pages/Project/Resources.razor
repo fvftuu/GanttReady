@@ -14,7 +14,7 @@
         }
         @if (resProj != null)
         {
-            <span style="font-size:16px;font-weight:600;color:var(--text);">📁 @resProj.Name</span>
+            <span style="font-size:16px;font-weight:600;color:var(--text);"><i class="bi bi-folder-check"></i> @resProj.Name</span>
         }
         <span class="page-title">资源管理</span>
     </div>
@@ -31,13 +31,13 @@
             @* 工具栏 *@
             <div class="toolbar">
                 <button class="btn btn-primary" @onclick="ShowAddDialog">
-                    <span class="oi oi-plus"></span> 添加资源
+                    <i class="bi bi-plus-circle"></i> 添加资源
                 </button>
                 <button class="btn btn-outline" @onclick="ExportResources" disabled="@(currentProjectId == 0)">
-                    <span class="oi oi-data-download"></span> 导出资源
+                    <i class="bi bi-upload"></i> 导出资源
                 </button>
                 <button class="btn btn-outline" @onclick="TriggerImport">
-                    <span class="oi oi-data-upload"></span> 导入资源
+                    <i class="bi bi-download"></i> 导入资源
                 </button>
                 <InputFile id="resFileInput" OnChange="HandleFileSelected" accept=".xlsx,.xls" style="display:none" />
                 <span class="spacer"></span>
@@ -50,16 +50,16 @@
                     全部 (@ResourceList.Count)
                 </button>
                 <button class="category-tab labor @(activeCategory == ResourceType.Labor ? "active" : "")" @onclick="() => SetCategory(ResourceType.Labor)">
-                    👤 人工 (@ResourceList.Count(r => r.Type == ResourceType.Labor))
+                    <i class="bi bi-people"></i> 人工 (@ResourceList.Count(r => r.Type == ResourceType.Labor))
                 </button>
                 <button class="category-tab material @(activeCategory == ResourceType.Material ? "active" : "")" @onclick="() => SetCategory(ResourceType.Material)">
-                    📦 材料 (@ResourceList.Count(r => r.Type == ResourceType.Material))
+                    <i class="bi bi-box-seam"></i> 材料 (@ResourceList.Count(r => r.Type == ResourceType.Material))
                 </button>
                 <button class="category-tab equipment @(activeCategory == ResourceType.Equipment ? "active" : "")" @onclick="() => SetCategory(ResourceType.Equipment)">
-                    🔧 设备 (@ResourceList.Count(r => r.Type == ResourceType.Equipment))
+                    <i class="bi bi-fuel-pump"></i> 设备 (@ResourceList.Count(r => r.Type == ResourceType.Equipment))
                 </button>
                 <button class="category-tab @(activeCategory == ResourceType.Measure ? "active" : "")" @onclick="() => SetCategory(ResourceType.Measure)" style="border-color:#8c8c8c;color:#8c8c8c;">
-                    🏷 措施 (@ResourceList.Count(r => r.Type == ResourceType.Measure))
+                    <i class="bi bi-currency-yen"></i> 措施 (@ResourceList.Count(r => r.Type == ResourceType.Measure))
                 </button>
             </div>
 

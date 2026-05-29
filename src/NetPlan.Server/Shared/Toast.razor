@@ -5,9 +5,14 @@
     @foreach (var toast in _toasts)
     {
         <div class="toast toast-@toast.Type.ToString().ToLower() @(toast == _toasts.First() ? "toast-enter" : "")" @key="toast.Id">
-            <span class="toast-icon">@GetIcon(toast.Type)</span>
+            <span class="toast-icon">
+                @if (toast.Type == ToastType.Success) { <i class="bi bi-shield-check"></i> }
+                else if (toast.Type == ToastType.Error) { <i class="bi bi-x-octagon"></i> }
+                else if (toast.Type == ToastType.Warning) { <i class="bi bi-exclamation-triangle"></i> }
+                else if (toast.Type == ToastType.Info) { <i class="bi bi-shield-exclamation"></i> }
+            </span>
             <span class="toast-msg">@toast.Message</span>
-            <button class="toast-close" @onclick="() => RemoveToast(toast.Id)">✕</button>
+            <button class="toast-close" @onclick="() => RemoveToast(toast.Id)"><i class="bi bi-x-lg"></i></button>
         </div>
     }
 </div>
@@ -37,15 +42,6 @@
         _toasts.RemoveAll(t => t.Id == id);
         InvokeAsync(StateHasChanged);
     }
-
-    private string GetIcon(ToastType type) => type switch
-    {
-        ToastType.Success => "✅",
-        ToastType.Error => "❌",
-        ToastType.Warning => "⚠️",
-        ToastType.Info => "ℹ️",
-        _ => ""
-    };
 
     public void Dispose()
     {

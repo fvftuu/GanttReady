@@ -12,27 +12,27 @@
         @* 工具栏 *@
         <div class="toolbar">
             <button class="btn btn-primary" @onclick="ShowCreateDialog">
-                <span class="oi oi-plus"></span> 新建项目
+                <i class="bi bi-folder-plus"></i> 新建项目
             </button>
             <button class="btn btn-outline" @onclick="DownloadBlankTemplate">
-                <span class="oi oi-file"></span> 下载模板
+                <i class="bi bi-download"></i> 下载模板
             </button>
             <button class="btn btn-outline" @onclick="TriggerImport">
-                <span class="oi oi-data-upload"></span> 导入Excel
+                <i class="bi bi-vector-pen"></i> 导入Excel
             </button>
             @if (selectedProject != null)
             {
                 <button class="btn btn-success" @onclick="ExportTemplate">
-                    <span class="oi oi-data-download"></span> 导出数据模板
+                    <i class="bi bi-folder-symlink"></i> 导出数据模板
                 </button>
                 <button class="btn btn-danger" @onclick="DeleteSelectedProject">
-                    <span class="oi oi-trash"></span> 删除项目
+                    <i class="bi bi-folder-x"></i> 删除项目
                 </button>
             }
             <InputFile id="fileInput" OnChange="HandleFileSelected" accept=".xlsx,.xls" style="display:none" />
             <div class="toolbar-right">
                 <div class="search-box">
-                    <span class="search-icon">🔍</span>
+                    <i class="bi bi-search search-icon"></i>
                     <input type="text" class="search-input" placeholder="搜索项目..." @bind="_searchText" @bind:after="StateHasChanged" />
                     @if (!string.IsNullOrEmpty(_searchText))
                     {
@@ -61,35 +61,35 @@
             @* 统计卡片 *@
             <div class="dashboard-cards">
                 <div class="dash-card">
-                    <div class="dash-card-icon" style="background:#eef1ff;color:#4f6ef7;">📊</div>
+                    <div class="dash-card-icon" style="background:#eef1ff;color:#4f6ef7;"><i class="bi bi-files"></i></div>
                     <div class="dash-card-body">
                         <div class="dash-card-value">@summaries.Count</div>
                         <div class="dash-card-label">项目总数</div>
                     </div>
                 </div>
                 <div class="dash-card">
-                    <div class="dash-card-icon" style="background:#e6fff2;color:#3ecf8e;">🔄</div>
+                    <div class="dash-card-icon" style="background:#e6fff2;color:#3ecf8e;"><i class="bi bi-fast-forward"></i></div>
                     <div class="dash-card-body">
                         <div class="dash-card-value">@summaries.Count(s => s.Status == 1)</div>
                         <div class="dash-card-label">进行中</div>
                     </div>
                 </div>
                 <div class="dash-card">
-                    <div class="dash-card-icon" style="background:#fff0e6;color:#f5a623;">⏳</div>
+                    <div class="dash-card-icon" style="background:#fff0e6;color:#f5a623;"><i class="bi bi-cup-hot"></i></div>
                     <div class="dash-card-body">
                         <div class="dash-card-value">@summaries.Count(s => s.Status == 0)</div>
                         <div class="dash-card-label">未开始</div>
                     </div>
                 </div>
                 <div class="dash-card">
-                    <div class="dash-card-icon" style="background:#ffeaea;color:#ff5a5f;">❗</div>
+                    <div class="dash-card-icon" style="background:#ffeaea;color:#ff5a5f;"><i class="bi bi-exclamation-triangle"></i></div>
                     <div class="dash-card-body">
                         <div class="dash-card-value">@summaries.Count(s => s.Status == 2)</div>
                         <div class="dash-card-label">已超期</div>
                     </div>
                 </div>
                 <div class="dash-card">
-                    <div class="dash-card-icon" style="background:#fef6e6;color:#e8a317;">📌</div>
+                    <div class="dash-card-icon" style="background:#fef6e6;color:#e8a317;"><i class="bi bi-database"></i></div>
                     <div class="dash-card-body">
                         <div class="dash-card-value">@summaries.Sum(s => s.TaskCount)</div>
                         <div class="dash-card-label">总任务数</div>
@@ -116,7 +116,9 @@
                             <div class="card-header-row">
                                 <span class="badge primary">@p.Code</span>
                                 <span class="status-badge @(p.Status == 2 ? "overdue" : p.Status == 0 ? "pending" : "active")">
-                                    @(p.Status == 2 ? "🔴" : p.Status == 0 ? "⚪" : "🟢") @p.StatusLabel
+                                    @if (p.Status == 2) { <i class="bi bi-emoji-frown"></i> }
+                                    else if (p.Status == 0) { <i class="bi bi-emoji-smile"></i> }
+                                    else { <i class="bi bi-emoji-sunglasses"></i> } @p.StatusLabel
                                 </span>
                             </div>
                             @* 项目名称 *@
@@ -136,11 +138,11 @@
                             </div>
                             @* 元信息行 *@
                             <div class="card-meta">
-                                <span title="计划周期">📅 @p.PlanStartDate.ToString("MM/dd") - @p.PlanEndDate.ToString("MM/dd")</span>
-                                <span title="剩余天数">⏱ @(p.DaysRemaining >= 0 ? $"{p.DaysRemaining}天" : $"已超期{-p.DaysRemaining}天")</span>
-                                <span title="任务数">📋 @p.TaskCount 任务</span>
-                                <span title="资源数">👥 @p.ResourceCount 资源</span>
-                                <span title="总预算">💰 ¥@p.TotalPlanCost.ToString("N0")</span>
+                                <span title="计划周期"><i class="bi bi-calendar4-week"></i> @p.PlanStartDate.ToString("MM/dd") - @p.PlanEndDate.ToString("MM/dd")</span>
+                                <span title="剩余天数"><i class="bi bi-clock"></i> @(p.DaysRemaining >= 0 ? $"{p.DaysRemaining}天" : $"已超期{-p.DaysRemaining}天")</span>
+                                <span title="任务数"><i class="bi bi-clipboard-check"></i> @p.TaskCount 任务</span>
+                                <span title="资源数"><i class="bi bi-people"></i> @p.ResourceCount 资源</span>
+                                <span title="总预算"><i class="bi bi-cash-coin"></i> ¥@p.TotalPlanCost.ToString("N0")</span>
                             </div>
                             @* 操作按钮 *@
                             <div class="card-actions">

@@ -624,54 +624,52 @@ body {
     display: flex;
     align-items: center;
 }
-.search-icon {
+.search-box .search-icon {
     position: absolute;
-    left: 10px;
+    left: 8px;
     font-size: 14px;
     pointer-events: none;
-    opacity: 0.5;
+    color: var(--text-secondary);
+    z-index: 1;
 }
-.search-input {
-    width: 180px;
+.search-box .search-input {
+    width: 200px;
     height: 32px;
     padding: 0 30px 0 32px;
     border: 1px solid var(--border);
-    border-radius: 16px;
-    font-size: 13px;
+    border-radius: 6px;
+    font-size: 14px;
     background: var(--bg);
     color: var(--text);
-    transition: all 0.2s;
     outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
-.search-input:focus {
+.search-box .search-input:focus {
     border-color: var(--primary);
-    background: #fff;
     box-shadow: 0 0 0 2px rgba(79,110,247,0.1);
-    width: 220px;
 }
-.search-input::placeholder {
+.search-box .search-input::placeholder {
     color: #bbb;
 }
-.search-clear {
+.search-box .search-clear {
     position: absolute;
     right: 6px;
     width: 20px;
     height: 20px;
     border: none;
-    background: #ddd;
+    background: #bbb;
     color: #fff;
     border-radius: 50%;
-    font-size: 10px;
+    font-size: 11px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    line-height: 1;
     padding: 0;
-    transition: background 0.15s;
+    line-height: 1;
 }
-.search-clear:hover {
-    background: #bbb;
+.search-box .search-clear:hover {
+    background: #999;
 }
 
 .status-filter {
@@ -1755,23 +1753,6 @@ body {
     opacity: 1;
 }
 
-/* 搜索框 */
-.search-box {
-    display: flex;
-    align-items: center;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 4px 12px;
-}
-
-.search-box input {
-    border: none;
-    background: transparent;
-    outline: none;
-    padding: 4px;
-    width: 200px;
-}
 
 /* 分隔线 */
 .divider {

@@ -19,24 +19,24 @@
         }
         <span class="page-title" style="font-size:14px;">甘特图</span>
         <span class="toolbar-sep"></span>
-        <button class="btn btn-sm btn-primary" @onclick="ShowAddTaskModal" title="添加任务">＋</button>
-        <button class="btn btn-sm btn-danger" @onclick="DeleteSelectedTask" title="删除任务" disabled="@(selectedTaskId == null && selectedTasks.Count == 0)">🗑</button>
-        <button class="btn btn-sm btn-default" @onclick="MoveTaskUp" title="上移" disabled="@(selectedTaskId == null)">↑</button>
-        <button class="btn btn-sm btn-default" @onclick="MoveTaskDown" title="下移" disabled="@(selectedTaskId == null)">↓</button>
+        <button class="btn btn-sm btn-primary" @onclick="ShowAddTaskModal" title="添加任务"><i class="bi bi-plus-circle"></i></button>
+        <button class="btn btn-sm btn-danger" @onclick="DeleteSelectedTask" title="删除任务" disabled="@(selectedTaskId == null && selectedTasks.Count == 0)"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="MoveTaskUp" title="上移" disabled="@(selectedTaskId == null)"><i class="bi bi-chevron-up"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="MoveTaskDown" title="下移" disabled="@(selectedTaskId == null)"><i class="bi bi-chevron-down"></i></button>
         <div style="position:relative;display:inline-block;">
-            <button class="btn btn-sm btn-default" @onclick="ToggleColumnPanel" title="列设置" id="btn-column-settings">☰</button>
+            <button class="btn btn-sm btn-default" @onclick="ToggleColumnPanel" title="列设置"><i class="bi bi-list-ul"></i></button>
         </div>
         <span class="toolbar-sep"></span>
-        <button class="gantt-toggle-btn @(showCriticalLine ? "active" : "")" @onclick="() => { showCriticalLine = !showCriticalLine; SaveGanttSettings(); }" title="关键工作标红">🔴</button>
-        <button class="gantt-toggle-btn @(showTodayLine ? "active" : "")" @onclick="() => { showTodayLine = !showTodayLine; SaveGanttSettings(); }" title="显示今日线">📅</button>
-        <button class="gantt-toggle-btn @(showRelationLine ? "active" : "")" @onclick="() => { showRelationLine = !showRelationLine; SaveGanttSettings(); }" title="显示关系线">🔗</button>
-        <button class="gantt-toggle-btn @(showResourceHistogram ? "active" : "")" @onclick="() => { showResourceHistogram = !showResourceHistogram; OnHistogramToggled(); }" title="资源投入直方图">📊</button>
+        <button class="gantt-toggle-btn @(showCriticalLine ? "active" : "")" @onclick="() => { showCriticalLine = !showCriticalLine; SaveGanttSettings(); }" title="关键工作标红"><i class="bi bi-flag-fill"></i></button>
+        <button class="gantt-toggle-btn @(showTodayLine ? "active" : "")" @onclick="() => { showTodayLine = !showTodayLine; SaveGanttSettings(); }" title="显示今日线"><i class="bi bi-calendar3"></i></button>
+        <button class="gantt-toggle-btn @(showRelationLine ? "active" : "")" @onclick="() => { showRelationLine = !showRelationLine; SaveGanttSettings(); }" title="显示关系线"><i class="bi bi-arrow-left-right"></i></button>
+        <button class="gantt-toggle-btn @(showResourceHistogram ? "active" : "")" @onclick="() => { showResourceHistogram = !showResourceHistogram; OnHistogramToggled(); }" title="资源投入直方图"><i class="bi bi-bar-chart-fill"></i></button>
         <select class="form-control" style="width:100px;height:26px;font-size:12px;padding:0 4px;" @onchange="OnFilterStatusChange">
             <option value="all">全部</option>
-            <option value="not-started">⏳未开始</option>
-            <option value="in-progress">🔄进行中</option>
-            <option value="completed">✅已完成</option>
-            <option value="critical">🔴关键</option>
+            <option value="not-started">未开始</option>
+            <option value="in-progress">进行中</option>
+            <option value="completed">已完成</option>
+            <option value="critical">关键</option>
         </select>
         @if (_filteredTasks.Count < tasks.Count)
         {
@@ -44,29 +44,29 @@
         }
         <span class="toolbar-sep"></span>
         <label style="font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:2px;white-space:nowrap;">行高<input type="range" class="gantt-row-height-slider" style="width:50px;" min="28" max="80" value="@rowHeightSetting" @oninput="OnRowHeightChange" title="调整行高" /><span style="min-width:18px;font-size:11px;">@rowHeightSetting</span></label>
-        <button class="gantt-toggle-btn @(showHorizontalGrid ? "active" : "")" @onclick="() => { showHorizontalGrid = !showHorizontalGrid; ToggleHorizontalGrid(); }" title="水平网格线">━</button>
-        <button class="gantt-toggle-btn @(showVerticalGrid ? "active" : "")" @onclick="() => { showVerticalGrid = !showVerticalGrid; ToggleVerticalGrid(); }" title="竖直网格线">┃</button>
+        <button class="gantt-toggle-btn @(showHorizontalGrid ? "active" : "")" @onclick="() => { showHorizontalGrid = !showHorizontalGrid; ToggleHorizontalGrid(); }" title="水平网格线"><i class="bi bi-grid-3x3-gap"></i></button>
+        <button class="gantt-toggle-btn @(showVerticalGrid ? "active" : "")" @onclick="() => { showVerticalGrid = !showVerticalGrid; ToggleVerticalGrid(); }" title="竖直网格线"><i class="bi bi-grid-3x3-gap" style="transform:rotate(90deg);display:inline-block;"></i></button>
         <span class="toolbar-sep"></span>
         <button class="scale-btn @(timeScaleMode == 0 ? "active" : "")" @onclick="() => SetTimeScaleMode(0)" title="标准模式" style="padding:1px 6px;font-size:11px;">标准</button>
         <button class="scale-btn @(timeScaleMode == 1 ? "active" : "")" @onclick="() => SetTimeScaleMode(1)" title="月日平均分布" style="padding:1px 6px;font-size:11px;">M1</button>
         <button class="scale-btn @(timeScaleMode == 2 ? "active" : "")" @onclick="() => SetTimeScaleMode(2)" title="第X年第X天" style="padding:1px 6px;font-size:11px;">M2</button>
         <span class="toolbar-sep"></span>
-        <button class="btn btn-sm btn-default" @onclick="ExportToExcel" title="导出Excel">📥</button>
-        <button class="btn btn-sm btn-default" @onclick="ExportGanttToPng" title="导出PNG图片" style="color:#2e7d32;">🖼</button>
-        <button class="btn btn-sm btn-default" @onclick="DownloadTemplate" title="下载导入模板">📋</button>
+        <button class="btn btn-sm btn-default" @onclick="ExportToExcel" title="导出Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="ExportGanttToPng" title="导出PNG图片" style="color:#2e7d32;"><i class="bi bi-image"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="DownloadTemplate" title="下载导入模板"><i class="bi bi-file-earmark-text"></i></button>
         <InputFile id="ganttFileInput" OnChange="HandleGanttFileSelected" accept=".xlsx,.xls" style="display:none" />
-        <button class="btn btn-sm btn-default" @onclick="TriggerGanttImport" title="从Excel导入">📤</button>
+        <button class="btn btn-sm btn-default" @onclick="TriggerGanttImport" title="从Excel导入"><i class="bi bi-upload"></i></button>
         <InputFile id="projectXmlInput" OnChange="HandleProjectXmlSelected" accept=".xml" style="display:none" />
-        <button class="btn btn-sm btn-default" @onclick="TriggerProjectXmlImport" title="从MS Project XML导入">📄</button>
+        <button class="btn btn-sm btn-default" @onclick="TriggerProjectXmlImport" title="从MS Project XML导入"><i class="bi bi-file-earmark-code"></i></button>
         <span class="toolbar-sep"></span>
         <div class="zoom-control" style="display:flex;align-items:center;gap:2px;">
-            <button class="zoom-btn" style="padding:0 4px;font-size:12px;" @onclick="ZoomOut" title="缩小">−</button>
+            <button class="zoom-btn" style="padding:0 4px;font-size:14px;" @onclick="ZoomOut" title="缩小"><i class="bi bi-dash-lg"></i></button>
             <input type="range" class="zoom-slider" style="width:50px;height:4px;" min="1" max="300" step="5" @bind="zoomLevel" @bind:after="OnZoomSliderChanged" />
             <span style="font-size:11px;min-width:30px;">@zoomLevel%</span>
-            <button class="zoom-btn" style="padding:0 4px;font-size:12px;" @onclick="ZoomIn" title="放大">+</button>
+            <button class="zoom-btn" style="padding:0 4px;font-size:14px;" @onclick="ZoomIn" title="放大"><i class="bi bi-plus-lg"></i></button>
         </div>
-        <button class="btn btn-sm btn-default" @onclick="ZoomToFit" title="适应页面">⊡</button>
-        <button class="btn btn-sm btn-default" @onclick="RecalculateSchedule" title="重算计划">⟳</button>
+        <button class="btn btn-sm btn-default" @onclick="ZoomToFit" title="适应页面" style="color:#1890ff;"><i class="bi bi-arrows-fullscreen"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="RecalculateSchedule" title="重算计划" style="color:#fa8c16;"><i class="bi bi-arrow-repeat"></i></button>
     </div>
 </div>
 </div>
@@ -535,7 +535,7 @@
                     @if (chartError != null)
                     {
                         <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ff4d4f;font-size:13px;gap:6px;">
-                            <span class="oi oi-warning"></span> @chartError
+                            <i class="bi bi-exclamation-triangle-fill"></i> @chartError
                         </div>
                     }
                     <canvas id="resource-chart" style="@(chartError != null ? "display:none" : "")"></canvas>
@@ -669,10 +669,10 @@
                 <label style="font-weight:600; display:block; margin-bottom:4px;">资源分配</label>
                 <div class="resource-type-filter">
                     <button class="type-filter-btn @(resourceAssignFilter == "all" ? "active" : "")" @onclick="SetAssignFilterAll">全部</button>
-                    <button class="type-filter-btn labor @(resourceAssignFilter == "labor" ? "active" : "")" @onclick="SetAssignFilterLabor">👤 人工</button>
-                    <button class="type-filter-btn material @(resourceAssignFilter == "material" ? "active" : "")" @onclick="SetAssignFilterMaterial">📦 材料</button>
-                    <button class="type-filter-btn equipment @(resourceAssignFilter == "equipment" ? "active" : "")" @onclick="SetAssignFilterEquipment">🔧 设备</button>
-                    <button class="type-filter-btn measure @(resourceAssignFilter == "measure" ? "active" : "")" @onclick="SetAssignFilterMeasure">🏷 措施</button>
+                    <button class="type-filter-btn labor @(resourceAssignFilter == "labor" ? "active" : "")" @onclick="SetAssignFilterLabor"><i class="bi bi-people"></i> 人工</button>
+                    <button class="type-filter-btn material @(resourceAssignFilter == "material" ? "active" : "")" @onclick="SetAssignFilterMaterial"><i class="bi bi-box-seam"></i> 材料</button>
+                    <button class="type-filter-btn equipment @(resourceAssignFilter == "equipment" ? "active" : "")" @onclick="SetAssignFilterEquipment"><i class="bi bi-fuel-pump"></i> 设备</button>
+                    <button class="type-filter-btn measure @(resourceAssignFilter == "measure" ? "active" : "")" @onclick="SetAssignFilterMeasure"><i class="bi bi-currency-yen"></i> 措施</button>
                 </div>
                 <div style="display:flex; align-items:end; gap:12px; margin-top:4px;">
                     <div class="form-group" style="flex:2;">

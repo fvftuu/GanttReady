@@ -11,7 +11,7 @@
     <div style="position:fixed;top:0;right:0;bottom:0;width:380px;background:#fff;border-left:1px solid #e8e8e8;box-shadow:-4px 0 24px rgba(0,0,0,0.1);z-index:1000;display:flex;flex-direction:column;animation:slideIn 0.25s ease;">
         @* 标题栏 *@
         <div style="padding:14px 16px;background:#4f6ef7;color:#fff;display:flex;align-items:center;gap:8px;">
-            <span style="font-size:18px;">🤖</span>
+            <span style="font-size:18px;"><i class="bi bi-robot"></i></span>
             <span style="font-weight:600;">AI 助手</span>
             @if (!string.IsNullOrEmpty(_currentModelName))
             {
@@ -112,7 +112,7 @@
 else
 {
     <button class="btn btn-primary" @onclick="ToggleOpen" style="position:fixed;bottom:24px;right:24px;z-index:1001;width:52px;height:52px;border-radius:50%;font-size:24px;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(79,110,247,0.4);">
-        💬
+        <i class="bi bi-eye"></i>
     </button>
 }
 

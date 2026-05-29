@@ -12,17 +12,17 @@
     <div class="header-left">
         @if (isAllProjects)
         {
-            <span style="font-size:16px;font-weight:600;color:var(--text);">🌐 多项目分析</span>
+            <span style="font-size:16px;font-weight:600;color:var(--text);"><i class="bi bi-collection"></i> 多项目分析</span>
         }
         else if (selectedProjectId.HasValue)
         {
             var proj = projects.FirstOrDefault(p => p.Id == selectedProjectId.Value);
-            <span style="font-size:16px;font-weight:600;color:var(--text);">📁 @(proj?.Name ?? "项目")</span>
+            <span style="font-size:16px;font-weight:600;color:var(--text);"><i class="bi bi-folder-check"></i> @(proj?.Name ?? "项目")</span>
         }
         <span class="page-title">进度分析报告</span>
-        <button class="btn btn-default" @onclick="ShowAiSettings">🤖 AI 设置</button>
+        <button class="btn btn-default" @onclick="ShowAiSettings"><i class="bi bi-wrench-adjustable"></i> AI 设置</button>
         <button class="btn btn-primary" @onclick="GenerateAiReport" disabled="@_aiLoading">
-            @if (_aiLoading) { <span>⏳ 分析中...</span> } else { <span>🤖 AI 分析</span> }
+            @if (_aiLoading) { <span><i class="bi bi-cup-hot"></i> 分析中...</span> } else { <span><i class="bi bi-robot"></i> AI 分析</span> }
         </button>
     </div>
 </div>
@@ -36,7 +36,7 @@
         else if (isAllProjects)
         {
             <div class="section">
-                <h3>🌐 多项目横向分析</h3>
+                <h3><i class="bi bi-collection"></i> 多项目横向分析</h3>
                 @if (!string.IsNullOrEmpty(_aiReport))
                 {
                     <div class="ai-report">@((MarkupString)_aiReport)</div>
@@ -60,7 +60,7 @@
                     <div class="metric-accent @GetProgressAccentClass(GetOverallProgress())"></div>
                     <div class="metric-label">整体完成度</div>
                     <div class="metric-value @GetProgressValueColor(GetOverallProgress())">@GetOverallProgress()%</div>
-                    <div class="metric-trend @GetProgressTrendClass(GetOverallProgress())">@GetProgressStatusIcon(GetOverallProgress())</div>
+                    <div class="metric-trend @GetProgressTrendClass(GetOverallProgress())">@((MarkupString)GetProgressStatusIcon(GetOverallProgress()))</div>
                 </div>
                 <div class="analysis-metric-card" title="关键路径上已完成的关键任务数占比，关键任务延误会影响总工期">
                     <div class="metric-accent @GetCriticalAccentClass()"></div>
@@ -122,10 +122,14 @@
                 <div class="stage-progress-list">
                     @foreach (var s in _stageCompletionResult.Stages.Take(7))
                     {
-                        var icon = s.Status == "completed" ? "✅" : s.Status == "in_progress" ? "🔄" : s.Status == "delayed" ? "🔴" : "⏳";
                         var barClass = s.Status == "completed" ? "ok" : s.Status == "in_progress" ? "warn" : s.Status == "delayed" ? "bad" : "pending";
                         <div class="stage-progress-item">
-                            <span class="stage-status-icon">@icon</span>
+                            <span class="stage-status-icon">
+                                @if (s.Status == "completed") { <i class="bi bi-hand-thumbs-up"></i> }
+                                else if (s.Status == "in_progress") { <i class="bi bi-hand-index"></i> }
+                                else if (s.Status == "delayed") { <i class="bi bi-hand-thumbs-down"></i> }
+                                else { <i class="bi bi-hand-index"></i> }
+                            </span>
                             <span class="stage-name">@s.StageName</span>
                             <div class="stage-bar-track">
                                 <div class="stage-bar-fill @barClass" style="width:@Math.Max(1, (int)s.ActualCompletionPct)%">
@@ -237,7 +241,7 @@
 {
     <div class="modal-overlay">
         <div class="modal-content" style="width:720px;height:620px;display:flex;flex-direction:column;">
-            <h3>🤖 AI 服务设置</h3>
+            <h3><i class="bi bi-wrench-adjustable"></i> AI 服务设置</h3>
             <div style="display:flex;flex:1;gap:0;overflow:hidden;margin-top:10px;">
                 <div style="width:190px;border-right:1px solid var(--border);padding-right:10px;overflow-y:auto;display:flex;flex-direction:column;flex-shrink:0;">
                     @for (int ci = 0; ci < _aiConnections.Count; ci++)
@@ -248,9 +252,9 @@
                                     @(idx == _aiSelectedIdx ? "background:#e6f7ff;border:1px solid #91d5ff;" : "background:transparent;border:1px solid transparent;")">
                             <span style="font-size:16px;line-height:1;">@GetProviderLogo(c.Name)</span>
                             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@c.Name</span>
-                            @if (c.IsActive) { <span style="color:#faad14;font-size:11px;margin-left:2px;">⭐</span> }
-                            @if (c.Status == "ok") { <span style="color:#52c41a;font-size:10px;">🟢</span> }
-                            else if (c.Status == "fail") { <span style="color:#ff4d4f;font-size:10px;">🔴</span> }
+                            @if (c.IsActive) { <span style="color:#faad14;font-size:11px;margin-left:2px;"><i class="bi bi-star"></i></span> }
+                            @if (c.Status == "ok") { <span style="color:#52c41a;font-size:10px;"><i class="bi bi-hand-thumbs-up"></i></span> }
+                            else if (c.Status == "fail") { <span style="color:#ff4d4f;font-size:10px;"><i class="bi bi-hand-thumbs-down"></i></span> }
                         </div>
                     }
                     <button class="btn btn-default btn-sm" @onclick="AddAiConnection" style="margin-top:8px;">＋ 添加连接</button>
@@ -261,12 +265,14 @@
                     {
                         var conn = selectedConn; var idx = _aiSelectedIdx;
                         <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px;">
-                            <button class="btn btn-default btn-sm" @onclick="() => TestAiConnection(idx)">@(conn.Testing ? "⏳" : "🔌") 检测连接</button>
-                            @if (conn.Status == "ok") { <span style="color:#52c41a;">🟢 连接正常</span> }
-                            else if (conn.Status == "fail") { <span style="color:#ff4d4f;">🔴 @conn.StatusMessage</span> }
+                            <button class="btn btn-default btn-sm" @onclick="() => TestAiConnection(idx)">
+                            @if (conn.Testing) { <i class="bi bi-hand-index"></i> } else { <i class="bi bi-plug"></i> } 检测连接
+                        </button>
+                            @if (conn.Status == "ok") { <span style="color:#52c41a;"><i class="bi bi-hand-thumbs-up"></i> 连接正常</span> }
+                            else if (conn.Status == "fail") { <span style="color:#ff4d4f;"><i class="bi bi-hand-thumbs-down"></i> @conn.StatusMessage</span> }
                             <div style="flex:1;"></div>
-                            <button class="btn btn-default btn-sm" @onclick="() => SelectAiConnection(idx)">⭐ 设为当前</button>
-                            @if (_aiConnections.Count > 1) { <button class="btn btn-danger btn-sm" @onclick="() => RemoveAiConnection(idx)">✕ 删除</button> }
+                            <button class="btn btn-default btn-sm" @onclick="() => SelectAiConnection(idx)"><i class="bi bi-star"></i> 设为当前</button>
+                            @if (_aiConnections.Count > 1) { <button class="btn btn-danger btn-sm" @onclick="() => RemoveAiConnection(idx)"><i class="bi bi-x-lg"></i> 删除</button> }
                         </div>
                         <div class="form-group"><label>名称</label><input type="text" class="form-control" @bind="conn.Name" placeholder="连接名称" /></div>
                         <div class="form-group"><label>API 地址</label><input type="text" class="form-control" @bind="conn.Endpoint" placeholder="https://api.deepseek.com/v1" /></div>
@@ -733,9 +739,9 @@
 
     private string GetProgressStatusIcon(double pct)
     {
-        if (pct >= 80) return "🟢 进展良好";
-        if (pct >= 50) return "🟡 过半完成";
-        return "🔴 进展滞后";
+        if (pct >= 80) return "<i class=\"bi bi-hand-index\"></i> 进展良好";
+        if (pct >= 50) return "<i class=\"bi bi-hand-index\"></i> 过半完成";
+        return "<i class=\"bi bi-hand-thumbs-down\"></i> 进展滞后";
     }
 
     private double GetCriticalTaskRate()

@@ -3,7 +3,7 @@
 <div class="gantt-left" id="gantt-left">
     <div class="gantt-left-header">
         @if (IsColumnVisible("sel")) { <div class="col-sel"><input type="checkbox" @onchange="args => OnSelectAllToggle.InvokeAsync((bool)(args.Value ?? false))" checked="@(SelectedTaskIds.Count == Tasks.Count && Tasks.Count > 0)" title="全选/取消" /></div> }
-        <div class="col-idx"><button class="icon-btn" @onclick="() => OnIndent.InvokeAsync()" title="降级(→)"><span class="oi oi-arrow-right"></span></button><button class="icon-btn" @onclick="() => OnOutdent.InvokeAsync()" title="升级(←)"><span class="oi oi-arrow-left"></span></button></div>
+        <div class="col-idx"><button class="icon-btn" @onclick="() => OnIndent.InvokeAsync()" title="降级(→)"><i class="bi bi-arrow-bar-right"></i></button><button class="icon-btn" @onclick="() => OnOutdent.InvokeAsync()" title="升级(←)"><i class="bi bi-arrow-bar-left"></i></button></div>
         @if (IsColumnVisible("status")) { <div class="col-status">状态</div> }
         @if (IsColumnVisible("code")) { <div class="col-code">任务代码</div> }
         @if (IsColumnVisible("name")) { <div class="col-name" style="position:relative;">任务名称<span class="col-resize-handle" data-col="name"></span></div> }
@@ -81,15 +81,17 @@
 
     private RenderFragment GetTaskStatusBadge(TaskItem task) => builder =>
     {
-        string cls, txt;
-        if (task.IsMilestone) { cls = "milestone"; txt = "M"; }
-        else if (task.IsCritical) { cls = "critical"; txt = "!"; }
-        else if (task.CompletionPercentage >= 100) { cls = "completed"; txt = "✓"; }
-        else if (task.CompletionPercentage > 0) { cls = "in-progress"; txt = "▶"; }
-        else { cls = "not-started"; txt = "○"; }
+        var icon = ""; string cls;
+        if (task.IsMilestone) { cls = "milestone"; icon = "bi-flag-fill"; }
+        else if (task.IsCritical) { cls = "critical"; icon = "bi-patch-exclamation-fill"; }
+        else if (task.CompletionPercentage >= 100) { cls = "completed"; icon = "bi-shield-fill-check"; }
+        else if (task.CompletionPercentage > 0) { cls = "in-progress"; icon = "bi-send-fill"; }
+        else { cls = "not-started"; icon = "bi-slash-circle-fill"; }
         builder.OpenElement(0, "span");
         builder.AddAttribute(1, "class", $"task-status-badge {cls}");
-        builder.AddContent(2, txt);
+        builder.OpenElement(2, "i");
+        builder.AddAttribute(3, "class", $"bi {icon}");
+        builder.CloseElement();
         builder.CloseElement();
     };
 
