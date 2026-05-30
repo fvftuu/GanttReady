@@ -78,7 +78,7 @@
                     <div class="metric-accent @GetVarianceAccentClass()"></div>
                     <div class="metric-label">进度偏差</div>
                     <div class="metric-value @GetVarianceColor()">@GetVarianceText()</div>
-                    <div class="metric-trend @GetVarianceTrendClass()">@GetVarianceIcon()</div>
+                    <div class="metric-trend @GetVarianceTrendClass()">@((MarkupString)GetVarianceIcon())</div>
                 </div>
             </div>
 
@@ -175,11 +175,11 @@
                     {
                         var cls = m.Date <= today ? (m.Date >= today.AddDays(-30) ? "done" : "done") 
                                 : (m.Date <= today.AddDays(14) ? "upcoming" : "upcoming");
-                        var statusText = m.Date <= today ? "✅ 已完成" : (m.Date <= today.AddDays(14) ? "🔔 即将到期" : "📅");
+                        var statusText = m.Date <= today ? "<i class=\"bi bi-emoji-laughing\"></i> 已完成" : (m.Date <= today.AddDays(14) ? "<i class=\"bi bi-emoji-expressionless\"></i> 即将到期" : "<i class=\"bi bi-alarm\"></i>");
                         <div class="milestone-item @cls">
                             <span class="milestone-date">@m.Date.ToString("yyyy-MM-dd")</span>
                             <span class="milestone-name">@m.Name</span>
-                            <span class="milestone-status">@statusText</span>
+                            <span class="milestone-status">@((MarkupString)statusText)</span>
                         </div>
                     }
                 </div>
@@ -342,7 +342,7 @@
         }
         catch (Exception ex)
         {
-            _aiReport = $"❌ AI 分析出错：{ex.Message}";
+            _aiReport = $"<i class=\"bi bi-x-octagon\"></i> AI 分析出错：{ex.Message}";
         }
         finally
         {
@@ -611,11 +611,11 @@
         var today = DateTime.Today;
         foreach (var t in analysisResult.Tasks.OrderBy(t => t.PlanStartDate))
         {
-            var status = t.CompletionPercentage >= 100 ? "✅ 已完成" :
-                         t.CompletionPercentage > 0 ? "🔄 进行中" :
-                         today > t.PlanEndDate ? "🔴 超期未开始" : "⏳ 未开始";
+            var status = t.CompletionPercentage >= 100 ? "<i class=\"bi bi-emoji-laughing\"></i> 已完成" :
+                         t.CompletionPercentage > 0 ? "<i class=\"bi bi-rocket-takeoff\"></i> 进行中" :
+                         today > t.PlanEndDate ? "<i class=\"bi bi-emoji-angry\"></i> 超期未开始" : "<i class=\"bi bi-emoji-neutral\"></i> 未开始";
             var actualEnd = t.ActualEndDate?.ToString("MM/dd") ?? "—";
-            var earlyTag = t.CompletionPercentage >= 100 && t.ActualEndDate.HasValue && t.ActualEndDate.Value.Date < t.PlanEndDate.Date ? " ⏱提前" : "";
+            var earlyTag = t.CompletionPercentage >= 100 && t.ActualEndDate.HasValue && t.ActualEndDate.Value.Date < t.PlanEndDate.Date ? " <i class=\"bi bi-emoji-grin\"></i>提前" : "";
             sb.AppendLine($"| {t.Code} | {t.Name} | {t.CompletionPercentage}% | {t.PlanStartDate:MM/dd}-{t.PlanEndDate:MM/dd} | {actualEnd}{earlyTag} | {status} |");
         }
         sb.AppendLine();
@@ -624,13 +624,14 @@
         if (_earnedValueResult != null)
         {
             var evm = _earnedValueResult;
-            var spiStatus = evm.SchedulePerformanceIndex >= 1.0 ? "✅ 正常" : evm.SchedulePerformanceIndex >= 0.9 ? "⚠️ 预警" : "🔴 滞后";
-            var cpiStatus = evm.CostPerformanceIndex >= 1.0 ? "✅ 正常" : evm.CostPerformanceIndex >= 0.9 ? "⚠️ 预警" : "🔴 超支";
+            var spiStatus = evm.SchedulePerformanceIndex >= 1.0 ? "<i class=\"bi bi-emoji-laughing\"></i> 正常" : evm.SchedulePerformanceIndex >= 0.9 ? "<i class=\"bi bi-hand-index\"></i> 预警" : "<i class=\"bi bi-emoji-angry\"></i> 滞后";
+            var cpiStatus = evm.CostPerformanceIndex >= 1.0 ? "<i class=\"bi bi-emoji-laughing\"></i> 正常" : evm.CostPerformanceIndex >= 0.9 ? "<i class=\"bi bi-hand-index\"></i> 预警" : "<i class=\"bi bi-emoji-angry\"></i> 超支";
             sb.AppendLine($"## 挣值分析 (EVM)");
             sb.AppendLine($"- **计划价值 PV**：{evm.PlannedValue:N0} ｜ **挣值 EV**：{evm.EarnedValue:N0} ｜ **实际成本 AC**：{evm.ActualCost:N0}");
             sb.AppendLine($"- **进度绩效 SPI**：{evm.SchedulePerformanceIndex:F2}（{spiStatus}）");
             sb.AppendLine($"- **成本绩效 CPI**：{evm.CostPerformanceIndex:F2}（{cpiStatus}）");
-            sb.AppendLine($"- **综合绩效 CSI**：{evm.CostScheduleIndex:F2}（{(evm.CostScheduleIndex >= 0.9 ? "✅ 可控" : "⚠️ 需关注")}）");
+            var csiStatus2 = evm.CostScheduleIndex >= 0.9 ? "<i class=\"bi bi-emoji-laughing\"></i> 可控" : "<i class=\"bi bi-emoji-astonished\"></i> 需关注";
+            sb.AppendLine($"- **综合绩效 CSI**：{evm.CostScheduleIndex:F2}（{csiStatus2}）");
             sb.AppendLine($"- **进度偏差 SV**：{evm.ScheduleVariance:F0} ｜ **成本偏差 CV**：{evm.CostVariance:F0}");
             sb.AppendLine($"- **总预算 BAC**：{evm.BudgetAtCompletion:N0} ｜ **估算完工 EAC**：{evm.EstimateAtCompletion:N0}");
             if (evm.MonthlyTrend.Count > 1)
@@ -650,7 +651,7 @@
             sb.AppendLine($"- **完成进度**：{sc.CompletedStages}/{sc.TotalStages}阶段完成，**整体完成率**：{sc.OverallPct:F1}%");
             foreach (var s in sc.Stages.Take(7))
             {
-                var icon = s.Status == "completed" ? "✅" : s.Status == "in_progress" ? "🔄" : s.Status == "delayed" ? "🔴" : "⏳";
+                var icon = s.Status == "completed" ? "<i class=\"bi bi-emoji-laughing\"></i>" : s.Status == "in_progress" ? "<i class=\"bi bi-rocket-takeoff\"></i>" : s.Status == "delayed" ? "<i class=\"bi bi-emoji-angry\"></i>" : "<i class=\"bi bi-emoji-neutral\"></i>";
                 sb.AppendLine($"  - {icon} {s.StageName}：计划 {s.PlannedCompletionPct}% / 实际 {s.ActualCompletionPct}%（{s.CompletedTasks}/{s.TotalTasks}任务）{(s.DelayDays.HasValue && s.DelayDays != 0 ? $"偏差 {s.DelayDays}天" : "")}");
             }
             sb.AppendLine();
@@ -715,7 +716,7 @@
             foreach (var u in resourceUsages.OrderByDescending(u => u.PeakUsage / Math.Max(0.001m, u.Capacity)).Take(5))
             {
                 var pct = u.Capacity > 0 ? (int)(u.PeakUsage / u.Capacity * 100) : 0;
-                var status = pct > 100 ? "🔴 超额" : "✅ 正常";
+                var status = pct > 100 ? "<i class=\"bi bi-emoji-angry\"></i> 超额" : "<i class=\"bi bi-emoji-laughing\"></i> 正常";
                 sb.AppendLine($"- **{u.ResourceName}**：容量 {u.Capacity}{u.Unit}，峰值 {u.PeakUsage}{u.Unit}（{pct}%），{status}");
             }
             sb.AppendLine();
@@ -806,10 +807,10 @@
         if (_scheduleVariance == null) return "";
         var delay = _scheduleVariance.TotalDelayDays;
         var ahead = _scheduleVariance.TotalAheadDays;
-        if (delay == 0 && ahead == 0) return "✅ 按时";
-        if (ahead > 0 && delay == 0) return "⏱ 提前完成";
-        if (ahead >= delay) return "⚠️ 部分滞后";
-        return "🔴 严重滞后";
+        if (delay == 0 && ahead == 0) return "<i class=\"bi bi-emoji-sunglasses\"></i> 按时";
+        if (ahead > 0 && delay == 0) return "<i class=\"bi bi-emoji-grin\"></i> 提前完成";
+        if (ahead >= delay) return "<i class=\"bi bi-emoji-frown\"></i> 部分滞后";
+        return "<i class=\"bi bi-emoji-angry\"></i> 严重滞后";
     }
 
     // ===== 新增 CSS 辅助方法（用于美化卡片） =====

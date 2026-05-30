@@ -50,7 +50,7 @@
         else if (summaries.Count == 0)
         {
             <div class="empty-state">
-                <div style="font-size:56px; margin-bottom:16px;">📋</div>
+                <div style="font-size:56px; margin-bottom:16px;"><i class="bi bi-folder2-open"></i></div>
                 <p style="font-size:18px;color:#666;">暂无项目</p>
                 <p style="color:#999;margin-bottom:20px;">创建第一个项目开始管理您的工程计划</p>
                 <button class="btn btn-primary btn-lg" @onclick="ShowCreateDialog">创建第一个项目</button>
@@ -146,10 +146,10 @@
                             </div>
                             @* 操作按钮 *@
                             <div class="card-actions">
-                                <a href="/project/@p.Id/gantt" class="btn btn-sm btn-primary" title="甘特图">📅 甘特图</a>
-                                <a href="/project/@p.Id/analysis" class="btn btn-sm btn-outline" title="分析">📊 分析</a>
-                                <a href="/project/@p.Id/resources" class="btn btn-sm btn-outline" title="资源">👥 资源</a>
-                                <a href="/project/@p.Id/network" class="btn btn-sm btn-outline disabled" title="网络图" style="opacity:0.35;pointer-events:none;">🔗 网络图</a>
+                                <a href="/project/@p.Id/gantt" class="btn btn-sm btn-primary" title="甘特图"><i class="bi bi-bar-chart-steps"></i> 甘特图</a>
+                                <a href="/project/@p.Id/analysis" class="btn btn-sm btn-outline" title="分析"><i class="bi bi-activity"></i> 分析</a>
+                                <a href="/project/@p.Id/resources" class="btn btn-sm btn-outline" title="资源"><i class="bi bi-truck"></i> 资源</a>
+                                <a href="/project/@p.Id/network" class="btn btn-sm btn-outline disabled" title="网络图" style="opacity:0.35;pointer-events:none;"><i class="bi bi-bezier2"></i> 网络图</a>
                             </div>
                         </div>
                     </div>

@@ -15,22 +15,22 @@
         }
         @if (ganttProj != null)
         {
-            <span style="font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;">📁 @ganttProj.Name</span>
+            <span style="font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;"><i class="bi bi-clipboard-plus"></i> @ganttProj.Name</span>
         }
         <span class="page-title" style="font-size:14px;">甘特图</span>
         <span class="toolbar-sep"></span>
-        <button class="btn btn-sm btn-primary" @onclick="ShowAddTaskModal" title="添加任务"><i class="bi bi-plus-circle"></i></button>
-        <button class="btn btn-sm btn-danger" @onclick="DeleteSelectedTask" title="删除任务" disabled="@(selectedTaskId == null && selectedTasks.Count == 0)"><i class="bi bi-trash"></i></button>
-        <button class="btn btn-sm btn-default" @onclick="MoveTaskUp" title="上移" disabled="@(selectedTaskId == null)"><i class="bi bi-chevron-up"></i></button>
-        <button class="btn btn-sm btn-default" @onclick="MoveTaskDown" title="下移" disabled="@(selectedTaskId == null)"><i class="bi bi-chevron-down"></i></button>
+        <button class="btn btn-sm btn-primary" @onclick="ShowAddTaskModal" title="添加任务"><i class="bi bi-plus-lg"></i></button>
+        <button class="btn btn-sm btn-danger" @onclick="DeleteSelectedTask" title="删除任务" disabled="@(selectedTaskId == null && selectedTasks.Count == 0)"><i class="bi bi-trash3"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="MoveTaskUp" title="上移" disabled="@(selectedTaskId == null)"><i class="bi bi-arrow-bar-up"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="MoveTaskDown" title="下移" disabled="@(selectedTaskId == null)"><i class="bi bi-arrow-bar-down"></i></button>
         <div style="position:relative;display:inline-block;">
-            <button class="btn btn-sm btn-default" @onclick="ToggleColumnPanel" title="列设置"><i class="bi bi-list-ul"></i></button>
+            <button class="btn btn-sm btn-default" @onclick="ToggleColumnPanel" title="列设置"><i class="bi bi-card-checklist"></i></button>
         </div>
         <span class="toolbar-sep"></span>
-        <button class="gantt-toggle-btn @(showCriticalLine ? "active" : "")" @onclick="() => { showCriticalLine = !showCriticalLine; SaveGanttSettings(); }" title="关键工作标红"><i class="bi bi-flag-fill"></i></button>
-        <button class="gantt-toggle-btn @(showTodayLine ? "active" : "")" @onclick="() => { showTodayLine = !showTodayLine; SaveGanttSettings(); }" title="显示今日线"><i class="bi bi-calendar3"></i></button>
-        <button class="gantt-toggle-btn @(showRelationLine ? "active" : "")" @onclick="() => { showRelationLine = !showRelationLine; SaveGanttSettings(); }" title="显示关系线"><i class="bi bi-arrow-left-right"></i></button>
-        <button class="gantt-toggle-btn @(showResourceHistogram ? "active" : "")" @onclick="() => { showResourceHistogram = !showResourceHistogram; OnHistogramToggled(); }" title="资源投入直方图"><i class="bi bi-bar-chart-fill"></i></button>
+        <button class="gantt-toggle-btn @(showCriticalLine ? "active" : "")" @onclick="() => { showCriticalLine = !showCriticalLine; SaveGanttSettings(); }" title="关键工作标红"><i class="bi bi-flag"></i></button>
+        <button class="gantt-toggle-btn @(showTodayLine ? "active" : "")" @onclick="() => { showTodayLine = !showTodayLine; SaveGanttSettings(); }" title="显示今日线"><i class="bi bi-input-cursor"></i></button>
+        <button class="gantt-toggle-btn @(showRelationLine ? "active" : "")" @onclick="() => { showRelationLine = !showRelationLine; SaveGanttSettings(); }" title="显示关系线"><i class="bi bi-option"></i></button>
+        <button class="gantt-toggle-btn @(showResourceHistogram ? "active" : "")" @onclick="() => { showResourceHistogram = !showResourceHistogram; OnHistogramToggled(); }" title="资源投入直方图"><i class="bi bi-graph-up"></i></button>
         <select class="form-control" style="width:100px;height:26px;font-size:12px;padding:0 4px;" @onchange="OnFilterStatusChange">
             <option value="all">全部</option>
             <option value="not-started">未开始</option>
@@ -43,30 +43,30 @@
             <span style="font-size:11px;color:var(--text-secondary);white-space:nowrap;">@_filteredTasks.Count/@tasks.Count</span>
         }
         <span class="toolbar-sep"></span>
-        <label style="font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:2px;white-space:nowrap;">行高<input type="range" class="gantt-row-height-slider" style="width:50px;" min="28" max="80" value="@rowHeightSetting" @oninput="OnRowHeightChange" title="调整行高" /><span style="min-width:18px;font-size:11px;">@rowHeightSetting</span></label>
-        <button class="gantt-toggle-btn @(showHorizontalGrid ? "active" : "")" @onclick="() => { showHorizontalGrid = !showHorizontalGrid; ToggleHorizontalGrid(); }" title="水平网格线"><i class="bi bi-grid-3x3-gap"></i></button>
-        <button class="gantt-toggle-btn @(showVerticalGrid ? "active" : "")" @onclick="() => { showVerticalGrid = !showVerticalGrid; ToggleVerticalGrid(); }" title="竖直网格线"><i class="bi bi-grid-3x3-gap" style="transform:rotate(90deg);display:inline-block;"></i></button>
+        <label style="font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:2px;white-space:nowrap;"><i class="bi bi-grid-3x2"></i><input type="range" class="gantt-row-height-slider" style="width:50px;" min="28" max="80" value="@rowHeightSetting" @oninput="OnRowHeightChange" title="调整行高" /><span style="min-width:18px;font-size:11px;">@rowHeightSetting</span></label>
+        <button class="gantt-toggle-btn @(showHorizontalGrid ? "active" : "")" @onclick="() => { showHorizontalGrid = !showHorizontalGrid; ToggleHorizontalGrid(); }" title="水平网格线"><i class="bi bi-grip-horizontal"></i></button>
+        <button class="gantt-toggle-btn @(showVerticalGrid ? "active" : "")" @onclick="() => { showVerticalGrid = !showVerticalGrid; ToggleVerticalGrid(); }" title="竖直网格线"><i class="bi bi-grip-vertical"></i></button>
         <span class="toolbar-sep"></span>
         <button class="scale-btn @(timeScaleMode == 0 ? "active" : "")" @onclick="() => SetTimeScaleMode(0)" title="标准模式" style="padding:1px 6px;font-size:11px;">标准</button>
         <button class="scale-btn @(timeScaleMode == 1 ? "active" : "")" @onclick="() => SetTimeScaleMode(1)" title="月日平均分布" style="padding:1px 6px;font-size:11px;">M1</button>
         <button class="scale-btn @(timeScaleMode == 2 ? "active" : "")" @onclick="() => SetTimeScaleMode(2)" title="第X年第X天" style="padding:1px 6px;font-size:11px;">M2</button>
         <span class="toolbar-sep"></span>
-        <button class="btn btn-sm btn-default" @onclick="ExportToExcel" title="导出Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
-        <button class="btn btn-sm btn-default" @onclick="ExportGanttToPng" title="导出PNG图片" style="color:#2e7d32;"><i class="bi bi-image"></i></button>
-        <button class="btn btn-sm btn-default" @onclick="DownloadTemplate" title="下载导入模板"><i class="bi bi-file-earmark-text"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="ExportToExcel" title="导出Excel"><i class="bi bi-filetype-xlsx"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="ExportGanttToPng" title="导出PNG图片" style="color:#2e7d32;"><i class="bi bi-file-earmark-image"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="DownloadTemplate" title="下载导入模板"><i class="bi bi-download"></i></button>
         <InputFile id="ganttFileInput" OnChange="HandleGanttFileSelected" accept=".xlsx,.xls" style="display:none" />
-        <button class="btn btn-sm btn-default" @onclick="TriggerGanttImport" title="从Excel导入"><i class="bi bi-upload"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="TriggerGanttImport" title="从Excel导入"><i class="bi bi-file-earmark-ruled"></i></button>
         <InputFile id="projectXmlInput" OnChange="HandleProjectXmlSelected" accept=".xml" style="display:none" />
-        <button class="btn btn-sm btn-default" @onclick="TriggerProjectXmlImport" title="从MS Project XML导入"><i class="bi bi-file-earmark-code"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="TriggerProjectXmlImport" title="从MS Project XML导入"><i class="bi bi-file-ppt"></i></button>
         <span class="toolbar-sep"></span>
         <div class="zoom-control" style="display:flex;align-items:center;gap:2px;">
-            <button class="zoom-btn" style="padding:0 4px;font-size:14px;" @onclick="ZoomOut" title="缩小"><i class="bi bi-dash-lg"></i></button>
+            <button class="zoom-btn" style="padding:0 4px;font-size:14px;" @onclick="ZoomOut" title="缩小"><i class="bi bi-zoom-out"></i></button>
             <input type="range" class="zoom-slider" style="width:50px;height:4px;" min="1" max="300" step="5" @bind="zoomLevel" @bind:after="OnZoomSliderChanged" />
             <span style="font-size:11px;min-width:30px;">@zoomLevel%</span>
-            <button class="zoom-btn" style="padding:0 4px;font-size:14px;" @onclick="ZoomIn" title="放大"><i class="bi bi-plus-lg"></i></button>
+            <button class="zoom-btn" style="padding:0 4px;font-size:14px;" @onclick="ZoomIn" title="放大"><i class="bi bi-zoom-in"></i></button>
         </div>
         <button class="btn btn-sm btn-default" @onclick="ZoomToFit" title="适应页面" style="color:#1890ff;"><i class="bi bi-arrows-fullscreen"></i></button>
-        <button class="btn btn-sm btn-default" @onclick="RecalculateSchedule" title="重算计划" style="color:#fa8c16;"><i class="bi bi-arrow-repeat"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="RecalculateSchedule" title="重算计划" style="color:#fa8c16;"><i class="bi bi-vector-pen"></i></button>
     </div>
 </div>
 </div>
@@ -550,13 +550,13 @@
     @if (projects.Any(p => p.Id == currentProjectId))
     {
         var proj = projects.First(p => p.Id == currentProjectId);
-        <span class="status-item">📁 项目：@proj.Name</span>
+        <span class="status-item"><i class="bi bi-clipboard-plus"></i> 项目：@proj.Name</span>
         <span class="status-divider">|</span>
-        <span class="status-item">📅 总工期：@(tasks.Any() ? (tasks.Max(t => t.PlanEndDate) - tasks.Min(t => t.PlanStartDate)).Days + 1 : 0) 天</span>
+        <span class="status-item"><i class="bi bi-layout-text-window-reverse"></i> 总工期：@(tasks.Any() ? (tasks.Max(t => t.PlanEndDate) - tasks.Min(t => t.PlanStartDate)).Days + 1 : 0) 天</span>
         <span class="status-divider">|</span>
-        <span class="status-item">🔢 任务数：@tasks.Count</span>
+        <span class="status-item"><i class="bi bi-receipt"></i> 任务数：@tasks.Count</span>
         <span class="status-divider">|</span>
-        <span class="status-item">🔑 关键任务：@tasks.Count(t => t.IsCritical)</span>
+        <span class="status-item"><i class="bi bi-key"></i> 关键任务：@tasks.Count(t => t.IsCritical)</span>
     }
 </div>
 
@@ -572,14 +572,14 @@
             {
                 <div style="background:#f6f8ff;border:1px solid #d6e4ff;border-radius:8px;padding:10px 12px;margin-bottom:14px;">
                     <div style="display:flex;gap:8px;align-items:center;">
-                        <span style="font-size:16px;">🤖</span>
+                        <span style="font-size:16px;"><i class="bi bi-robot"></i></span>
                         <input type="text" class="form-control" @bind="_aiTaskInput" placeholder="用自然语言描述任务，如：新增一个'外墙保温'任务，工期15天，负责人王五，前置任务是外墙粉刷" style="flex:1;" />
                         <button class="btn btn-primary btn-sm" @onclick="ParseAiTaskInput" disabled="@(_aiLoading)" style="white-space:nowrap;">
-                            @(_aiLoading ? "⏳ 解析中..." : "🔍 智能解析")
+                            @if (_aiLoading) { <span><i class="bi bi-cup-hot"></i> 解析中...</span> } else { <span><i class="bi bi-radar"></i> 智能解析</span> }
                         </button>
                     </div>
                     <div style="margin-top:6px;font-size:12px;color:#999;">
-                        💡 支持：任务名称、工期、负责人、前置任务、里程碑标记、开始/完成日期
+                        <i class="bi bi-lightbulb"></i> 支持：任务名称、工期、负责人、前置任务、里程碑标记、开始/完成日期
                     </div>
                 </div>
             }
@@ -625,7 +625,7 @@
                 <div class="form-group form-checkbox">
                     <input type="checkbox" id="manualScheduleCheck" @bind="editingTask.IsManualSchedule" />
                     <label for="manualScheduleCheck" style="margin:0; font-weight:500;" title="勾选后重算计划不会覆盖此任务的日期">
-                        🔒 手动排程
+                        <i class="bi bi-person-lock"></i> 手动排程
                     </label>
                 </div>
             </div>
