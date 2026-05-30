@@ -5,6 +5,7 @@
 @inject IResourceService ResourceService
 @inject IAiService AiService
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 
 <PageTitle>计划分析 - NetPlan</PageTitle>
 
@@ -24,6 +25,10 @@
         <button class="btn btn-primary" @onclick="GenerateAiReport" disabled="@_aiLoading">
             @if (_aiLoading) { <span><i class="bi bi-cup-hot"></i> 分析中...</span> } else { <span><i class="bi bi-robot"></i> AI 分析</span> }
         </button>
+        @if (selectedProjectId.HasValue)
+        {
+            <button class="btn btn-default" @onclick="ExportWordReport" title="导出Word报告"><i class="bi bi-file-earmark-word" style="color:#2b579a;"></i> Word</button>
+        }
     </div>
 </div>
 
@@ -312,6 +317,13 @@
     private bool _showAiSettings = false;
     private int _aiSelectedIdx = 0;
     private List<AiConnection> _aiConnections = new();
+
+    private async Task ExportWordReport()
+    {
+        if (!selectedProjectId.HasValue) return;
+        var aiHtml = _aiReport ?? "";
+        await JS.InvokeVoidAsync("downloadWordReport", $"/api/export-analysis-word/{selectedProjectId.Value}", aiHtml);
+    }
 
     private async Task GenerateAiReport()
     {

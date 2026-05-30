@@ -3555,6 +3555,52 @@ var NetPlan = (() => {
         }
       });
     },
+    exportGanttToPdf() {
+      try {
+        var container = document.querySelector('.gantt-container');
+        var statusbar = document.querySelector('.gantt-statusbar');
+        if (!container) return;
+        html2canvas(container, {
+          useCORS: true, scale: 2, backgroundColor: '#fff',
+          onclone: function(doc) {
+            var all = [doc.querySelector('.gantt-container'), doc.querySelector('.gantt-main'),
+                       doc.querySelector('.gantt-right'), doc.querySelector('.gantt-chart')];
+            all.forEach(function(el) { if (el) { el.style.height = 'auto'; el.style.maxHeight = 'none'; el.style.overflow = 'visible'; el.style.flex = 'none'; } });
+            var bars = doc.querySelector('.gantt-bars');
+            if (bars) { bars.style.height = 'auto'; bars.style.overflow = 'visible'; }
+          }
+        }).then(function(canvas) {
+          try {
+            var doPdf = function(c, sb) {
+              var combined = c;
+              if (sb) {
+                combined = document.createElement('canvas');
+                combined.width = c.width;
+                combined.height = c.height + sb.height;
+                var ctx = combined.getContext('2d');
+                ctx.drawImage(c, 0, 0);
+                ctx.drawImage(sb, 0, c.height);
+              }
+              var imgData = combined.toDataURL('image/jpeg', 0.95);
+              var { jsPDF } = window.jspdf;
+              var pdf = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
+              var pdfW = pdf.internal.pageSize.getWidth();
+              var pdfH = pdf.internal.pageSize.getHeight();
+              var imgW = combined.width;
+              var imgH = combined.height;
+              var ratio = Math.min(pdfW / imgW, pdfH / imgH);
+              pdf.addImage(imgData, 'JPEG', (pdfW - imgW * ratio) / 2, (pdfH - imgH * ratio) / 2, imgW * ratio, imgH * ratio);
+              pdf.save('甘特图_' + new Date().toISOString().slice(0,10) + '.pdf');
+            };
+            if (statusbar) {
+              html2canvas(statusbar, { useCORS: true, scale: 2, backgroundColor: '#fff' }).then(function(sb) { doPdf(canvas, sb); }).catch(function(){});
+            } else {
+              doPdf(canvas, null);
+            }
+          } catch(e) { console.error('PDF gen error:', e); }
+        }).catch(function(){});
+      } catch(e) { console.error('PDF export error:', e); }
+    },
     positionColumnPanel(btnId) {
       var btn = document.getElementById(btnId);
       var panel = document.querySelector('.column-panel');
@@ -3564,7 +3610,22 @@ var NetPlan = (() => {
       panel.style.top = (rect.bottom + 4) + 'px';
       panel.style.left = rect.left + 'px';
       panel.style.zIndex = 9999;
-    }
+    },
+    downloadWordReport(url, aiHtml) {
+      // 用表单 POST 提交，避免 URL 长度限制
+      var form = document.createElement('form');
+      form.method = 'POST';
+      form.action = url;
+      form.style.display = 'none';
+      var input = document.createElement('input');
+      input.name = 'aiReport';
+      input.value = aiHtml;
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
+      setTimeout(function() { document.body.removeChild(form); }, 1000);
+    },
+
   };
   for (const [key, fn] of Object.entries(api)) {
     window[key] = fn;

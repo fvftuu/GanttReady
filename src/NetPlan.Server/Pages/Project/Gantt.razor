@@ -53,6 +53,7 @@
         <span class="toolbar-sep"></span>
         <button class="btn btn-sm btn-default" @onclick="ExportToExcel" title="导出Excel"><i class="bi bi-filetype-xlsx"></i></button>
         <button class="btn btn-sm btn-default" @onclick="ExportGanttToPng" title="导出PNG图片" style="color:#2e7d32;"><i class="bi bi-file-earmark-image"></i></button>
+        <button class="btn btn-sm btn-default" @onclick="ExportGanttToPdf" title="导出PDF" style="color:#cf1322;"><i class="bi bi-file-earmark-pdf"></i></button>
         <button class="btn btn-sm btn-default" @onclick="DownloadTemplate" title="下载导入模板"><i class="bi bi-download"></i></button>
         <InputFile id="ganttFileInput" OnChange="HandleGanttFileSelected" accept=".xlsx,.xls" style="display:none" />
         <button class="btn btn-sm btn-default" @onclick="TriggerGanttImport" title="从Excel导入"><i class="bi bi-file-earmark-ruled"></i></button>
@@ -1977,6 +1978,11 @@
     private async Task ExportGanttToPng()
     {
         await JS.InvokeVoidAsync("exportGanttToPng");
+    }
+
+    private async Task ExportGanttToPdf()
+    {
+        await JS.InvokeVoidAsync("exportGanttToPdf");
     }
 
     private async Task ZoomToFit()

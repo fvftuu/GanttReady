@@ -27,6 +27,7 @@ builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IResourceService, ResourceService>();
 builder.Services.AddScoped<IAnalysisService, AnalysisService>();
 builder.Services.AddScoped<ExcelTemplateService>();
+builder.Services.AddScoped<WordExportService>();
 builder.Services.AddScoped<ProjectXmlImportService>();
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
 builder.Services.AddScoped<IAiService, AiService>();
@@ -137,6 +138,27 @@ app.UseEndpoints(endpoints =>
             var fileData = await excelService.GenerateTemplateAsync(projectId);
             var fileName = $"NetPlan_{project.Name}_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
             return Results.File(fileData, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
+        catch (Exception ex)
+        {
+            return Results.BadRequest(new { error = ex.Message });
+        }
+    });
+
+    // 导出Word分析报告 API（POST，表单方式提交 aiReport）
+    endpoints.MapPost("/api/export-analysis-word/{projectId}", async (int projectId, WordExportService wordService, IProjectService projectService, HttpContext context) =>
+    {
+        try
+        {
+            var project = await projectService.GetProjectByIdAsync(projectId);
+            if (project == null) return Results.NotFound("项目不存在");
+
+            var aiReport = context.Request.Form["aiReport"].FirstOrDefault();
+            var fileData = await wordService.ExportAnalysisReportAsync(projectId, aiReport);
+            if (fileData == null || fileData.Length == 0)
+                return Results.BadRequest(new { error = "生成的文件为空" });
+            var fileName = $"NetPlan_{project.Name}_分析报告_{DateTime.Now:yyyyMMdd}.docx";
+            return Results.File(fileData, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileName);
         }
         catch (Exception ex)
         {
