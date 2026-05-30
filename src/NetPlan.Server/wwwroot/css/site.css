@@ -862,7 +862,7 @@ body {
 .col-sel  { width: 24px; padding: 0 2px; text-align: center; }
 .col-idx  { width: 42px; padding: 0 2px; text-align: center; font-size: 11px; color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
 .col-status { width: 28px; padding: 0 2px; text-align: center; }
-.col-code { width: 75px; padding: 0 4px; font-weight: 500; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-code { width: 85px; padding: 0 4px; font-weight: 500; font-size: 12px; overflow-wrap: break-word; }
 .col-name { width: 200px; min-width: 70px; max-width: 250px; padding: 0 6px; font-size: 13px; overflow-wrap: break-word; word-break: break-all; }
 .col-person { width: 60px; padding: 0 4px; font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-date { width: 75px; padding: 0 4px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }

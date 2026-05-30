@@ -3625,6 +3625,16 @@ var NetPlan = (() => {
       form.submit();
       setTimeout(function() { document.body.removeChild(form); }, 1000);
     },
+    downloadTextFile(fileName, content) {
+      var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    },
 
   };
   for (const [key, fn] of Object.entries(api)) {

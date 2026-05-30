@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using NetPlan.Server.Data;
 using NetPlan.Server.Services;
 using NetPlan.Server.Models;
+using NetPlan.Server;
 using Microsoft.AspNetCore.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
