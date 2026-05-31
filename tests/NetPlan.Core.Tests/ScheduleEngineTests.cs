@@ -258,7 +258,7 @@ public class ScheduleEngineTests
     }
 
     [Fact]
-    public void 手动排程有前置_忽略手动日期()
+    public void 手动排程有前置_保留手动日期()
     {
         var t = new List<TaskItem>
         {
@@ -270,8 +270,8 @@ public class ScheduleEngineTests
             new() { PredecessorTaskId = 1, SuccessorTaskId = 2, PredecessorTask = t[0], SuccessorTask = t[1], Type = RelationType.FS, Lag = 0 }
         };
         _engine.Calculate(t, rels, _startDate);
-        // B 有前置 A → 忽略手动日期，以 CPM 为准
-        Assert.Equal(3, t[1].EarlyStart);
+        // B 有前置 A 但已设为手动排程 → 保留手动设定的日期
+        Assert.Equal(4, t[1].EarlyStart); // 2024-01-05 - 2024-01-01 = 4天
     }
 
     // ==================== 零工期任务（里程碑） ====================

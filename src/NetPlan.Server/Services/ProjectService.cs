@@ -249,6 +249,66 @@ public class ProjectService : IProjectService
 
     #endregion
 
+    #region 基准对比
+
+    public async Task<List<Baseline>> GetBaselinesAsync(int projectId)
+    {
+        return await _db.Baselines
+            .Where(b => b.ProjectId == projectId)
+            .OrderBy(b => b.Number)
+            .ToListAsync();
+    }
+
+    public async Task<List<BaselineTask>> GetBaselineTasksAsync(int baselineId)
+    {
+        return await _db.BaselineTasks
+            .Where(bt => bt.BaselineId == baselineId)
+            .ToListAsync();
+    }
+
+    public async Task<int> SaveBaselineAsync(int projectId, int number, string name)
+    {
+        // 删除同编号的旧基准
+        var existing = await _db.Baselines.FirstOrDefaultAsync(b => b.ProjectId == projectId && b.Number == number);
+        if (existing != null)
+        {
+            _db.BaselineTasks.RemoveRange(await _db.BaselineTasks.Where(bt => bt.BaselineId == existing.Id).ToListAsync());
+            _db.Baselines.Remove(existing);
+            await _db.SaveChangesAsync();
+        }
+
+        var baseline = new Baseline { ProjectId = projectId, Number = number, Name = name };
+        _db.Baselines.Add(baseline);
+        await _db.SaveChangesAsync(); // 先保存获取 Id
+
+        // 复制当前所有任务的计划日期
+        var tasks = await _db.Tasks.Where(t => t.ProjectId == projectId).ToListAsync();
+        foreach (var task in tasks)
+        {
+            _db.BaselineTasks.Add(new BaselineTask
+            {
+                BaselineId = baseline.Id,
+                TaskId = task.Id,
+                PlanStartDate = task.PlanStartDate,
+                PlanEndDate = task.PlanEndDate,
+                PlanDuration = task.PlanDuration
+            });
+        }
+        await _db.SaveChangesAsync();
+        return baseline.Id;
+    }
+
+    public async Task DeleteBaselineAsync(int baselineId)
+    {
+        var tasks = await _db.BaselineTasks.Where(bt => bt.BaselineId == baselineId).ToListAsync();
+        _db.BaselineTasks.RemoveRange(tasks);
+        var baseline = await _db.Baselines.FindAsync(baselineId);
+        if (baseline != null) _db.Baselines.Remove(baseline);
+        await _db.SaveChangesAsync();
+    }
+
+    #endregion
+
     #region 调度计算
 
     public async Task<int> CalculateScheduleAsync(int projectId)
@@ -269,23 +329,37 @@ public class ProjectService : IProjectService
                                     .ToHashSet();
         var leafTasks = allTasks.Where(t => !parentTaskIds.Contains(t.Id)).ToList();
 
-        // 也过滤掉涉及父任务的关系（CPM 只计算叶子任务之间的依赖）
+        // 保留至少一端是叶子任务的关系（父任务也可有前置/后置关系）
         var leafTaskIds = leafTasks.Select(t => t.Id).ToHashSet();
         var leafRelations = relations.Where(r => leafTaskIds.Contains(r.PredecessorTaskId)
-                                               && leafTaskIds.Contains(r.SuccessorTaskId)).ToList();
+                                               || leafTaskIds.Contains(r.SuccessorTaskId)).ToList();
 
         int projectDuration = _scheduleEngine.Calculate(leafTasks, leafRelations, project.PlanStartDate);
+
+        // 一次性读取日历数据，避免循环内反复查库
+        var calBits = await _calendar.GetWorkDayBitsAsync(projectId);
+        var calHolidays = await _calendar.GetHolidaysAsync(projectId);
 
         // 将调度结果（ES/EF偏移天数）写入叶子任务的实际日期（父任务由 RecalculateParentTaskDates 汇总）
         foreach (var task in leafTasks)
         {
             if (task.EarlyStart.HasValue && task.EarlyFinish.HasValue)
             {
-                // ES 是工日偏移，PlanDuration 是工日，都用日历换算
-                var calStart = task.EarlyStart.Value > 0
-                    ? await _calendar.AddWorkingDaysAsync(projectId, project.PlanStartDate, task.EarlyStart.Value)
-                    : project.PlanStartDate;
-                var calEnd = await _calendar.AddWorkingDaysAsync(projectId, calStart, task.PlanDuration);
+                // ES=0 且非手动排程 → 无前置任务，保留用户已设的 PlanStartDate
+                DateTime calStart;
+                if (task.IsManualSchedule)
+                {
+                    calStart = project.PlanStartDate.AddDays(task.EarlyStart.Value);
+                }
+                else if (task.EarlyStart.GetValueOrDefault() > 0)
+                {
+                    calStart = _calendar.AddWorkingDays(calBits, project.PlanStartDate, task.EarlyStart.Value, calHolidays);
+                }
+                else
+                {
+                    calStart = task.PlanStartDate; // 保留用户已设的起始日
+                }
+                var calEnd = _calendar.AddWorkingDays(calBits, calStart, task.PlanDuration, calHolidays);
                 task.PlanStartDate = calStart;
                 task.PlanEndDate = calEnd;
             }
@@ -294,8 +368,36 @@ public class ProjectService : IProjectService
         // 重新计算父任务日期：父任务的 PlanStartDate = 子任务最早开始, PlanEndDate = 子任务最晚完成
         await RecalculateParentTaskDatesAsync(projectId, allTasks);
 
+        // 第二遍：父任务的紧后任务（叶子）需要根据父任务的实际完成日调整起始日
+        var parentTaskIdSet = allTasks.Where(t => allTasks.Any(c => c.ParentTaskId == t.Id)).Select(t => t.Id).ToHashSet();
+        foreach (var rel in leafRelations)
+        {
+            if (parentTaskIdSet.Contains(rel.PredecessorTaskId) && leafTaskIds.Contains(rel.SuccessorTaskId))
+            {
+                var predTask = allTasks.FirstOrDefault(t => t.Id == rel.PredecessorTaskId);
+                var succTask = allTasks.FirstOrDefault(t => t.Id == rel.SuccessorTaskId);
+                if (predTask != null && succTask != null && predTask.PlanEndDate > succTask.PlanStartDate)
+                {
+                    // 推后紧后任务的日期
+                    var diff = (predTask.PlanEndDate - succTask.PlanStartDate).Days + rel.Lag;
+                    if (diff > 0)
+                    {
+                        succTask.PlanStartDate = predTask.PlanEndDate.AddDays(rel.Lag);
+                        succTask.PlanEndDate = _calendar.AddWorkingDays(calBits, succTask.PlanStartDate, succTask.PlanDuration, calHolidays);
+                    }
+                }
+            }
+        }
+        // 父任务调整后，重新汇总一次父任务日期
+        await RecalculateParentTaskDatesAsync(projectId, allTasks);
+
+        // 修正项目开始日：不能晚于最早任务的开始日
+        var minTaskDate = allTasks.Min(t => t.PlanStartDate);
+        if (minTaskDate < project.PlanStartDate)
+            project.PlanStartDate = minTaskDate;
+
         // 更新项目结束日期（用日历计算）
-        project.PlanEndDate = await _calendar.AddWorkingDaysAsync(projectId, project.PlanStartDate, projectDuration);
+        project.PlanEndDate = _calendar.AddWorkingDays(calBits, project.PlanStartDate, projectDuration, calHolidays);
         project.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();

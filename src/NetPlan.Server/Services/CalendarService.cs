@@ -15,14 +15,14 @@ public class CalendarService
     }
 
     /// <summary>获取项目的工作日位掩码</summary>
-    private async Task<int> GetWorkDayBitsAsync(int projectId)
+    public async Task<int> GetWorkDayBitsAsync(int projectId)
     {
         var project = await _db.Projects.FindAsync(projectId);
-        return project?.WorkDayBits ?? 0b01111110;
+        return project?.WorkDayBits ?? 0b00111110;
     }
 
     /// <summary>获取项目的节假日日期集合</summary>
-    private async Task<HashSet<DateTime>> GetHolidaysAsync(int projectId)
+    public async Task<HashSet<DateTime>> GetHolidaysAsync(int projectId)
     {
         var holidays = await _db.Holidays
             .Where(h => h.ProjectId == projectId)
@@ -55,17 +55,19 @@ public class CalendarService
         return AddWorkingDays(bits, startDate, duration, holidays);
     }
 
-    /// <summary>从 startDate 开始，加上 duration 个工作日，返回实际结束日期（含起始日）</summary>
+    /// <summary>从 startDate 的次日开始，加上 duration 个工作日，返回结束日期（不含起始日）</summary>
     public DateTime AddWorkingDays(int workDayBits, DateTime startDate, int duration, HashSet<DateTime> holidays)
     {
         if (duration <= 0) return startDate;
+        if ((workDayBits & 0x7F) == 0) return startDate.AddDays(duration);
         var current = startDate;
         var added = 0;
-        while (added < duration)
+        var maxLoops = duration * 366 + 366;
+        while (added < duration && maxLoops-- > 0)
         {
+            current = current.AddDays(1);
             if (IsWorkingDay(workDayBits, current, holidays))
                 added++;
-            if (added < duration) current = current.AddDays(1);
         }
         return current;
     }

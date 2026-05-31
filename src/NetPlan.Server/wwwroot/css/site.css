@@ -1023,10 +1023,10 @@ body {
     z-index: 3;
 }
 
-/* 计划进度条（蓝色，上半部分） */
+/* 计划进度条（蓝色，中间部分） */
 .bar-plan {
     position: absolute;
-    top: 0; height: 20px;
+    top: 5px; height: 15px;
     background: linear-gradient(180deg, #1890ff 0%, #096dd9 100%);
     border-radius: 3px 3px 0 0;
     display: flex; align-items: center;
@@ -1038,7 +1038,17 @@ body {
     box-sizing: border-box;
 }
 
-/* 实际进度条（绿色，下半部分，紧贴计划条下边线） */
+/* 基准进度条（灰色细条，在计划条上方5px） */
+.bar-baseline {
+    position: absolute;
+    top: 0; height: 5px;
+    border-radius: 2px;
+    background: rgba(120, 120, 120, 0.7);
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* 实际进度条（绿色，底部） */
 .bar-act {
     position: absolute;
     top: 20px; height: 10px;

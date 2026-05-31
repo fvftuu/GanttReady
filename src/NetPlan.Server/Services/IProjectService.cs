@@ -43,4 +43,10 @@ public interface IProjectService
 
     // 导出
     Task<string> ExportTasksToExcelAsync(int projectId);
+
+    // 基准对比
+    Task<List<Baseline>> GetBaselinesAsync(int projectId);
+    Task<List<BaselineTask>> GetBaselineTasksAsync(int baselineId);
+    Task<int> SaveBaselineAsync(int projectId, int number, string name);
+    Task DeleteBaselineAsync(int baselineId);
 }

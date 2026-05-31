@@ -123,6 +123,15 @@ public class ProjectXmlImportService
                 }
             }
 
+            // 修正项目开始日：不能晚于最早任务的开始日
+            var project = await _db.Projects.FindAsync(projectId);
+            if (project != null)
+            {
+                var minTaskStart = newTasks.Min(t => t.PlanStartDate);
+                if (minTaskStart < project.PlanStartDate)
+                    project.PlanStartDate = minTaskStart;
+            }
+
             // 重算父任务工期 = 子任务工期汇总
             foreach (var parent in newTasks.Where(t =>
                 newTasks.Any(c => c.ParentTaskId == t.Id)))

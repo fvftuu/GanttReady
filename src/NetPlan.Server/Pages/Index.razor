@@ -114,7 +114,7 @@
                         <div class="card-body">
                             @* 头行：代码 + 状态 *@
                             <div class="card-header-row">
-                                <span class="badge primary">@p.Code</span>
+                                <span class="badge primary">#@p.Id @p.Code</span>
                                 <span class="status-badge @(p.Status == 2 ? "overdue" : p.Status == 0 ? "pending" : "active")">
                                     @if (p.Status == 2) { <i class="bi bi-emoji-frown"></i> }
                                     else if (p.Status == 0) { <i class="bi bi-emoji-smile"></i> }

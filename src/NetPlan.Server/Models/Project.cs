@@ -26,7 +26,7 @@ public class Project
 
     public int WorkingHoursPerDay { get; set; } = 8;             // 每天工作时间（小时）
     public int WorkdaysPerWeek { get; set; } = 5;                // 每周工作天数
-    public int WorkDayBits { get; set; } = 0b01111110;           // 位掩码：bit0=日…bit6=六，默认周一~周五           // 位掩码：bit0=日…bit6=六，默认周一~周五
+    public int WorkDayBits { get; set; } = 0b00111110;           // 62, bits 1-5=周一~周五           // 位掩码：bit0=日…bit6=六，默认周一~周五
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

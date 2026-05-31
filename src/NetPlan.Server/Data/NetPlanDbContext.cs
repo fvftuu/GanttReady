@@ -17,6 +17,8 @@ public class NetPlanDbContext : DbContext
     public DbSet<ResourceAssignment> ResourceAssignments => Set<ResourceAssignment>();
     public DbSet<ColumnDefinition> ColumnDefinitions => Set<ColumnDefinition>();
     public DbSet<ProjectHoliday> Holidays => Set<ProjectHoliday>();
+    public DbSet<Baseline> Baselines => Set<Baseline>();
+    public DbSet<BaselineTask> BaselineTasks => Set<BaselineTask>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -98,6 +100,25 @@ public class NetPlanDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasIndex(h => new { h.ProjectId, h.Date }).IsUnique();
+        });
+
+        // Baseline 配置
+        modelBuilder.Entity<Baseline>(entity =>
+        {
+            entity.HasOne(b => b.Project)
+                .WithMany()
+                .HasForeignKey(b => b.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(b => new { b.ProjectId, b.Number }).IsUnique();
+        });
+
+        // BaselineTask 配置
+        modelBuilder.Entity<BaselineTask>(entity =>
+        {
+            entity.HasOne(bt => bt.Baseline)
+                .WithMany(b => b.Tasks)
+                .HasForeignKey(bt => bt.BaselineId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ColumnDefinition 配置

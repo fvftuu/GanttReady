@@ -29,7 +29,7 @@ public class AiService : IAiService
     // 重试配置：429/502/503 自动重试 1 次，间隔 1 秒
     private static readonly int[] _retryStatusCodes = { 429, 502, 503 };
     private static readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(1);
-    private const int _timeoutSec = 180; // AI 请求超时（秒）
+    private const int _timeoutSec = 300; // AI 请求超时（秒）
 
     public AiService(HttpClient http, IOptions<AiOptions> options)
     {
@@ -98,7 +98,8 @@ public class AiService : IAiService
             {
                 model = opts.Model,
                 messages = messages.Select(m => new { role = m.Role, content = m.Content }),
-                temperature
+                temperature,
+                max_tokens = 4096
             };
             var json = JsonSerializer.Serialize(openaiBody, _json);
             var content = new StringContent(json, Encoding.UTF8, "application/json");

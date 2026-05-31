@@ -73,6 +73,15 @@
         <button class="btn btn-sm btn-default" @onclick="RecalculateSchedule" title="重算计划" style="color:#fa8c16;"><i class="bi bi-vector-pen"></i></button>
         <span class="toolbar-sep"></span>
         <button class="btn btn-sm btn-default" @onclick="OpenCalendarDialog" title="工作日历" style="color:#722ed1;"><i class="bi bi-calendar3"></i></button>
+        <span class="toolbar-sep"></span>
+        <button class="btn btn-sm btn-default" @onclick="ShowSaveBaselineDialog" title="保存基准" style="color:#8c8c8c;"><i class="bi bi-camera"></i></button>
+        <select class="form-control" style="width:80px;height:26px;font-size:11px;padding:0 4px;" @bind="_activeBaseline" @bind:after="OnBaselineChanged">
+            <option value="0">无基准</option>
+            @foreach (var bl in _baselines)
+            {
+                <option value="@bl.Id">@($"#{bl.Number} {bl.Name}")</option>
+            }
+        </select>
     </div>
 </div>
 </div>
@@ -486,10 +495,22 @@
                         actW = planW * task.CompletionPercentage / 100.0;
                         hasActual = true;
                     }
-                    var barLeft = hasActual ? Math.Min(planStart, actStart) : planStart;
-                    var barTotalW = hasActual ? Math.Max(planStart + planW, actStart + actW) - barLeft : planW;
-                    var barHeight = 30; // 统一30px高度（plan 20px + act 10px）
+                    // 基准条数据
+                    var blStart = 0.0; var blW = 0.0; var hasBl = false;
+                    if (_baselineTaskMap.TryGetValue(task.Id, out var blTask))
+                    {
+                        blStart = Math.Max(0, (blTask.PlanStartDate - projectStartDate).Days) * dayWidth;
+                        blW = Math.Max(1, (blTask.PlanEndDate - blTask.PlanStartDate).Days + 1) * dayWidth;
+                        hasBl = true;
+                    }
+                    var barLeft = hasBl ? Math.Min(blStart, planStart) : planStart;
+                    if (hasActual) barLeft = Math.Min(barLeft, Math.Min(planStart, actStart));
+                    var barTotalW = planW;
+                    if (hasBl) barTotalW = Math.Max(barTotalW, blStart + blW - barLeft);
+                    if (hasActual) barTotalW = Math.Max(barTotalW, Math.Max(planStart + planW, actStart + actW) - barLeft);
+                    var barHeight = 30; // 统一30px（基线5px + plan 15px + act 10px）
                     var planLeft = planStart - barLeft;
+                    var blLeft = hasBl ? (blStart - barLeft) : 0;
                     var actLeft = hasActual ? (actStart - barLeft) : 0;
                     <div class="gantt-bar-frame @GetBarClass(task) @(selectedTaskId == task.Id ? "selected" : "") @(IsParentTask(task) ? "parent-task" : "")"
                          style="left: @(barLeft)px; width: @(barTotalW)px; top: @(rowIndex * rowHeight)px; height: @(barHeight)px;"
@@ -501,6 +522,11 @@
                          @onclick="() => SelectTask(task.Id)"
                          title="@task.Name"
                          data-task-id="@task.Id">
+                        @* 基准进度（灰色底层，两端突出显示偏差） *@
+                        @if (hasBl)
+                        {
+                            <div class="bar-baseline" style="left: @(blLeft)px; width: @(blW)px;"></div>
+                        }
                         @* 计划进度（蓝色上半部） *@
                         <div class="bar-plan" style="left: @(planLeft)px; width: @(planW)px;">
                             @task.Name @(task.CompletionPercentage > 0 ? $"({task.CompletionPercentage}%)" : "")
@@ -565,6 +591,37 @@
         <span class="status-item"><i class="bi bi-key"></i> 关键任务：@tasks.Count(t => t.IsCritical)</span>
     }
 </div>
+
+@* ========== 保存基准模态框 ========== *@
+@if (_showBaselineDialog)
+{
+    <div class="modal-overlay">
+        <div class="modal-content" style="width:400px;" @onclick:stopPropagation="true">
+            <h3><i class="bi bi-camera" style="color:#8c8c8c;"></i> 保存基准</h3>
+            <div style="margin:12px 0;">
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">将当前所有任务的计划日期保存为基准快照，用于后续对比。</p>
+                <div class="form-group">
+                    <label>基准编号</label>
+                    <select class="form-control" @bind="_baselineNumber">
+                        @for (int i = 1; i <= 5; i++)
+                        {
+                            var existName = _baselines.FirstOrDefault(b => b.Number == i)?.Name ?? "";
+                            <option value="@i">基准 #@i@(existName != "" ? $"（当前：{existName}）" : "（空）")</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>基准名称</label>
+                    <input type="text" class="form-control" @bind="_baselineName" placeholder="如：初始计划、第一次调整" />
+                </div>
+            </div>
+            <div class="dialog-actions" style="display:flex;gap:6px;">
+                <button class="btn btn-default" @onclick="() => _showBaselineDialog = false">取消</button>
+                <button class="btn btn-primary" @onclick="SaveBaseline">保存基准</button>
+            </div>
+        </div>
+    </div>
+}
 
 @* ========== 工作日历模态框 ========== *@
 @if (_showCalendar)
@@ -645,7 +702,7 @@
                 </div>
                 <div class="form-group">
                     <label>任务名称</label>
-                    <input class="form-control" @bind="editingTask.Name" placeholder="如 项目立项与审批" />
+                    <input class="form-control" @bind="editingTask.Name" placeholder="如 外墙保温" maxlength="20" />
                 </div>
             </div>
 
@@ -810,7 +867,8 @@
                 </div>
                 @if (editingPredecessors.Count > 0)
                 {
-                    <table class="table table-compact" style="margin-top:8px;">
+                    <table class="table table-compact" style="margin-top:8px;table-layout:fixed;width:100%;">
+                        <colgroup><col style="width:40%;"/><col style="width:50px;"/><col style="width:50px;"/><col style="width:110px;"/></colgroup>
                         <thead>
                             <tr><th>任务</th><th>关系</th><th>时差(天)</th><th>操作</th></tr>
                         </thead>
@@ -819,7 +877,7 @@
                             {
                                 var pt = tasks.FirstOrDefault(t => t.Id == rel.PredecessorTaskId);
                                 <tr>
-                                    <td>@(pt == null ? "?" : rel.Lag == 0 ? pt.Code : $"{pt.Code}{(rel.Lag>0?"+":"")}{rel.Lag}") - @(pt?.Name ?? "未知")</td>
+                                    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="@(pt?.Name ?? "")">@(pt == null ? "?" : rel.Lag == 0 ? pt.Code : $"{pt.Code}{(rel.Lag>0?"+":"")}{rel.Lag}") - @(pt?.Name ?? "未知")</td>
                                     <td>@rel.Type</td>
                                     <td>@rel.Lag</td>
                                     <td>
@@ -861,7 +919,8 @@
                 </div>
                 @if (editingSuccessors.Count > 0)
                 {
-                    <table class="table table-compact" style="margin-top:8px;">
+                    <table class="table table-compact" style="margin-top:8px;table-layout:fixed;width:100%;">
+                        <colgroup><col style="width:40%;"/><col style="width:50px;"/><col style="width:50px;"/><col style="width:110px;"/></colgroup>
                         <thead>
                             <tr><th>任务</th><th>关系</th><th>时差(天)</th><th>操作</th></tr>
                         </thead>
@@ -870,7 +929,7 @@
                             {
                                 var st = tasks.FirstOrDefault(t => t.Id == rel.SuccessorTaskId);
                                 <tr>
-                                    <td>@(st == null ? "?" : rel.Lag == 0 ? st.Code : $"{st.Code}{(rel.Lag>0?"+":"")}{rel.Lag}") - @(st?.Name ?? "未知")</td>
+                                    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="@(st?.Name ?? "")">@(st == null ? "?" : rel.Lag == 0 ? st.Code : $"{st.Code}{(rel.Lag>0?"+":"")}{rel.Lag}") - @(st?.Name ?? "未知")</td>
                                     <td>@rel.Type</td>
                                     <td>@rel.Lag</td>
                                     <td>
@@ -1196,9 +1255,59 @@
         public bool Visible { get; set; } = true;
     }
 
+    // ========== 基准对比 ==========
+    private bool _showBaselineDialog = false;
+    private int _activeBaseline = 0; // 0=不显示
+    private int _baselineNumber = 1;
+    private string _baselineName = "";
+    private List<Baseline> _baselines = new();
+    private Dictionary<int, BaselineTask> _baselineTaskMap = new(); // taskId → BaselineTask
+
+    private async Task LoadBaselines()
+    {
+        if (currentProjectId == 0) return;
+        _baselines = await ProjectService.GetBaselinesAsync(currentProjectId);
+    }
+
+    private async Task ShowSaveBaselineDialog()
+    {
+        await LoadBaselines();
+        _baselineNumber = _baselines.Count < 5 ? _baselines.Count + 1 : 1;
+        _baselineName = "";
+        _showBaselineDialog = true;
+    }
+
+    private async Task SaveBaseline()
+    {
+        if (currentProjectId == 0) return;
+        if (string.IsNullOrWhiteSpace(_baselineName))
+            _baselineName = $"基准 #{_baselineNumber}";
+        await ProjectService.SaveBaselineAsync(currentProjectId, _baselineNumber, _baselineName.Trim());
+        _showBaselineDialog = false;
+        await LoadBaselines();
+        _activeBaseline = _baselines.FirstOrDefault(b => b.Number == _baselineNumber)?.Id ?? 0;
+        await LoadBaselineData();
+        StateHasChanged();
+    }
+
+    private async Task OnBaselineChanged()
+    {
+        await LoadBaselineData();
+        StateHasChanged();
+    }
+
+    private async Task LoadBaselineData()
+    {
+        _baselineTaskMap.Clear();
+        if (_activeBaseline <= 0) return;
+        var tasks = await ProjectService.GetBaselineTasksAsync(_activeBaseline);
+        foreach (var bt in tasks)
+            _baselineTaskMap[bt.TaskId] = bt;
+    }
+
     // ========== 工作日历 ==========
     private bool _showCalendar = false;
-    private int _calBits = 0b01111110;
+    private int _calBits = 0b00111110;
     private List<ProjectHoliday> _calHolidays = new();
     private DateTime? _calNewDate = DateTime.Today;
     private string _calNewName = "";
@@ -1242,7 +1351,7 @@
     private async Task SaveCalendarAndClose()
     {
         if (currentProjectId == 0) return;
-        if (_calBits == 0) _calBits = 0b01111100;
+        if (_calBits == 0) _calBits = 0b00111110;
         var proj = await Db.Projects.FindAsync(currentProjectId);
         if (proj != null)
         {
@@ -1454,6 +1563,10 @@
         if (currentProjectId == 0) return;
 
         loading = true;
+
+        // 加载基准列表和数据
+        await LoadBaselines();
+        if (_activeBaseline > 0) await LoadBaselineData();
 
         // 先重算预算金额（基于资源分配 × 工期，写入DB）
         await ProjectService.RecalculateAllTaskBudgetsAsync(currentProjectId);
@@ -1675,6 +1788,8 @@
             Code = task.Code,
             Name = task.Name,
             SortOrder = task.SortOrder,
+            ParentTaskId = task.ParentTaskId,
+            OutlineLevel = task.OutlineLevel,
             ResponsiblePerson = task.ResponsiblePerson,
             CompletionPercentage = task.CompletionPercentage,
             IsMilestone = task.IsMilestone,
@@ -1685,6 +1800,9 @@
             PlanDuration = task.PlanDuration,
             ActualStartDate = task.ActualStartDate,
             ActualEndDate = task.ActualEndDate,
+            ActualDuration = task.ActualDuration,
+            BudgetCost = task.BudgetCost,
+            ActualCost = task.ActualCost,
             EarlyStart = task.EarlyStart,
             EarlyFinish = task.EarlyFinish,
             LateStart = task.LateStart,
@@ -1733,8 +1851,9 @@
     private async Task HandleTaskOk()
     {
         if (editingTask == null) return;
-
-        // 防日期清除 + 日历联动
+        try
+        {
+        // 防日期清除
         if (editingTask.PlanStartDate.Year < 2000)
             editingTask.PlanStartDate = DateTime.Today;
         editingTask.PlanDuration = Math.Max(1, editingTask.PlanDuration);
@@ -1806,11 +1925,15 @@
 
         taskModalVisible = false;
         await JS.InvokeVoidAsync("clearDraft", $"task_{editingTask.Id}");
-        // 重算调度（更新ES/EF/LS/LF/关键路径），然后刷新数据和甘特图
-        await ProjectService.CalculateScheduleAsync(currentProjectId);
+        // 只刷新数据，不自动重算 CPM（用户可手动点重算计划）
         await LoadTasks();
-        // 显式触发行高同步（Blazor 重渲染后 DOM 可能尚未完成 layout）
-        await JS.InvokeVoidAsync("syncGanttRowHeightsDeferred");
+        // 显式触发行高同步
+        try { await JS.InvokeVoidAsync("syncGanttRowHeightsDeferred"); } catch { }
+        }
+        catch (Exception ex)
+        {
+            Toast.Error($"保存失败: {ex.Message}");
+        }
     }
 
     private async Task AddResourceAssignment()

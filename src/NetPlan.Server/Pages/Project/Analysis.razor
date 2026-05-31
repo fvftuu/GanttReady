@@ -361,8 +361,9 @@
                 </div>
             }
 
-            <div class="dialog-actions" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+            <div class="dialog-actions" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:6px;">
                 <button class="btn btn-default" @onclick="() => _showAiSettings = false">关闭</button>
+                <button class="btn btn-primary" @onclick="SaveAiSettings">保存配置</button>
             </div>
         </div>
     </div>
@@ -587,7 +588,8 @@
             new() { Name = "anthropic", Endpoint = "https://api.anthropic.com", ApiFormat = "anthropic", Model = "claude-sonnet-4-5-20250929", Models = new() { "claude-sonnet-4-5-20250929", "claude-opus-4-6" } },
             new() { Name = "gemini", Endpoint = "https://generativelanguage.googleapis.com/v1beta", ApiFormat = "openai", Model = "gemini-3-pro-preview", Models = new() { "gemini-3-pro-preview", "gemini-3-flash-preview" } },
             new() { Name = "github-copilot", Endpoint = "https://api.individual.githubcopilot.com", ApiFormat = "openai", Model = "gpt-5-mini", Models = new() { "gpt-5-mini", "claude-haiku-4.5", "gpt-4.1", "gpt-4o" } },
-            new() { Name = "openrouter", Endpoint = "https://openrouter.ai/api/v1", ApiFormat = "openai", Model = "anthropic/claude-sonnet-4.5", Models = new() { "anthropic/claude-sonnet-4.5", "openai/gpt-5.2-codex", "google/gemini-3-pro-preview" } },
+            new() { Name = "openrouter", Endpoint = "https://openrouter.ai/api/v1", ApiFormat = "openai", Model = "anthropic/claude-sonnet-4.5", Models = new() { "anthropic/claude-sonnet-4.5", "openai/gpt-5.2-codex", "google/gemini-3-pro-preview", "bytedance/seed-oss-36b-instruct" } },
+            new() { Name = "nvidia-build", Endpoint = "https://build.nvidia.com", ApiFormat = "openai", Model = "", Models = new() },
         };
     }
 

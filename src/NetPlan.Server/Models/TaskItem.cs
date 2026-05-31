@@ -16,7 +16,7 @@ public class TaskItem
     public string Code { get; set; } = string.Empty;            // 任务代号
 
     [Required]
-    [MaxLength(200)]
+    [MaxLength(20)]
     public string Name { get; set; } = string.Empty;            // 任务名称
 
     public int SortOrder { get; set; }                          // 排序顺序
