@@ -10,7 +10,8 @@
         @if (IsColumnVisible("person")) { <div class="col-person">负责人</div> }
         @if (IsColumnVisible("planStart")) { <div class="col-date">计划开始</div> }
         @if (IsColumnVisible("planEnd")) { <div class="col-date">计划完成</div> }
-        @if (IsColumnVisible("duration")) { <div class="col-num" style="flex-direction:column;display:flex;line-height:1.1;text-align:center;"><span>计划</span><span>工期</span></div> }
+        @if (IsColumnVisible("duration")) { <div class="col-num">工日</div> }
+        @if (IsColumnVisible("calendarSpan")) { <div class="col-num">工期</div> }
         @if (IsColumnVisible("actStart")) { <div class="col-date">实际开始</div> }
         @if (IsColumnVisible("actEnd")) { <div class="col-date">实际完成</div> }
         @if (IsColumnVisible("actDur")) { <div class="col-num" style="flex-direction:column;display:flex;line-height:1.1;text-align:center;"><span>实际</span><span>工期</span></div> }
@@ -46,9 +47,10 @@
                     @if (IsColumnVisible("planStart")) { <div class="col-date">@task.PlanStartDate.ToString("yyyy-MM-dd")</div> }
                     @if (IsColumnVisible("planEnd")) { <div class="col-date">@task.PlanEndDate.ToString("yyyy-MM-dd")</div> }
                     @if (IsColumnVisible("duration")) { <div class="col-num">@task.PlanDuration</div> }
+                    @if (IsColumnVisible("calendarSpan")) { <div class="col-num">@(Math.Max(1, (task.PlanEndDate - task.PlanStartDate).Days + 1))</div> }
                     @if (IsColumnVisible("actStart")) { <div class="col-date">@(task.ActualStartDate?.ToString("yyyy-MM-dd") ?? "")</div> }
                     @if (IsColumnVisible("actEnd")) { <div class="col-date">@(task.ActualEndDate?.ToString("yyyy-MM-dd") ?? "")</div> }
-                    @if (IsColumnVisible("actDur")) { <div class="col-num">@(task.ActualDuration?.ToString() ?? "")</div> }
+                    @if (IsColumnVisible("actDur")) { var ad = task.ActualDuration ?? (task.ActualStartDate.HasValue && task.ActualEndDate.HasValue ? Math.Max(1, (task.ActualEndDate.Value - task.ActualStartDate.Value).Days + 1) : (int?)null); <div class="col-num">@(ad?.ToString() ?? "")</div> }
                     @if (IsColumnVisible("budget")) { <div class="col-money">@task.BudgetCost.ToString("C2")</div> }
                     @if (IsColumnVisible("actual")) { <div class="col-money @(task.ActualCost > task.BudgetCost ? "cost-over" : "")">@((task.ActualCost ?? 0).ToString("C2"))</div> }
                     @if (IsColumnVisible("pred")) { <div class="col-pred" title="@PredecessorSummary(task)">@PredecessorSummary(task)</div> }

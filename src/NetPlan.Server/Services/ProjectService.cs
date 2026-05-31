@@ -8,11 +8,13 @@ public class ProjectService : IProjectService
 {
     private readonly NetPlanDbContext _db;
     private readonly IScheduleEngine _scheduleEngine;
+    private readonly CalendarService _calendar;
 
-    public ProjectService(NetPlanDbContext db, IScheduleEngine scheduleEngine)
+    public ProjectService(NetPlanDbContext db, IScheduleEngine scheduleEngine, CalendarService calendar)
     {
         _db = db;
         _scheduleEngine = scheduleEngine;
+        _calendar = calendar;
     }
 
     #region 项目 CRUD
@@ -279,16 +281,21 @@ public class ProjectService : IProjectService
         {
             if (task.EarlyStart.HasValue && task.EarlyFinish.HasValue)
             {
-                task.PlanStartDate = project.PlanStartDate.AddDays(task.EarlyStart.Value);
-                task.PlanEndDate = project.PlanStartDate.AddDays(task.EarlyFinish.Value - 1);
+                // ES 是工日偏移，PlanDuration 是工日，都用日历换算
+                var calStart = task.EarlyStart.Value > 0
+                    ? await _calendar.AddWorkingDaysAsync(projectId, project.PlanStartDate, task.EarlyStart.Value)
+                    : project.PlanStartDate;
+                var calEnd = await _calendar.AddWorkingDaysAsync(projectId, calStart, task.PlanDuration);
+                task.PlanStartDate = calStart;
+                task.PlanEndDate = calEnd;
             }
         }
 
         // 重新计算父任务日期：父任务的 PlanStartDate = 子任务最早开始, PlanEndDate = 子任务最晚完成
-        RecalculateParentTaskDates(allTasks);
+        await RecalculateParentTaskDatesAsync(projectId, allTasks);
 
-        // 更新项目结束日期
-        project.PlanEndDate = project.PlanStartDate.AddDays(projectDuration);
+        // 更新项目结束日期（用日历计算）
+        project.PlanEndDate = await _calendar.AddWorkingDaysAsync(projectId, project.PlanStartDate, projectDuration);
         project.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
@@ -306,7 +313,7 @@ public class ProjectService : IProjectService
     /// PlanEndDate = 所有直接子任务最晚的 PlanEndDate，PlanDuration 自动重算。
     /// 支持多层嵌套（父→子→孙），逐层向上冒泡。
     /// </summary>
-    private static void RecalculateParentTaskDates(List<TaskItem> tasks)
+    private async Task RecalculateParentTaskDatesAsync(int projectId, List<TaskItem> tasks)
     {
         var parentTasks = tasks.Where(t => tasks.Any(c => c.ParentTaskId == t.Id)).ToList();
         if (!parentTasks.Any()) return;
@@ -324,7 +331,7 @@ public class ProjectService : IProjectService
 
             parent.PlanStartDate = minStart;
             parent.PlanEndDate = maxEnd;
-            parent.PlanDuration = (maxEnd - minStart).Days + 1;
+            parent.PlanDuration = await _calendar.GetWorkingDaysCountAsync(projectId, minStart, maxEnd);
         }
     }
 

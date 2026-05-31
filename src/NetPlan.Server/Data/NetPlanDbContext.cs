@@ -16,6 +16,7 @@ public class NetPlanDbContext : DbContext
     public DbSet<Resource> Resources => Set<Resource>();
     public DbSet<ResourceAssignment> ResourceAssignments => Set<ResourceAssignment>();
     public DbSet<ColumnDefinition> ColumnDefinitions => Set<ColumnDefinition>();
+    public DbSet<ProjectHoliday> Holidays => Set<ProjectHoliday>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -86,6 +87,17 @@ public class NetPlanDbContext : DbContext
                 .WithMany(r => r.Assignments)
                 .HasForeignKey(a => a.ResourceId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ProjectHoliday 配置
+        modelBuilder.Entity<ProjectHoliday>(entity =>
+        {
+            entity.HasOne(h => h.Project)
+                .WithMany()
+                .HasForeignKey(h => h.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(h => new { h.ProjectId, h.Date }).IsUnique();
         });
 
         // ColumnDefinition 配置

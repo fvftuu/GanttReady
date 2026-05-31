@@ -23,6 +23,7 @@ builder.Services.AddDbContext<NetPlanDbContext>(options =>
         $"Data Source={Path.Combine(builder.Environment.ContentRootPath, "netplan.db")}"));
 
 // App services
+builder.Services.AddScoped<CalendarService>();
 builder.Services.AddScoped<IScheduleEngine, ScheduleEngine>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IResourceService, ResourceService>();

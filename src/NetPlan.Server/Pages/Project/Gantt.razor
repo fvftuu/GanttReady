@@ -5,6 +5,9 @@
 @inject NavigationManager NavManager
 @inject IAiService AiService
 @inject ToastService Toast
+@inject CalendarService CalendarSvc
+@inject NetPlan.Server.Data.NetPlanDbContext Db
+@using Microsoft.EntityFrameworkCore
 @implements IDisposable
 
 <div class="page-header">
@@ -68,6 +71,8 @@
         </div>
         <button class="btn btn-sm btn-default" @onclick="ZoomToFit" title="适应页面" style="color:#1890ff;"><i class="bi bi-arrows-fullscreen"></i></button>
         <button class="btn btn-sm btn-default" @onclick="RecalculateSchedule" title="重算计划" style="color:#fa8c16;"><i class="bi bi-vector-pen"></i></button>
+        <span class="toolbar-sep"></span>
+        <button class="btn btn-sm btn-default" @onclick="OpenCalendarDialog" title="工作日历" style="color:#722ed1;"><i class="bi bi-calendar3"></i></button>
     </div>
 </div>
 </div>
@@ -466,7 +471,7 @@
                 {
                     var rowIndex = _filteredTasks.IndexOf(task);
                     var planStart = Math.Max(0, (task.PlanStartDate - projectStartDate).Days) * dayWidth;
-                    var planW = task.PlanDuration * dayWidth;
+                    var planW = Math.Max(1, (task.PlanEndDate - task.PlanStartDate).Days + 1) * dayWidth;
                     var actStart = 0.0; var actW = 0.0; var hasActual = false;
                     // 优先用实际日期范围（可超出计划条）；无实际日期但有完成率时，用百分比推算
                     if (task.ActualStartDate.HasValue && task.ActualEndDate.HasValue)
@@ -561,6 +566,54 @@
     }
 </div>
 
+@* ========== 工作日历模态框 ========== *@
+@if (_showCalendar)
+{
+    <div class="modal-overlay">
+        <div class="modal-content" style="width:520px;" @onclick:stopPropagation="true">
+            <h3><i class="bi bi-calendar3" style="color:#722ed1;"></i> 工作日历</h3>
+            <div style="margin:10px 0;">
+                <label style="font-weight:600;font-size:13px;">每周工作日</label>
+                <div style="display:flex;gap:4px;margin-top:6px;">
+                    @{
+                        var dayOrder = new[] { 1, 2, 3, 4, 5, 6, 0 }; // 周一~周日
+                        var dayNames = new[] { "日", "一", "二", "三", "四", "五", "六" };
+                    }
+                    @foreach (var idx in dayOrder)
+                    {
+                        var isOn = (_calBits & (1 << idx)) != 0;
+                        <label style="display:flex;align-items:center;gap:2px;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:@(isOn ? "#f6ffed" : "#f5f5f5");">
+                            <input type="checkbox" checked="@isOn" @onchange="(ChangeEventArgs e) => ToggleCalDay(idx, (bool)(e.Value ?? false))" />
+                            <span>@dayNames[idx]</span>
+                        </label>
+                    }
+                </div>
+            </div>
+            <div style="margin:10px 0;">
+                <label style="font-weight:600;font-size:13px;">节假日</label>
+                <div style="display:flex;gap:4px;margin-top:6px;">
+                    <input type="date" class="form-control" style="width:160px;font-size:12px;" @bind="_calNewDate" />
+                    <input type="text" class="form-control" style="flex:1;font-size:12px;" @bind="_calNewName" placeholder="名称" />
+                    <button class="btn btn-primary btn-sm" @onclick="AddCalendarHoliday">添加</button>
+                </div>
+                <div style="margin-top:6px;max-height:160px;overflow-y:auto;">
+                    @foreach (var h in _calHolidays.OrderBy(x => x.Date))
+                    {
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;border-bottom:1px solid var(--border);">
+                            <span style="flex:1;">@h.Date.ToString("MM/dd") @h.Name</span>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteCalendarHoliday(h.Id)" style="padding:0 6px;font-size:11px;">✕</button>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="dialog-actions" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:6px;">
+                <button class="btn btn-default" @onclick="SaveCalendarAndClose">保存并关闭</button>
+                <button class="btn btn-default" @onclick="() => _showCalendar = false">取消</button>
+            </div>
+        </div>
+    </div>
+}
+
 @* ========== 任务编辑模态框 ========== *@
 @if (taskModalVisible && editingTask != null)
 {
@@ -644,8 +697,12 @@
 
             <div class="form-row">
                 <div class="form-group">
-                    <label>计划工期（天）</label>
+                    <label>工日</label>
                     <input type="number" class="form-control" @bind="editingTask.PlanDuration" min="1" @bind:after="OnPlanDurationChanged" />
+                </div>
+                <div class="form-group">
+                    <label>工期（日历天）</label>
+                    <input type="number" class="form-control" value="@(editingTask != null ? Math.Max(1, (editingTask.PlanEndDate - editingTask.PlanStartDate).Days + 1).ToString() : "0")" readonly style="background:#f5f5f5;color:#999;" />
                 </div>
             </div>
 
@@ -1139,6 +1196,63 @@
         public bool Visible { get; set; } = true;
     }
 
+    // ========== 工作日历 ==========
+    private bool _showCalendar = false;
+    private int _calBits = 0b01111110;
+    private List<ProjectHoliday> _calHolidays = new();
+    private DateTime? _calNewDate = DateTime.Today;
+    private string _calNewName = "";
+
+    private void ToggleCalDay(int dayIdx, bool isChecked)
+    {
+        if (isChecked) _calBits |= (1 << dayIdx);
+        else if ((_calBits & ~(1 << dayIdx)) != 0) _calBits &= ~(1 << dayIdx); // 至少保留一天
+    }
+
+    private async Task OpenCalendarDialog()
+    {
+        var proj = await Db.Projects.FindAsync(currentProjectId);
+        _calBits = proj?.WorkDayBits ?? 0b01111100;
+        _calHolidays = await Db.Holidays.Where(h => h.ProjectId == currentProjectId).ToListAsync();
+        _showCalendar = true;
+    }
+
+    private async Task AddCalendarHoliday()
+    {
+        if (!_calNewDate.HasValue || currentProjectId == 0) return;
+        if (await Db.Holidays.AnyAsync(h => h.ProjectId == currentProjectId && h.Date == _calNewDate.Value))
+        {
+            Toast.Warning("该日期已存在");
+            return;
+        }
+        var h = new ProjectHoliday { ProjectId = currentProjectId, Date = _calNewDate.Value, Name = string.IsNullOrWhiteSpace(_calNewName) ? "节假日" : _calNewName.Trim() };
+        Db.Holidays.Add(h);
+        await Db.SaveChangesAsync();
+        _calHolidays.Add(h);
+        _calNewDate = DateTime.Today;
+        _calNewName = "";
+    }
+
+    private async Task DeleteCalendarHoliday(int id)
+    {
+        var h = await Db.Holidays.FindAsync(id);
+        if (h != null) { Db.Holidays.Remove(h); await Db.SaveChangesAsync(); _calHolidays.RemoveAll(x => x.Id == id); }
+    }
+
+    private async Task SaveCalendarAndClose()
+    {
+        if (currentProjectId == 0) return;
+        if (_calBits == 0) _calBits = 0b01111100;
+        var proj = await Db.Projects.FindAsync(currentProjectId);
+        if (proj != null)
+        {
+            proj.WorkDayBits = _calBits;
+            proj.WorkdaysPerWeek = System.Numerics.BitOperations.PopCount((uint)_calBits);
+            await Db.SaveChangesAsync();
+        }
+        _showCalendar = false;
+    }
+
     private bool showColumnPanel = false;
     private List<ColumnInfo> columnDefs = new()
     {
@@ -1148,7 +1262,8 @@
         new() { Key = "person", Label = "负责人" },
         new() { Key = "planStart", Label = "计划开始" },
         new() { Key = "planEnd", Label = "计划完成" },
-        new() { Key = "duration", Label = "工期" },
+        new() { Key = "duration", Label = "工日" },
+        new() { Key = "calendarSpan", Label = "工期" },
         new() { Key = "actStart", Label = "实际开始" },
         new() { Key = "actEnd", Label = "实际完成" },
         new() { Key = "actDur", Label = "实工" },
@@ -1482,10 +1597,11 @@
             if (root.TryGetProperty("planEndDate", out var peEl) && peEl.GetString() is string pe && !string.IsNullOrEmpty(pe) && DateTime.TryParse(pe, out var endDate))
                 editingTask.PlanEndDate = endDate;
 
-            // 自动计算工期 or 结束日期
+            // 自动计算工期 or 结束日期（用日历）
             if (editingTask.PlanDuration > 0 && editingTask.PlanStartDate != default && (editingTask.PlanEndDate == default || editingTask.PlanEndDate == editingTask.PlanStartDate.AddDays(4)))
-                editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(editingTask.PlanDuration - 1);
+                editingTask.PlanEndDate = await CalendarSvc.AddWorkingDaysAsync(currentProjectId, editingTask.PlanStartDate, editingTask.PlanDuration);
             else if (editingTask.PlanDuration <= 0 && editingTask.PlanStartDate != default && editingTask.PlanEndDate != default)
+                editingTask.PlanDuration = await CalendarSvc.GetWorkingDaysCountAsync(currentProjectId, editingTask.PlanStartDate, editingTask.PlanEndDate);
                 editingTask.PlanDuration = (editingTask.PlanEndDate - editingTask.PlanStartDate).Days + 1;
 
             // 前置任务
@@ -1618,11 +1734,11 @@
     {
         if (editingTask == null) return;
 
-        // 防日期清除 + 强制联动
+        // 防日期清除 + 日历联动
         if (editingTask.PlanStartDate.Year < 2000)
             editingTask.PlanStartDate = DateTime.Today;
         editingTask.PlanDuration = Math.Max(1, editingTask.PlanDuration);
-        editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(editingTask.PlanDuration - 1);
+        editingTask.PlanEndDate = await CalendarSvc.AddWorkingDaysAsync(currentProjectId, editingTask.PlanStartDate, editingTask.PlanDuration);
 
         // 自动联动：有实际日期时自动计算完成率
         if (editingTask.ActualStartDate.HasValue && editingTask.ActualEndDate.HasValue)
@@ -1737,31 +1853,28 @@
     }
 
     // ========== 日期联动计算 ==========
-    private void OnPlanDatesChanged()
+    private async Task OnPlanDatesChanged()
     {
         if (editingTask == null) return;
-        // 防止日期清除为 0001/01/01
         if (editingTask.PlanStartDate.Year < 2000)
             editingTask.PlanStartDate = DateTime.Today;
-        if (editingTask.PlanEndDate.Year < 2000)
-            editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(Math.Max(1, editingTask.PlanDuration) - 1);
-        // PlanEndDate 始终跟随 PlanStartDate + PlanDuration
-        editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(Math.Max(1, editingTask.PlanDuration) - 1);
+        if (editingTask.PlanEndDate.Year < 2000 || editingTask.PlanDuration > 0)
+            editingTask.PlanEndDate = await CalendarSvc.AddWorkingDaysAsync(currentProjectId, editingTask.PlanStartDate, Math.Max(1, editingTask.PlanDuration));
     }
-    private void OnPlanEndDateChanged()
+    private async Task OnPlanEndDateChanged()
     {
         if (editingTask == null) return;
         if (editingTask.PlanEndDate.Year < 2000)
-            editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(Math.Max(1, editingTask.PlanDuration) - 1);
+            editingTask.PlanEndDate = await CalendarSvc.AddWorkingDaysAsync(currentProjectId, editingTask.PlanStartDate, Math.Max(1, editingTask.PlanDuration));
         if (editingTask.PlanEndDate < editingTask.PlanStartDate)
-            editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(Math.Max(1, editingTask.PlanDuration) - 1);
-        editingTask.PlanDuration = Math.Max(1, (editingTask.PlanEndDate - editingTask.PlanStartDate).Days + 1);
+            editingTask.PlanEndDate = await CalendarSvc.AddWorkingDaysAsync(currentProjectId, editingTask.PlanStartDate, Math.Max(1, editingTask.PlanDuration));
+        editingTask.PlanDuration = Math.Max(1, await CalendarSvc.GetWorkingDaysCountAsync(currentProjectId, editingTask.PlanStartDate, editingTask.PlanEndDate));
     }
-    private void OnPlanDurationChanged()
+    private async Task OnPlanDurationChanged()
     {
         if (editingTask == null) return;
         editingTask.PlanDuration = Math.Max(1, editingTask.PlanDuration);
-        editingTask.PlanEndDate = editingTask.PlanStartDate.AddDays(editingTask.PlanDuration - 1);
+        editingTask.PlanEndDate = await CalendarSvc.AddWorkingDaysAsync(currentProjectId, editingTask.PlanStartDate, editingTask.PlanDuration);
     }
     private void OnActualDatesChanged()
     {
@@ -2203,7 +2316,7 @@
         
         var newStart = task.PlanStartDate.AddDays(deltaDays);
         task.PlanStartDate = newStart;
-        task.PlanEndDate = newStart.AddDays(task.PlanDuration - 1);
+        task.PlanEndDate = await CalendarSvc.AddWorkingDaysAsync(currentProjectId, newStart, task.PlanDuration);
         task.IsManualSchedule = true;
         await ProjectService.UpdateTaskAsync(task);
 

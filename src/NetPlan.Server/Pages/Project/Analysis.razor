@@ -6,6 +6,9 @@
 @inject IAiService AiService
 @inject IJSRuntime JS
 @inject NavigationManager Nav
+@inject CalendarService CalendarSvc
+@inject NetPlan.Server.Data.NetPlanDbContext Db
+@using Microsoft.EntityFrameworkCore
 
 <PageTitle>计划分析 - NetPlan</PageTitle>
 
@@ -781,6 +784,28 @@
 
         // 分析基准日期
         sb.AppendLine($"- **分析基准日期**：{DateTime.Today:yyyy-MM-dd}");
+
+        // 工作日历信息
+        if (selectedProjectId.HasValue)
+        {
+            try
+            {
+                var proj = await Db.Projects.FindAsync(selectedProjectId.Value);
+                if (proj != null)
+                {
+                    var bits = proj.WorkDayBits;
+                    var dayNames = new[] { "日", "一", "二", "三", "四", "五", "六" };
+                    var workDays = new List<string>();
+                    for (int i = 0; i < 7; i++)
+                        if ((bits & (1 << i)) != 0) workDays.Add(dayNames[i]);
+                    var holidays = await Db.Holidays.Where(h => h.ProjectId == selectedProjectId.Value).OrderBy(h => h.Date).ToListAsync();
+                    sb.AppendLine($"- **工作日历**：每周 {string.Join("、", workDays)} 上班，共 {holidays.Count} 个节假日");
+                    if (holidays.Any())
+                        sb.AppendLine($"  - 节假日：{string.Join("、", holidays.Take(20).Select(h => $"{h.Date:MM/dd}({h.Name})"))}{(holidays.Count > 20 ? $" …等{holidays.Count}个" : "")}");
+                }
+            }
+            catch { }
+        }
 
         // 1. 项目概况
         sb.AppendLine($"## 项目基本信息");
