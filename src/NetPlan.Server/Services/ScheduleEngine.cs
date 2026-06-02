@@ -242,8 +242,8 @@ public class ScheduleEngine : IScheduleEngine
     {
         foreach (var task in tasks)
         {
-            // 总时差为 0 的任务为关键工序
-            task.IsCritical = task.TotalFloat == 0;
+            // 总时差 ≤ 0 的任务为关键工序（含负时差 = 超约束路径）
+            task.IsCritical = task.TotalFloat <= 0;
         }
     }
 

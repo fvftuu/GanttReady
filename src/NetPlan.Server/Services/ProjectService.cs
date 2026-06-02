@@ -434,6 +434,10 @@ public class ProjectService : IProjectService
             parent.PlanStartDate = minStart;
             parent.PlanEndDate = maxEnd;
             parent.PlanDuration = await _calendar.GetWorkingDaysCountAsync(projectId, minStart, maxEnd);
+
+            // 父任务的关键路径判断：任一子任务关键则父任务为关键，时差取子任务最小值
+            parent.IsCritical = children.Any(t => t.IsCritical);
+            parent.TotalFloat = children.Min(t => t.TotalFloat);
         }
     }
 
