@@ -82,6 +82,10 @@
                 <option value="@bl.Id">@($"#{bl.Number} {bl.Name}")</option>
             }
         </select>
+        @if (_activeBaseline > 0)
+        {
+            <button class="btn btn-sm btn-default" @onclick="DeleteCurrentBaseline" title="删除当前基准" style="color:#cf1322;"><i class="bi bi-trash3"></i></button>
+        }
     </div>
 </div>
 </div>
@@ -1305,6 +1309,25 @@
             _baselineTaskMap[bt.TaskId] = bt;
     }
 
+    private async Task DeleteCurrentBaseline()
+    {
+        if (_activeBaseline <= 0) return;
+        var bl = _baselines.FirstOrDefault(b => b.Id == _activeBaseline);
+        if (bl == null) return;
+        try
+        {
+            await ProjectService.DeleteBaselineAsync(_activeBaseline);
+            _activeBaseline = 0;
+            await LoadBaselines();
+            _baselineTaskMap.Clear();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Toast.Error($"删除基准失败: {ex.Message}");
+        }
+    }
+
     // ========== 工作日历 ==========
     private bool _showCalendar = false;
     private int _calBits = 0b00111110;
@@ -1714,8 +1737,9 @@
             if (editingTask.PlanDuration > 0 && editingTask.PlanStartDate != default && (editingTask.PlanEndDate == default || editingTask.PlanEndDate == editingTask.PlanStartDate.AddDays(4)))
                 editingTask.PlanEndDate = await CalendarSvc.AddWorkingDaysAsync(currentProjectId, editingTask.PlanStartDate, editingTask.PlanDuration);
             else if (editingTask.PlanDuration <= 0 && editingTask.PlanStartDate != default && editingTask.PlanEndDate != default)
+            {
                 editingTask.PlanDuration = await CalendarSvc.GetWorkingDaysCountAsync(currentProjectId, editingTask.PlanStartDate, editingTask.PlanEndDate);
-                editingTask.PlanDuration = (editingTask.PlanEndDate - editingTask.PlanStartDate).Days + 1;
+            }
 
             // 前置任务
             editingPredecessors.Clear();

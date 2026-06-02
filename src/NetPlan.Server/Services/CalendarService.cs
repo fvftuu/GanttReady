@@ -72,13 +72,13 @@ public class CalendarService
         return current;
     }
 
-    /// <summary>计算两个日期之间的工作日天数（含起止日）</summary>
+    /// <summary>计算两个日期之间的工作日天数（不含结束日，与 AddWorkingDays 不含起始日对称）</summary>
     public async Task<int> GetWorkingDaysCountAsync(int projectId, DateTime start, DateTime end)
     {
         var bits = await GetWorkDayBitsAsync(projectId);
         var holidays = await GetHolidaysAsync(projectId);
         var count = 0;
-        for (var d = start.Date; d <= end.Date; d = d.AddDays(1))
+        for (var d = start.Date; d < end.Date; d = d.AddDays(1))
         {
             if (IsWorkingDay(bits, d, holidays))
                 count++;

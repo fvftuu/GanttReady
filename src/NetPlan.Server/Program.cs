@@ -263,8 +263,19 @@ using (var scope = app.Services.CreateScope())
                 conn.Close(); conn.Open();
                 cmd.CommandText = @"CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (""MigrationId"" TEXT NOT NULL CONSTRAINT ""PK___EFMigrationsHistory"" PRIMARY KEY, ""ProductVersion"" TEXT NOT NULL)";
                 cmd.ExecuteNonQuery();
-                cmd.CommandText = @"INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"") VALUES ('20260506000000_InitialCreate', '8.0.0')";
-                cmd.ExecuteNonQuery();
+                var allMigrations = new[]
+                {
+                    "20260506000000_InitialCreate",
+                    "20260507000000_AddTaskRelationProjectId",
+                    "20260531055048_AddCalendarSupport",
+                    "20260531080336_AddBaselineSupport",
+                    "20260601000000_AddTaskCostFields"
+                };
+                foreach (var mid in allMigrations)
+                {
+                    cmd.CommandText = $@"INSERT OR IGNORE INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"") VALUES ('{mid}', '8.0.0')";
+                    cmd.ExecuteNonQuery();
+                }
             }
         }
         finally { if (conn.State == System.Data.ConnectionState.Open) conn.Close(); }

@@ -211,9 +211,29 @@
     </div>
 }
 
+@* 删除确认对话框 *@
+@if (_showDeleteConfirm && _deleteTarget != null)
+{
+    <div class="modal-overlay" @onclick="CancelDelete">
+        <div class="modal-content" @onclick:stopPropagation>
+            <h3><i class="bi bi-exclamation-triangle" style="color:#cf1322;"></i> 确认删除</h3>
+            <p style="margin:16px 0;font-size:14px;line-height:1.6;">
+                确定要删除项目 <strong>@_deleteTarget.Name</strong> 吗？<br />
+                <span style="color:var(--text-secondary);">此操作将同时删除该项目下的全部任务、资源和关系，且不可恢复。</span>
+            </p>
+            <div class="dialog-actions">
+                <button class="btn btn-default" @onclick="CancelDelete">取消</button>
+                <button class="btn btn-danger" @onclick="ConfirmDelete"><i class="bi bi-trash3"></i> 确认删除</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<ProjectSummary> summaries = new();
     private string _searchText = "";
+    private bool _showDeleteConfirm = false;
+    private Models.Project? _deleteTarget = null;
 
     private IEnumerable<ProjectSummary> filteredSummaries
     {
@@ -308,19 +328,34 @@
         }
     }
 
-    private async Task DeleteSelectedProject()
+    private void DeleteSelectedProject()
     {
         if (selectedProject == null) return;
+        _deleteTarget = selectedProject;
+        _showDeleteConfirm = true;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_deleteTarget == null) return;
         try
         {
-            await ProjectService.DeleteProjectAsync(selectedProject.Id);
+            await ProjectService.DeleteProjectAsync(_deleteTarget.Id);
             selectedProject = null;
+            _showDeleteConfirm = false;
+            _deleteTarget = null;
             await LoadSummaries();
         }
         catch (Exception ex)
         {
             Toast.Error($"删除失败: {ex.Message}");
         }
+    }
+
+    private void CancelDelete()
+    {
+        _showDeleteConfirm = false;
+        _deleteTarget = null;
     }
 
     private async Task DownloadBlankTemplate()
