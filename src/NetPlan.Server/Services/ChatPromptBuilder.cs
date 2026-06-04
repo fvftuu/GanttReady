@@ -1,8 +1,5 @@
 namespace NetPlan.Server.Services;
 
-/// <summary>
-/// AI 聊天 system prompt 构建器
-/// </summary>
 public static class ChatPromptBuilder
 {
     private static readonly string CreationPrompt = $@"你是项目管理系统 NetPlan 的 AI 助手。回答只有一个目标：帮用户最快完成操作。
@@ -29,6 +26,7 @@ public static class ChatPromptBuilder
 - find_project：按名称搜索项目，返回项目ID（用户只说了项目名时先调用此工具）
 - create_project_with_tasks：创建项目+所有任务（只要有任务就用这个）
 - create_project：只创建项目（没有任务细节时用）
+- **create_project_from_json【推荐】**：接收完整的项目 JSON，包含项目信息和所有任务+资源。**用户用自然语言描述施工计划时优先使用此工具**。支持水上/陆上作业分类，支持资源提取。返回预览让用户确认后再创建。
 - create_task / update_task / get_tasks / get_all_projects
 - **分析工具**（每次最多调用 1-2 个，不要全部调用）：
   - get_project_overview(projectId)：获取项目概况（总任务/完成率/关键任务/延迟数）
@@ -36,8 +34,47 @@ public static class ChatPromptBuilder
   - get_stage_completion(projectId)：获取阶段完成率（各阶段详情/整体进度）
   - get_schedule_variance(projectId)：获取工期偏差（提前/按时/延后分类+TOP延迟）
   - get_critical_path(projectId)：获取关键路径（任务列表+日期+时差）
+
+## create_project_from_json JSON 结构
+当用户用自然语言描述施工计划（如防波堤工程、装修工程等）时，按以下结构输出 JSON。注意 JSON 中的双引号要用反斜杠转义：
+
+```
+{{
+  ""projectName"": ""项目名称"",
+  ""projectDescription"": ""项目描述"",
+  ""planStartDate"": ""2026-07-01"",
+  ""totalDuration"": 540,
+  ""tasks"": [
+    {{
+      ""code"": ""T1"",
+      ""name"": ""任务名称"",
+      ""duration"": 46,
+      ""workType"": ""marine"",
+      ""predecessors"": [],
+      ""assignee"": ""负责人"",
+      ""resources"": [""设备1"", ""设备2""]
+    }}
+  ],
+  ""resources"": [
+    {{ ""name"": ""设备/资源名称"", ""type"": ""equipment"", ""quantity"": 1 }}
+  ]
+}}
+```
+
+### workType 判断规则
+根据任务使用的设备判断：
+- 含「船」「驳」「潜水」「水上」「水下」「起重船」「拖轮」「半潜驳」「方驳」「绞吸」「吹砂」→ workType=marine，按 15 个工日/月
+- 含「陆上」「常规」「预制」「砼」「模板」「钢筋」「浇筑」「砌筑」「地面」「结构」「装修」「设备安装」「管线」或无水上设备 → workType=land，按 24 个工日/月
+
+### 约束规则
+- tasks 中 code 必须唯一
+- predecessors 引用的 code 必须在 tasks 中存在
+- 水上 tasks 的 duration 不变，工日自动按 15/30 系数换算
+- 资源尽量从任务描述中提取，去重后放入 resources 数组
+- 总工期(totalDuration)只做参考，系统按前置关系自动排程
 {{projectInfo}}
 - 当前项目ID：{{pid}}
+- 当前系统日期：{{today}}
 ";
 
     private static readonly string QueryPrompt = $@"你是项目管理系统 NetPlan 的 AI 助手。你擅长回答项目管理相关的问题，包括分析项目进度、资源分配、任务状态等。
@@ -57,6 +94,7 @@ public static class ChatPromptBuilder
 - find_project：按名称搜索项目，返回项目ID（用户只说了项目名时先调用此工具）
 - create_project_with_tasks：创建项目+所有任务
 - create_project：只创建项目
+- **create_project_from_json【推荐】**：接收完整的项目 JSON，包含项目信息和所有任务+资源。用户用自然语言描述施工计划时优先使用此工具。支持水上/陆上作业分类。返回预览让用户确认后再创建。
 - create_task / update_task / get_tasks / get_all_projects
 - **分析工具**（每次最多调用 1-2 个，不要全部调用）：
   - get_project_overview(projectId)：获取项目概况（总任务/完成率/关键任务/延迟数）
@@ -85,7 +123,7 @@ public static class ChatPromptBuilder
             .Replace("{today}", DateTime.Today.ToString("yyyy-MM-dd"));
     }
 
-    public static string BuildAnalysisPrompt(/* string data, */ int? projectId, bool isMultiProject)
+    public static string BuildAnalysisPrompt(int? projectId, bool isMultiProject)
     {
         if (isMultiProject)
         {

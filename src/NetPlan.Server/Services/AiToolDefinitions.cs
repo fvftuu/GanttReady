@@ -16,6 +16,7 @@ public static class AiToolDefinitions
             CreateProjectWithTasksTool(),
             CreateProjectTool(),
             GetAllProjectsTool(),
+            CreateProjectFromJsonTool(),
         };
     }
 
@@ -172,6 +173,48 @@ public static class AiToolDefinitions
                 type = "object",
                 properties = new { },
                 required = Array.Empty<string>()
+            }
+        };
+    }
+
+    public static AiToolDefinition CreateProjectFromJsonTool()
+    {
+        return new AiToolDefinition
+        {
+            Name = "create_project_from_json",
+            Description = "【推荐】接收完整的项目 JSON（含项目信息+所有任务+资源），按用户自然语言描述的施工计划生成完整项目。支持水上/陆上作业分类。返回预览让用户确认后再创建。",
+            Parameters = new
+            {
+                type = "object",
+                properties = new
+                {
+                    project_json = new
+                    {
+                        type = "string",
+                        description = @"完整的项目 JSON 字符串，结构如下：
+{
+  projectName: 项目名称,
+  projectDescription: 项目描述,
+  planStartDate: 计划开始日期 yyyy-MM-dd,
+  totalDuration: 总工期参考值（系统按前置关系自动排程）,
+  tasks: [
+    {
+      code: 任务代号,
+      name: 任务名称,
+      duration: 工期（自然日）,
+      workType: ""marine"" 或 ""land""（水上按15天/月，陆上按24天/月）,
+      predecessors: [紧前任务code列表],
+      assignee: 负责人,
+      resources: [设备名称列表]
+    }
+  ],
+  resources: [
+    { name: 资源名, type: equipment/labor/material, quantity: 数量 }
+  ]
+}"
+                    }
+                },
+                required = new[] { "project_json" }
             }
         };
     }

@@ -4,6 +4,8 @@
 @inject IAnalysisService AnalysisService
 @inject IResourceService ResourceService
 @inject IAiService AiService
+@using System.Text.Json
+@inject ToastService Toast
 
 @* ===== AI 聊天面板（右侧滑出）===== *@
 @if (Visible)
@@ -121,6 +123,65 @@ else
     @@keyframes slideIn { from { transform:translateX(380px); } to { transform:translateX(0); } }
 </style>
 
+@* ===== 施工计划预览弹窗 ===== *@
+@if (_showPreview && _previewProject != null)
+{
+    <div class="modal-overlay" @onclick="CancelCreateProject">
+        <div class="modal-content" @onclick:stopPropagation style="width:700px;max-height:80vh;overflow-y:auto;">
+            <h3><i class="bi bi-clipboard-check" style="color:#4f6ef7;"></i> 施工计划预览</h3>
+            
+            <div style="margin:12px 0;font-size:14px;">
+                <strong>项目名称：</strong>@_previewProject.ProjectName<br/>
+                <strong>开始日期：</strong>@_previewProject.PlanStartDate.ToShortDateString()
+                @if (_previewProject.TotalDuration > 0)
+                {
+                    <span> &nbsp;|&nbsp; <strong>参考总工期：</strong>@_previewProject.TotalDuration 天</span>
+                }
+            </div>
+
+            @if (_previewProject.Tasks.Any())
+            {
+                <h4 style="font-size:14px;margin:12px 0 6px;">任务列表（@_previewProject.Tasks.Count 项）</h4>
+                <table class="table table-compact" style="width:100%;font-size:12px;">
+                    <thead><tr><th>#</th><th>任务名</th><th>工期</th><th>类型</th><th>前置</th><th>资源/设备</th></tr></thead>
+                    <tbody>
+                        @foreach (var t in _previewProject.Tasks)
+                        {
+                            <tr>
+                                <td>@t.Code</td>
+                                <td>@t.Name</td>
+                                <td>@t.Duration 天</td>
+                                <td>@(t.WorkType == "marine" ? "🚢 水上" : "🏗️ 陆上")</td>
+                                <td>@string.Join(", ", t.Predecessors)</td>
+                                <td>@string.Join(", ", t.Resources)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (_previewProject.Resources.Any())
+            {
+                <h4 style="font-size:14px;margin:12px 0 6px;">资源/设备（@_previewProject.Resources.Count 项）</h4>
+                <table class="table table-compact" style="width:100%;font-size:12px;">
+                    <thead><tr><th>名称</th><th>类型</th><th>数量</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in _previewProject.Resources)
+                        {
+                            <tr><td>@r.Name</td><td>@(r.Type == "equipment" ? "设备" : r.Type == "labor" ? "人工" : "材料")</td><td>@r.Quantity</td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <div class="dialog-actions" style="margin-top:16px;">
+                <button class="btn btn-default" @onclick="CancelCreateProject">取消</button>
+                <button class="btn btn-primary" @onclick="ConfirmCreateProject"><i class="bi bi-check-lg"></i> 确认创建</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     // ===== 可见性 =====
     [Parameter]
@@ -159,6 +220,37 @@ else
     private Dictionary<int, string> _projectNameCache = new();
     private ElementReference _messageContainer;
     private List<string> _suggestedQuestions = new();
+
+    // 项目预览（自然语言→施工计划）
+    private string? _previewProjectJson;
+    private bool _showPreview;
+    private PreviewProject? _previewProject;
+
+    private class PreviewProject
+    {
+        public string ProjectName { get; set; } = "";
+        public string ProjectDescription { get; set; } = "";
+        public DateTime PlanStartDate { get; set; } = DateTime.Today;
+        public int TotalDuration { get; set; }
+        public List<PreviewTask> Tasks { get; set; } = new();
+        public List<PreviewResource> Resources { get; set; } = new();
+    }
+    private class PreviewTask
+    {
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public int Duration { get; set; }
+        public string WorkType { get; set; } = "land";
+        public List<string> Predecessors { get; set; } = new();
+        public string Assignee { get; set; } = "";
+        public List<string> Resources { get; set; } = new();
+    }
+    private class PreviewResource
+    {
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "equipment";
+        public int Quantity { get; set; } = 1;
+    }
 
     // 工具调用
     private List<AiToolCall>? _pendingToolCalls;
@@ -1047,6 +1139,7 @@ else
                 "get_stage_completion" => await ExecuteGetStageCompletion(args),
                 "get_schedule_variance" => await ExecuteGetScheduleVariance(args),
                 "get_critical_path" => await ExecuteGetCriticalPath(args),
+                "create_project_from_json" => await ExecuteCreateProjectFromJson(args),
                 _ => $"❌ 未知操作：{tc.FunctionName}"
             };
         }
@@ -1911,6 +2004,158 @@ else
                 return _toolNameMap.ContainsKey(name) ? "" : m.Value;
             });
         return text.Trim();
+    }
+
+    // ===== 自然语言→施工计划 =====
+
+    private async Task<string> ExecuteCreateProjectFromJson(Dictionary<string, object> args)
+    {
+        var json = GetArgString(args, "project_json");
+        if (string.IsNullOrEmpty(json)) return "❌ 参数 project_json 为空";
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            _previewProject = new PreviewProject
+            {
+                ProjectName = root.TryGetProperty("projectName", out var pn) ? pn.GetString() ?? "未命名项目" : "未命名项目",
+                ProjectDescription = root.TryGetProperty("projectDescription", out var pd) ? pd.GetString() ?? "" : "",
+                PlanStartDate = (root.TryGetProperty("planStartDate", out var psEl) && DateTime.TryParse(psEl.GetString(), out var parsedDt)) ? parsedDt : DateTime.Today,
+                TotalDuration = root.TryGetProperty("totalDuration", out var td) && td.TryGetInt32(out var dur) ? dur : 0,
+                Tasks = new List<PreviewTask>(),
+                Resources = new List<PreviewResource>()
+            };
+
+            if (root.TryGetProperty("tasks", out var tasksEl))
+            {
+                foreach (var t in tasksEl.EnumerateArray())
+                {
+                    var task = new PreviewTask
+                    {
+                        Code = t.TryGetProperty("code", out var c) ? c.GetString() ?? "" : "",
+                        Name = t.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                        Duration = t.TryGetProperty("duration", out var d) && d.TryGetInt32(out var durVal) ? durVal : 1,
+                        WorkType = t.TryGetProperty("workType", out var wt) ? wt.GetString() ?? "land" : "land",
+                        Assignee = t.TryGetProperty("assignee", out var a) ? a.GetString() ?? "" : "",
+                        Predecessors = new List<string>(),
+                        Resources = new List<string>()
+                    };
+                    if (t.TryGetProperty("predecessors", out var preds))
+                    {
+                        foreach (var p in preds.EnumerateArray())
+                            task.Predecessors.Add(p.GetString() ?? "");
+                    }
+                    if (t.TryGetProperty("resources", out var res))
+                    {
+                        foreach (var r in res.EnumerateArray())
+                            task.Resources.Add(r.GetString() ?? "");
+                    }
+                    _previewProject.Tasks.Add(task);
+                }
+            }
+
+            if (root.TryGetProperty("resources", out var resEl))
+            {
+                foreach (var r in resEl.EnumerateArray())
+                {
+                    _previewProject.Resources.Add(new PreviewResource
+                    {
+                        Name = r.TryGetProperty("name", out var rn) ? rn.GetString() ?? "" : "",
+                        Type = r.TryGetProperty("type", out var rt) ? rt.GetString() ?? "equipment" : "equipment",
+                        Quantity = r.TryGetProperty("quantity", out var q) && q.TryGetInt32(out var qv) ? qv : 1
+                    });
+                }
+            }
+
+            _showPreview = true;
+            StateHasChanged();
+
+            return $"📋 已解析 {_previewProject.Tasks.Count} 个任务、{_previewProject.Resources.Count} 项资源，请确认后创建。";
+        }
+        catch (Exception ex)
+        {
+            return $"❌ JSON 解析失败：{ex.Message}";
+        }
+    }
+
+    private async Task ConfirmCreateProject()
+    {
+        if (_previewProject == null) return;
+        try
+        {
+            // 创建项目
+            var proj = new Project
+            {
+                Name = _previewProject.ProjectName,
+                Description = _previewProject.ProjectDescription,
+                Code = "PROJ-" + DateTime.Now.ToString("MMddHHmmss"),
+                PlanStartDate = _previewProject.PlanStartDate,
+                PlanEndDate = _previewProject.PlanStartDate.AddDays(Math.Max(1, _previewProject.TotalDuration)),
+                WorkingHoursPerDay = 8,
+                WorkdaysPerWeek = 5
+            };
+            proj = await ProjectService.CreateProjectAsync(proj);
+            var projectId = proj.Id;
+
+            // 创建任务
+            var taskCodeToId = new Dictionary<string, int>();
+            foreach (var t in _previewProject.Tasks)
+            {
+                var task = new TaskItem
+                {
+                    ProjectId = projectId,
+                    Code = string.IsNullOrEmpty(t.Code) ? $"T{_previewProject.Tasks.IndexOf(t) + 1}" : t.Code,
+                    Name = t.Name,
+                    PlanDuration = t.Duration,
+                    PlanStartDate = _previewProject.PlanStartDate,
+                    PlanEndDate = _previewProject.PlanStartDate.AddDays(t.Duration - 1),
+                    SortOrder = _previewProject.Tasks.IndexOf(t) + 1
+                };
+                task = await ProjectService.CreateTaskAsync(task);
+                taskCodeToId[t.Code] = task.Id;
+            }
+
+            // 创建前置关系
+            foreach (var t in _previewProject.Tasks.Where(t => t.Predecessors.Any()))
+            {
+                if (!taskCodeToId.TryGetValue(t.Code, out var succId)) continue;
+                foreach (var predCode in t.Predecessors)
+                {
+                    if (!taskCodeToId.TryGetValue(predCode, out var predId)) continue;
+                    await ProjectService.CreateRelationAsync(new TaskRelation
+                    {
+                        ProjectId = projectId,
+                        PredecessorTaskId = predId,
+                        SuccessorTaskId = succId,
+                        Type = RelationType.FS,
+                        Lag = 0
+                    });
+                }
+            }
+
+            // 重算 CPM
+            await ProjectService.CalculateScheduleAsync(projectId);
+
+            _showPreview = false;
+            _previewProject = null;
+
+            // 导航到甘特图
+            Nav.NavigateTo($"/project/{projectId}/gantt");
+
+            return; // 导航后将不会执行后续代码
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"创建失败：{ex.Message}");
+        }
+    }
+
+    private void CancelCreateProject()
+    {
+        _showPreview = false;
+        _previewProject = null;
     }
 
     private class AiConnection
