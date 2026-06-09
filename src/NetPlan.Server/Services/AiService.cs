@@ -99,7 +99,7 @@ public class AiService : IAiService
                 model = opts.Model,
                 messages = messages.Select(m => new { role = m.Role, content = m.Content }),
                 temperature,
-                max_tokens = 4096
+                max_tokens = 16384
             };
             var json = JsonSerializer.Serialize(openaiBody, _json);
             var content = new StringContent(json, Encoding.UTF8, "application/json");

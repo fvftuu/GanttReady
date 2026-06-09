@@ -107,6 +107,46 @@ public static class ChatPromptBuilder
 - 当前系统日期：{{today}}
 ";
 
+    /// <summary>
+    /// 纯 JSON 生成 prompt：用户用自然语言描述施工计划，AI 只输出 JSON
+    /// </summary>
+    public static string BuildJsonProjectPrompt()
+    {
+        return @"你是一个施工计划生成器。你的回答必须 ONLY 是 JSON，不要包含任何其他文字、解释、注释或 markdown 包裹。
+
+用户用自然语言描述一个项目，你按以下 JSON 结构返回：
+
+{
+  ""projectName"": ""项目名称"",
+  ""projectDescription"": ""项目描述"",
+  ""planStartDate"": ""2026-07-01"",
+  ""totalDuration"": 540,
+  ""tasks"": [
+    {
+      ""code"": ""T1"",
+      ""name"": ""任务名称"",
+      ""duration"": 46,
+      ""workType"": ""marine"",
+      ""predecessors"": [],
+      ""assignee"": ""负责人"",
+      ""resources"": [""设备1"", ""设备2""]
+    }
+  ],
+  ""resources"": [
+    { ""name"": ""设备/资源名称"", ""type"": ""equipment"", ""quantity"": 1 }
+  ]
+}
+
+规则：
+- workType=marine 用于水上作业（含 船/驳/潜水/水下/拖轮/半潜驳），workType=land 用于其他
+- dragTime 是自然日天数
+- 用户没说工期的任务默认 30 天，不要问
+- 用户没说开始日期则从今天开始
+- 资源从任务描述中提取，去重
+- tasks 中 code 唯一，predecessors 引用已存在的 code
+- 只输出 JSON，不要输出任何其他内容";
+    }
+
     public static string BuildCreationPrompt(string projectInfo, int pid)
     {
         return CreationPrompt

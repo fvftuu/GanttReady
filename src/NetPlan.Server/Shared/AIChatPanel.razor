@@ -757,6 +757,68 @@ else
             var projectInfo = string.IsNullOrEmpty(context) ? "" : $"\n【项目背景数据】\n{context}\n";
             var pid = GetCurrentProjectId() ?? 0;
             var isCreation = IsCreationMessage(userMsg);
+            var isNLProject = isCreation && IsNaturalLanguageProject(userMsg);
+            if (isNLProject)
+            {
+                // === 自然语言施工计划：纯 JSON 模式，不走工具调用 ===
+                _chatMessages.Add(new AiMessage { Role = "assistant", Content = "📋 正在解析施工计划..." });
+                StateHasChanged();
+                var jsonPrompt = ChatPromptBuilder.BuildJsonProjectPrompt();
+                var jsonResult = await AiService.ChatAsync(jsonPrompt, userMsg, temperature: 0.1, overrideOptions: new AiOptions { Endpoint = opts.Endpoint, ApiKey = opts.ApiKey, Model = opts.Model, ApiFormat = opts.ApiFormat, Provider = opts.Provider });
+                if (string.IsNullOrEmpty(jsonResult) || jsonResult.StartsWith("⚠️"))
+                {
+                    _chatMessages[_chatMessages.Count - 1].Content = jsonResult ?? "❌ AI 返回为空";
+                }
+                else
+                {
+                    // 尝试去除 markdown 代码块包裹
+                    var cleanJson = jsonResult;
+                    if (cleanJson.Contains("```"))
+                    {
+                        var s = cleanJson.IndexOf("```") + 3;
+                        var e = cleanJson.LastIndexOf("```");
+                        if (e > s) cleanJson = cleanJson[s..e].Trim();
+                        if (cleanJson.StartsWith("json", StringComparison.OrdinalIgnoreCase)) cleanJson = cleanJson[4..].Trim();
+                    }
+                    // 解析 JSON 填充 _previewProject（预览弹窗需要这个对象）
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(cleanJson);
+                        var root = doc.RootElement;
+                        _previewProject = new PreviewProject
+                        {
+                            ProjectName = root.TryGetProperty("projectName", out var pn) ? pn.GetString() ?? "未命名项目" : "未命名项目",
+                            ProjectDescription = root.TryGetProperty("projectDescription", out var pd) ? pd.GetString() ?? "" : "",
+                            PlanStartDate = (root.TryGetProperty("planStartDate", out var psEl) && DateTime.TryParse(psEl.GetString(), out var parsedDt)) ? parsedDt : DateTime.Today,
+                            TotalDuration = root.TryGetProperty("totalDuration", out var td) && td.TryGetInt32(out var dur) ? dur : 0,
+                        };
+                        if (root.TryGetProperty("tasks", out var tasksEl))
+                            foreach (var t in tasksEl.EnumerateArray())
+                            {
+                                var task = new PreviewTask { Code = t.TryGetProperty("code", out var c) ? c.GetString() ?? "" : "", Name = t.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "", Duration = t.TryGetProperty("duration", out var d) && d.TryGetInt32(out var dv) ? dv : 1, WorkType = t.TryGetProperty("workType", out var wt) ? wt.GetString() ?? "land" : "land" };
+                                if (t.TryGetProperty("predecessors", out var preds)) foreach (var p in preds.EnumerateArray()) task.Predecessors.Add(p.GetString() ?? "");
+                                if (t.TryGetProperty("resources", out var res)) foreach (var r in res.EnumerateArray()) task.Resources.Add(r.GetString() ?? "");
+                                _previewProject.Tasks.Add(task);
+                            }
+                        if (root.TryGetProperty("resources", out var resEl))
+                            foreach (var r in resEl.EnumerateArray())
+                                _previewProject.Resources.Add(new PreviewResource { Name = r.TryGetProperty("name", out var rn) ? rn.GetString() ?? "" : "", Type = r.TryGetProperty("type", out var rt) ? rt.GetString() ?? "equipment" : "equipment", Quantity = r.TryGetProperty("quantity", out var q) && q.TryGetInt32(out var qv) ? qv : 1 });
+                        _previewProjectJson = cleanJson;
+                        _showPreview = true;
+                        _chatMessages[_chatMessages.Count - 1].Content = $"📋 已解析 {_previewProject.Tasks.Count} 个任务，请确认后创建。";
+                        StateHasChanged();
+                    }
+                    catch (Exception ex)
+                    {
+                        _chatMessages[_chatMessages.Count - 1].Content = $"❌ JSON 解析失败：{ex.Message}";
+                    }
+                }
+                _ = SaveChatMessages(); // fire-and-forget，避免 JS 互调阻塞 UI 更新
+                _chatLoading = false;
+                StateHasChanged();
+                return;
+            }
+
             var sysPrompt = isCreation
                 ? ChatPromptBuilder.BuildCreationPrompt(projectInfo, pid)
                 : ChatPromptBuilder.BuildQueryPrompt(projectInfo, pid);
@@ -1804,7 +1866,22 @@ else
     {
         if (string.IsNullOrWhiteSpace(msg)) return false;
         var lower = msg.ToLower();
-        return lower.Contains("创建") || lower.Contains("新建") || lower.Contains("添加任务");
+        if (lower.Contains("创建") || lower.Contains("新建") || lower.Contains("添加任务")) return true;
+        // 长文本带工程关键词也视为创建意图
+        if (msg.Length > 60)
+        {
+            var projKeywords = new[] { "工程", "施工", "工地", "项目", "工期", "开工", "挖泥", "抛石", "浇筑", "预制", "安装", "防波堤", "沉箱", "胸墙", "装修", "建设" };
+            if (projKeywords.Any(k => msg.Contains(k))) return true;
+        }
+        return false;
+    }
+
+    private static bool IsNaturalLanguageProject(string msg)
+    {
+        if (string.IsNullOrWhiteSpace(msg)) return false;
+        if (msg.Length < 80 || msg.Length > 5000) return false;
+        var keywords = new[] { "工程", "施工", "工期", "开工", "天", "挖泥", "抛石", "浇筑", "预制", "安装", "设备", "船", "防波堤", "沉箱", "胸墙", "装修" };
+        return keywords.Any(k => msg.Contains(k));
     }
 
     private string? BuildProjectCreationContext(string userMsg)
@@ -2131,6 +2208,37 @@ else
                         SuccessorTaskId = succId,
                         Type = RelationType.FS,
                         Lag = 0
+                    });
+                }
+            }
+
+            // 创建资源
+            var resourceNameToId = new Dictionary<string, int>();
+            foreach (var r in _previewProject.Resources)
+            {
+                var res = await ResourceService.CreateResourceAsync(new Resource
+                {
+                    ProjectId = projectId,
+                    Name = r.Name,
+                    Code = "R" + (_previewProject.Resources.IndexOf(r) + 1).ToString("D2"),
+                    Type = r.Type == "labor" ? ResourceType.Labor : r.Type == "material" ? ResourceType.Material : ResourceType.Equipment,
+                    Quantity = r.Quantity
+                });
+                resourceNameToId[r.Name] = res.Id;
+            }
+
+            // 创建资源分配（任务→资源匹配）
+            foreach (var t in _previewProject.Tasks.Where(t => t.Resources.Any()))
+            {
+                if (!taskCodeToId.TryGetValue(t.Code, out var taskId)) continue;
+                foreach (var rName in t.Resources)
+                {
+                    if (!resourceNameToId.TryGetValue(rName, out var resId)) continue;
+                    await ResourceService.CreateAssignmentAsync(new ResourceAssignment
+                    {
+                        TaskId = taskId,
+                        ResourceId = resId,
+                        Quantity = 1
                     });
                 }
             }
