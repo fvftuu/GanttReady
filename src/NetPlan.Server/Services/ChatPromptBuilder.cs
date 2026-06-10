@@ -112,39 +112,62 @@ public static class ChatPromptBuilder
     /// </summary>
     public static string BuildJsonProjectPrompt()
     {
-        return @"你是一个施工计划生成器。你的回答必须 ONLY 是 JSON，不要包含任何其他文字、解释、注释或 markdown 包裹。
+        return @"你是一个施工计划生成器。你的回答必须是**纯 JSON**，不要包含任何其他文字、解释、注释或 markdown 包裹。
 
-用户用自然语言描述一个项目，你按以下 JSON 结构返回：
+用户用自然语言描述一个施工项目，你分析并返回以下 JSON 结构：
 
 {
   ""projectName"": ""项目名称"",
   ""projectDescription"": ""项目描述"",
   ""planStartDate"": ""2026-07-01"",
-  ""totalDuration"": 540,
+  ""totalDuration"": 548,
   ""tasks"": [
     {
       ""code"": ""T1"",
-      ""name"": ""任务名称"",
-      ""duration"": 46,
+      ""name"": ""疏浚施工"",
+      ""duration"": 50,
       ""workType"": ""marine"",
       ""predecessors"": [],
-      ""assignee"": ""负责人"",
-      ""resources"": [""设备1"", ""设备2""]
+      ""assignee"": """",
+      ""resources"": [""设备名""]
     }
   ],
   ""resources"": [
-    { ""name"": ""设备/资源名称"", ""type"": ""equipment"", ""quantity"": 1 }
+    { ""name"": ""设备名"", ""type"": ""equipment"", ""quantity"": 1 }
   ]
 }
 
-规则：
-- workType=marine 用于水上作业（含 船/驳/潜水/水下/拖轮/半潜驳），workType=land 用于其他
-- dragTime 是自然日天数
-- 用户没说工期的任务默认 30 天，不要问
-- 用户没说开始日期则从今天开始
-- 资源从任务描述中提取，去重
-- tasks 中 code 唯一，predecessors 引用已存在的 code
-- 只输出 JSON，不要输出任何其他内容";
+## 核心规则
+
+### 第X-Y天 格式处理
+当用户说「第X-Y天：任务内容」时：
+- duration = Y - X + 1（例如 第51-90天 → duration=40）
+- **所有任务从项目第1天（planStartDate）开始按天序号排期**，不要在 planStartDate 上偏移
+- 前置关系根据天序号推断：A 的结束日 < B 的开始日 → A 是 B 的前置任务
+- 天序号重叠的任务可以并行
+
+### 工期规则
+- 用户明确说了天序号的 → 按公式 duration = 结束日 - 开始日 + 1 计算
+- 用户没给天序号的 → 默认 30 天
+- 用户没说开始日期的 → 用今天日期
+
+### 作业分类
+- workType=marine（水上）：含 船/驳/潜水/水上/水下/拖轮/半潜驳/方驳/绞吸/吹砂/打桩/疏浚
+- workType=land（陆上）：其他所有任务
+
+### 前置关系规则（非常重要）
+- **对每个 task 设置 predecessors**，否则所有任务同时从第1天开始
+- 比较两个任务的序号范围：如果 A 的结束日 < B 的开始日 → A 是 B 的前置任务
+- 序号范围有重叠的任务不设前置关系（它们并行）
+- 示例：任务A(第1-50天) → predecessors=[]；任务B(第51-90天) → predecessors=[""A""]
+
+### 资源提取
+- 从任务描述中提取设备名称，去重后放到 resources 数组
+- 每个任务的 resources 字段引用资源名称
+
+## 输出要求
+- 只输出 JSON，不要输出任何其他内容
+- code 字段用 T1, T2, T3... 自动编号";
     }
 
     public static string BuildCreationPrompt(string projectInfo, int pid)
