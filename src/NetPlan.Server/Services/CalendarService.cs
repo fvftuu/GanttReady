@@ -55,12 +55,12 @@ public class CalendarService
         return AddWorkingDays(bits, startDate, duration, holidays);
     }
 
-    /// <summary>从 startDate 的次日开始，加上 duration 个工作日，返回结束日期（不含起始日）</summary>
+    /// <summary>从 startDate 开始，加上 duration 个工作日，返回结束日期</summary>
     public DateTime AddWorkingDays(int workDayBits, DateTime startDate, int duration, HashSet<DateTime> holidays)
     {
         if (duration <= 0) return startDate;
-        if ((workDayBits & 0x7F) == 0) return startDate.AddDays(duration);
-        var current = startDate;
+        if ((workDayBits & 0x7F) == 0) return startDate.AddDays(Math.Max(0, duration - 1));
+        var current = startDate.AddDays(-1);
         var added = 0;
         var maxLoops = duration * 366 + 366;
         while (added < duration && maxLoops-- > 0)

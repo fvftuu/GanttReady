@@ -96,7 +96,7 @@ public static class AiToolDefinitions
         return new AiToolDefinition
         {
             Name = "create_project_with_tasks",
-            Description = "【推荐】创建一个新项目及其所有任务（一次性完成）。用户通过概念性描述项目计划时使用此工具。项目创建后返回项目ID和所有任务数量。",
+            Description = "一次性创建项目及其所有任务。用户用自然语言描述项目计划（工程/营销/活动/软件等各行业）时使用此工具。返回项目ID和任务数量。",
             Parameters = new
             {
                 type = "object",
@@ -182,7 +182,7 @@ public static class AiToolDefinitions
         return new AiToolDefinition
         {
             Name = "create_project_from_json",
-            Description = "【推荐】接收完整的项目 JSON（含项目信息+所有任务+资源），按用户自然语言描述的施工计划生成完整项目。支持水上/陆上作业分类。返回预览让用户确认后再创建。",
+            Description = "接收完整的项目 JSON，一次创建项目+所有任务+资源。适用于用户描述完整的项目计划时使用。返回预览让用户确认后再创建。",
             Parameters = new
             {
                 type = "object",

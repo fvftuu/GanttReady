@@ -240,6 +240,8 @@ else
         public string Code { get; set; } = "";
         public string Name { get; set; } = "";
         public int Duration { get; set; }
+        public string? ParentCode { get; set; }
+        public DateTime? TaskStartDate { get; set; }
         public string WorkType { get; set; } = "land";
         public List<string> Predecessors { get; set; } = new();
         public string Assignee { get; set; } = "";
@@ -2114,6 +2116,8 @@ else
                         Code = t.TryGetProperty("code", out var c) ? c.GetString() ?? "" : "",
                         Name = t.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
                         Duration = t.TryGetProperty("duration", out var d) && d.TryGetInt32(out var durVal) ? durVal : 1,
+                        ParentCode = t.TryGetProperty("parentCode", out var pc) && pc.ValueKind == System.Text.Json.JsonValueKind.String ? pc.GetString() : null,
+                        TaskStartDate = t.TryGetProperty("planStartDate", out var ps) && DateTime.TryParse(ps.GetString(), out var parsedDate) ? parsedDate : (t.TryGetProperty("startDate", out var sd) && DateTime.TryParse(sd.GetString(), out var parsedSd) ? parsedSd : (DateTime?)null),
                         WorkType = t.TryGetProperty("workType", out var wt) ? wt.GetString() ?? "land" : "land",
                         Assignee = t.TryGetProperty("assignee", out var a) ? a.GetString() ?? "" : "",
                         Predecessors = new List<string>(),
@@ -2170,13 +2174,12 @@ else
                 Code = "PROJ-" + DateTime.Now.ToString("MMddHHmmss"),
                 PlanStartDate = _previewProject.PlanStartDate,
                 PlanEndDate = _previewProject.PlanStartDate.AddDays(Math.Max(1, _previewProject.TotalDuration)),
-                WorkingHoursPerDay = 8,
-                WorkdaysPerWeek = 5
+                WorkingHoursPerDay = 8
             };
             proj = await ProjectService.CreateProjectAsync(proj);
             var projectId = proj.Id;
 
-            // 创建任务
+            // 创建任务（第一遍：全部创建，记录 ID）
             var taskCodeToId = new Dictionary<string, int>();
             foreach (var t in _previewProject.Tasks)
             {
@@ -2186,12 +2189,25 @@ else
                     Code = string.IsNullOrEmpty(t.Code) ? $"T{_previewProject.Tasks.IndexOf(t) + 1}" : t.Code,
                     Name = t.Name,
                     PlanDuration = t.Duration,
-                    PlanStartDate = _previewProject.PlanStartDate,
-                    PlanEndDate = _previewProject.PlanStartDate.AddDays(t.Duration - 1),
+                    PlanStartDate = t.TaskStartDate ?? _previewProject.PlanStartDate,
+                    PlanEndDate = (t.TaskStartDate ?? _previewProject.PlanStartDate).AddDays(t.Duration - 1),
                     SortOrder = _previewProject.Tasks.IndexOf(t) + 1
                 };
                 task = await ProjectService.CreateTaskAsync(task);
                 taskCodeToId[t.Code] = task.Id;
+            }
+
+            // 设置父任务（第二遍：有 parentCode 的设 ParentTaskId）
+            foreach (var t in _previewProject.Tasks.Where(t => !string.IsNullOrEmpty(t.ParentCode)))
+            {
+                if (!taskCodeToId.TryGetValue(t.Code, out var childId)) continue;
+                if (!taskCodeToId.TryGetValue(t.ParentCode!, out var parentId)) continue;
+                var child = await ProjectService.GetTaskByIdAsync(childId);
+                if (child != null)
+                {
+                    child.ParentTaskId = parentId;
+                    await ProjectService.UpdateTaskAsync(child);
+                }
             }
 
             // 创建前置关系

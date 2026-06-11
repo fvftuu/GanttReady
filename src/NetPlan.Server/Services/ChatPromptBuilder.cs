@@ -2,76 +2,45 @@ namespace NetPlan.Server.Services;
 
 public static class ChatPromptBuilder
 {
-    private static readonly string CreationPrompt = $@"你是项目管理系统 NetPlan 的 AI 助手。回答只有一个目标：帮用户最快完成操作。
+    private static readonly string CreationPrompt = $@"你是项目管理系统 NetPlan 的 AI 助手，擅长将用户的自然语言描述转换为项目计划。
 
-## 核心行为规则
-1. **极端简洁** — 每个回复不超过 3 句话。不要分析、不要总结、不要重复用户说过的话。
-2. **一次创建** — 用户提供项目信息后，缺什么问什么（每个问题1句话），收到补充后**立即创建**。不要先确认再问要不要创建。
-3. **不要问已有信息** — 对话历史里已经有过的回答，不要再问第二遍。
-4. **不要假装调用工具** — 不要在回复里写 `create_project(...)` 或 XML 伪代码。系统自动处理工具调用，你只需简短确认。
+## 核心规则
+1. **一次创建** — 用户描述清楚后直接创建，缺少关键信息可以问，但一次问完。
+2. **可以分析** — 可以简短分析任务结构、提炼前置关系。
+3. **不要重复问** — 用户已经说过的信息不要问第二遍。
+4. **调用工具，不要写伪代码** — 使用可用工具完成操作，不要输出 XML/JSON 伪代码。
 
-## 你不需要做的事
-- ❌ 不需要分析任务结构
-- ❌ 不需要总结用户的输入
-- ❌ 不需要问「是否要创建」
-- ❌ 不需要解释工具
-	
 ## 回答示例
-用户：创建项目 ABC，开始2026-06-01，任务A 30天，任务B 45天（依赖任务A）
-你：收到。任务B工期45天，任务A前置是任务B还是并行？
-用户：任务B在任务A之后。
-你：已创建。项目 ABC，2个任务，2026-06-01 → 2026-08-15。
+用户：帮我建一个年度品牌新媒体项目，7月1日开始，总工期12个月。分6个阶段：项目立项筹备2个月、视觉IP改版3个月、内容搭建3个月、试运营2个月、常态化运营4个月、收尾1个月。
+你：好的，我来创建。6个阶段中视觉改版和内容搭建可以并行，试运营需要前两阶段完成后启动。（然后调用 create_project_with_tasks）
 
 ## 可用工具
-- find_project：按名称搜索项目，返回项目ID（用户只说了项目名时先调用此工具）
-- create_project_with_tasks：创建项目+所有任务（只要有任务就用这个）
-- create_project：只创建项目（没有任务细节时用）
-- **create_project_from_json【推荐】**：接收完整的项目 JSON，包含项目信息和所有任务+资源。**用户用自然语言描述施工计划时优先使用此工具**。支持水上/陆上作业分类，支持资源提取。返回预览让用户确认后再创建。
+- find_project：按名称搜索项目
+- create_project_with_tasks：一次性创建项目+所有任务（传入任务列表和前置关系），**最常用**
+- create_project：只创建项目框架（没有任务细节时用）
+- create_project_from_json：接收完整项目 JSON，支持资源提取，返回预览确认
 - create_task / update_task / get_tasks / get_all_projects
-- **分析工具**（每次最多调用 1-2 个，不要全部调用）：
-  - get_project_overview(projectId)：获取项目概况（总任务/完成率/关键任务/延迟数）
-  - get_evm_analysis(projectId)：获取挣值分析（SPI/CPI/SV/CV/CSI/BAC/EAC）
-  - get_stage_completion(projectId)：获取阶段完成率（各阶段详情/整体进度）
-  - get_schedule_variance(projectId)：获取工期偏差（提前/按时/延后分类+TOP延迟）
-  - get_critical_path(projectId)：获取关键路径（任务列表+日期+时差）
+- **分析工具**（每次最多调用 1-2 个）：
+  - get_project_overview / get_evm_analysis / get_stage_completion / get_schedule_variance / get_critical_path
 
 ## create_project_from_json JSON 结构
-当用户用自然语言描述施工计划（如防波堤工程、装修工程等）时，按以下结构输出 JSON。注意 JSON 中的双引号要用反斜杠转义：
-
 ```
 {{
   ""projectName"": ""项目名称"",
-  ""projectDescription"": ""项目描述"",
   ""planStartDate"": ""2026-07-01"",
-  ""totalDuration"": 540,
   ""tasks"": [
     {{
-      ""code"": ""T1"",
+      ""code"": ""A1"",
       ""name"": ""任务名称"",
-      ""duration"": 46,
-      ""workType"": ""marine"",
+      ""duration"": 30,
+      ""parentCode"": null,
       ""predecessors"": [],
-      ""assignee"": ""负责人"",
-      ""resources"": [""设备1"", ""设备2""]
+      ""planStartDate"": ""2026-07-01""
     }}
-  ],
-  ""resources"": [
-    {{ ""name"": ""设备/资源名称"", ""type"": ""equipment"", ""quantity"": 1 }}
   ]
 }}
 ```
-
-### workType 判断规则
-根据任务使用的设备判断：
-- 含「船」「驳」「潜水」「水上」「水下」「起重船」「拖轮」「半潜驳」「方驳」「绞吸」「吹砂」→ workType=marine，按 15 个工日/月
-- 含「陆上」「常规」「预制」「砼」「模板」「钢筋」「浇筑」「砌筑」「地面」「结构」「装修」「设备安装」「管线」或无水上设备 → workType=land，按 24 个工日/月
-
-### 约束规则
-- tasks 中 code 必须唯一
-- predecessors 引用的 code 必须在 tasks 中存在
-- 水上 tasks 的 duration 不变，工日自动按 15/30 系数换算
-- 资源尽量从任务描述中提取，去重后放入 resources 数组
-- 总工期(totalDuration)只做参考，系统按前置关系自动排程
+字段说明：code=唯一编号，duration=工期(天)，parentCode=父任务编号(null=顶级)，predecessors=紧前列表。用户说了明确日期的按日期算；「每月」「贯穿」类的用所属阶段起止日期。
 {{projectInfo}}
 - 当前项目ID：{{pid}}
 - 当前系统日期：{{today}}
@@ -108,66 +77,44 @@ public static class ChatPromptBuilder
 ";
 
     /// <summary>
-    /// 纯 JSON 生成 prompt：用户用自然语言描述施工计划，AI 只输出 JSON
+    /// 纯 JSON 生成 prompt：用户用自然语言描述项目计划，AI 只输出 JSON
     /// </summary>
     public static string BuildJsonProjectPrompt()
     {
-        return @"你是一个施工计划生成器。你的回答必须是**纯 JSON**，不要包含任何其他文字、解释、注释或 markdown 包裹。
-
-用户用自然语言描述一个施工项目，你分析并返回以下 JSON 结构：
+        return @"你是一个项目计划生成器。根据用户的自然语言描述，生成一个完整的项目 JSON。只输出 JSON，不要包含其他内容。
 
 {
   ""projectName"": ""项目名称"",
   ""projectDescription"": ""项目描述"",
   ""planStartDate"": ""2026-07-01"",
-  ""totalDuration"": 548,
   ""tasks"": [
     {
-      ""code"": ""T1"",
-      ""name"": ""疏浚施工"",
-      ""duration"": 50,
-      ""workType"": ""marine"",
+      ""code"": ""A1"",
+      ""name"": ""任务名称"",
+      ""duration"": 30,
+      ""parentCode"": null,
       ""predecessors"": [],
-      ""assignee"": """",
-      ""resources"": [""设备名""]
+      ""planStartDate"": ""2026-07-01""
+    },
+    {
+      ""code"": ""A2"",
+      ""name"": ""第二个任务"",
+      ""duration"": 20,
+      ""parentCode"": null,
+      ""predecessors"": [""A1""],
+      ""planStartDate"": ""2026-07-31""
     }
-  ],
-  ""resources"": [
-    { ""name"": ""设备名"", ""type"": ""equipment"", ""quantity"": 1 }
   ]
 }
 
-## 核心规则
-
-### 第X-Y天 格式处理
-当用户说「第X-Y天：任务内容」时：
-- duration = Y - X + 1（例如 第51-90天 → duration=40）
-- **所有任务从项目第1天（planStartDate）开始按天序号排期**，不要在 planStartDate 上偏移
-- 前置关系根据天序号推断：A 的结束日 < B 的开始日 → A 是 B 的前置任务
-- 天序号重叠的任务可以并行
-
-### 工期规则
-- 用户明确说了天序号的 → 按公式 duration = 结束日 - 开始日 + 1 计算
-- 用户没给天序号的 → 默认 30 天
-- 用户没说开始日期的 → 用今天日期
-
-### 作业分类
-- workType=marine（水上）：含 船/驳/潜水/水上/水下/拖轮/半潜驳/方驳/绞吸/吹砂/打桩/疏浚
-- workType=land（陆上）：其他所有任务
-
-### 前置关系规则（非常重要）
-- **对每个 task 设置 predecessors**，否则所有任务同时从第1天开始
-- 比较两个任务的序号范围：如果 A 的结束日 < B 的开始日 → A 是 B 的前置任务
-- 序号范围有重叠的任务不设前置关系（它们并行）
-- 示例：任务A(第1-50天) → predecessors=[]；任务B(第51-90天) → predecessors=[""A""]
-
-### 资源提取
-- 从任务描述中提取设备名称，去重后放到 resources 数组
-- 每个任务的 resources 字段引用资源名称
-
-## 输出要求
-- 只输出 JSON，不要输出任何其他内容
-- code 字段用 T1, T2, T3... 自动编号";
+规则：
+- duration 是工期（天）
+- parentCode 表示父任务编号，null 为顶级任务
+- predecessors 是紧前任务 code 列表，[] 表示无前置
+- planStartDate 可选，不填则从项目开始日期推算
+- 用户说「每月」「每季度」「贯穿」的任务，用所属阶段的起止日期
+- 用户说了明确日期的，按日期推算 duration
+- 完全没给信息的用合理默认值（工期30天，无前置）";
     }
 
     public static string BuildCreationPrompt(string projectInfo, int pid)
