@@ -1,0 +1,667 @@
+$ PowerShell -Command "Get-ChildItem -Recurse -Path src/GanttReady.Server -Include '*.cs','*.razor','*.cshtml','*.json' -Exclude 'obj\*','bin\*' | Where-Object { $_.DirectoryName -notmatch '\\obj\\' -and $_.DirectoryName -notmatch '\\bin\\' } | ForEach-Object { $f = $_; $c = Get-Content $f.FullName -Raw; $nc = $c -replace 'NetPlan\.Server', 'GanttReady.Server'; if ($c -ne $nc) { Set-Content $f.FullName $nc -NoNewline; Write-Host $f.FullName } }"
+[exit 0]
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (:) [], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException
+ 
+正在分析“\obj\”－ 无法识别的转义序列 \o。
+所在位置 行:1 字符: 240
++ ... re-Object { $_.DirectoryName -notmatch '\obj\' -and $_.DirectoryName  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo      
+
+[… truncated 33234 chars …]

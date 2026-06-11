@@ -1,0 +1,1427 @@
+﻿@page "/analysis"
+@page "/project/{ProjectId:int}/analysis"
+@inject IAnalysisService AnalysisService
+@inject IProjectService ProjectService
+@inject IResourceService ResourceService
+@inject IAiService AiService
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject CalendarService CalendarSvc
+@inject GanttReady.Server.Data.NetPlanDbContext Db
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>计划分析 - NetPlan</PageTitle>
+
+<div class="page-header">
+    <div class="header-left">
+        @if (isAllProjects)
+        {
+            <span style="font-size:16px;font-weight:600;color:var(--text);"><i class="bi bi-collection"></i> 多项目分析</span>
+        }
+        else if (selectedProjectId.HasValue)
+        {
+            var proj = projects.FirstOrDefault(p => p.Id == selectedProjectId.Value);
+            <span style="font-size:16px;font-weight:600;color:var(--text);"><i class="bi bi-folder-check"></i> @(proj?.Name ?? "项目")</span>
+        }
+        <span class="page-title">进度分析报告</span>
+        <button class="btn btn-default" @onclick="ShowAiSettings"><i class="bi bi-wrench-adjustable"></i> AI 设置</button>
+        <button class="btn btn-primary" @onclick="GenerateAiReport" disabled="@_aiLoading">
+            @if (_aiLoading) { <span><i class="bi bi-cup-hot"></i> 分析中...</span> }
+            else { <span><i class="bi bi-robot"></i> AI 分析 @if (_usingCustomRules) { <i class="bi bi-person-lines-fill"></i> }</span> }
+        </button>
+        @if (selectedProjectId.HasValue)
+        {
+            <button class="btn btn-default" @onclick="ExportWordReport" title="导出Word报告"><i class="bi bi-file-earmark-word" style="color:#2b579a;"></i> Word</button>
+        }
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="page-main" style="padding:20px;">
+        @if (isLoading)
+        {
+            <Skeleton Type="text" Count="8" />
+        }
+        else if (isAllProjects)
+        {
+            <div class="section">
+                <h3><i class="bi bi-collection"></i> 多项目横向分析</h3>
+                @if (!string.IsNullOrEmpty(_aiReport))
+                {
+                    <div class="ai-report">@((MarkupString)_aiReport)</div>
+                }
+                else if (!_aiLoading)
+                {
+                    <p style="color:var(--text-secondary);">点击上方「AI 分析」按钮，生成多项目横向对比报告。</p>
+                }
+                else
+                {
+                    <div class="loading">⏳ AI 正在分析多项目数据...</div>
+                }
+            </div>
+        }
+        else if (analysisResult != null)
+        {
+            @* ===== 核心指标卡片（四张） ===== *@
+            <div class="analysis-section-title"><span class="title-accent"></span>核心指标</div>
+            <div class="analysis-metric-grid">
+                <div class="analysis-metric-card" title="已完成任务数 / 总任务数，反映项目整体完成比例">
+                    <div class="metric-accent @GetProgressAccentClass(GetOverallProgress())"></div>
+                    <div class="metric-label">整体完成度</div>
+                    <div class="metric-value @GetProgressValueColor(GetOverallProgress())">@GetOverallProgress()%</div>
+                    <div class="metric-trend @GetProgressTrendClass(GetOverallProgress())">@((MarkupString)GetProgressStatusIcon(GetOverallProgress()))</div>
+                </div>
+                <div class="analysis-metric-card" title="关键路径上已完成的关键任务数占比，关键任务延误会影响总工期">
+                    <div class="metric-accent @GetCriticalAccentClass()"></div>
+                    <div class="metric-label">关键任务完成率</div>
+                    <div class="metric-value @GetCriticalValueColor()">@GetCriticalTaskRate()%</div>
+                    <div class="metric-trend flat">@GetCriticalTaskDetail()</div>
+                </div>
+                <div class="analysis-metric-card" title="已到达的里程碑数 / 总里程碑数，里程碑代表阶段性的关键节点">
+                    <div class="metric-accent @GetMilestoneAccentClass()"></div>
+                    <div class="metric-label">里程碑达成率</div>
+                    <div class="metric-value @GetMilestoneValueColor()">@GetMilestoneRate()%</div>
+                    <div class="metric-trend flat">@GetMilestoneDetail()</div>
+                </div>
+                <div class="analysis-metric-card" title="计划工期 vs 实际工期，正数=延后，负数=提前，反映项目整体偏差">
+                    <div class="metric-accent @GetVarianceAccentClass()"></div>
+                    <div class="metric-label">进度偏差</div>
+                    <div class="metric-value @GetVarianceColor()">@GetVarianceText()</div>
+                    <div class="metric-trend @GetVarianceTrendClass()">@((MarkupString)GetVarianceIcon())</div>
+                </div>
+            </div>
+
+            @* ===== EVM 指标卡片（当有 EVM 数据时） ===== *@
+            @if (_earnedValueResult != null)
+            {
+                var evm = _earnedValueResult;
+                <div class="analysis-section-title"><span class="title-accent"></span>挣值分析指标</div>
+                <div class="analysis-metric-grid">
+                    <div class="analysis-metric-card" title="SPI（进度绩效指数）= EV / PV，>1=进度超前，<1=进度滞后">
+                        <div class="metric-accent @GetEVMColor(evm.SchedulePerformanceIndex, 1.0)"></div>
+                        <div class="metric-label">SPI（进度绩效）</div>
+                        <div class="metric-value @GetEVMColor(evm.SchedulePerformanceIndex, 1.0)">@evm.SchedulePerformanceIndex.ToString("F2")</div>
+                        <div class="metric-trend @GetEVMTagClass(evm.SchedulePerformanceIndex, 1.0)">@GetEVMStatus(evm.SchedulePerformanceIndex, 1.0)</div>
+                    </div>
+                    <div class="analysis-metric-card" title="CPI（成本绩效指数）= EV / AC，>1=成本节约，<1=成本超支">
+                        <div class="metric-accent @GetEVMColor(evm.CostPerformanceIndex, 1.0)"></div>
+                        <div class="metric-label">CPI（成本绩效）</div>
+                        <div class="metric-value @GetEVMColor(evm.CostPerformanceIndex, 1.0)">@evm.CostPerformanceIndex.ToString("F2")</div>
+                        <div class="metric-trend @GetEVMTagClass(evm.CostPerformanceIndex, 1.0)">@GetEVMStatus(evm.CostPerformanceIndex, 1.0)</div>
+                    </div>
+                    <div class="analysis-metric-card" title="SV（进度偏差）= EV - PV，正数=进度提前，负数=进度滞后（单位：元）">
+                        <div class="metric-accent @GetEVMColor(evm.ScheduleVariance, 0)"></div>
+                        <div class="metric-label">SV（进度偏差）</div>
+                        <div class="metric-value @GetEVMColor(evm.ScheduleVariance, 0)">@evm.ScheduleVariance.ToString("F0")</div>
+                        <div class="metric-trend @GetEVMTagClass(evm.ScheduleVariance, 0)">@(evm.ScheduleVariance >= 0 ? "提前" : "滞后")</div>
+                    </div>
+                    <div class="analysis-metric-card" title="CSI（综合绩效）= SPI × CPI，综合评估进度与成本，≥0.9=可控，<0.9=需关注">
+                        <div class="metric-accent @GetEVMColor(evm.CostScheduleIndex, 0.9)"></div>
+                        <div class="metric-label">CSI（综合绩效）</div>
+                        <div class="metric-value @GetEVMColor(evm.CostScheduleIndex, 0.9)">@evm.CostScheduleIndex.ToString("F2")</div>
+                        <div class="metric-trend @GetEVMTagClass(evm.CostScheduleIndex, 0.9)">@(evm.CostScheduleIndex >= 0.9 ? "可控" : "关注")</div>
+                    </div>
+                </div>
+            }
+
+            @* ===== 阶段完成率进度条 ===== *@
+            @if (_stageCompletionResult != null && _stageCompletionResult.TotalStages > 0)
+            {
+                <div class="analysis-section-title"><span class="title-accent"></span>阶段完成率</div>
+                <div class="stage-progress-list">
+                    @foreach (var s in _stageCompletionResult.Stages.Take(7))
+                    {
+                        var barClass = s.Status == "completed" ? "ok" : s.Status == "in_progress" ? "warn" : s.Status == "delayed" ? "bad" : "pending";
+                        <div class="stage-progress-item">
+                            <span class="stage-status-icon">
+                                @if (s.Status == "completed") { <i class="bi bi-hand-thumbs-up"></i> }
+                                else if (s.Status == "in_progress") { <i class="bi bi-hand-index"></i> }
+                                else if (s.Status == "delayed") { <i class="bi bi-hand-thumbs-down"></i> }
+                                else { <i class="bi bi-hand-index"></i> }
+                            </span>
+                            <span class="stage-name">@s.StageName</span>
+                            <div class="stage-bar-track">
+                                <div class="stage-bar-fill @barClass" style="width:@Math.Max(1, (int)s.ActualCompletionPct)%">
+                                    <span class="stage-pct">@((int)s.ActualCompletionPct)%</span>
+                                </div>
+                            </div>
+                            @if (s.DelayDays.HasValue && s.DelayDays != 0)
+                            {
+                                <span class="stage-delay">@(s.DelayDays > 0 ? $"+{s.DelayDays}天" : $"{s.DelayDays}天")</span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ===== 关键路径摘要 ===== *@
+            @if (analysisResult.CriticalPathTasks.Any())
+            {
+                <div class="analysis-section-title"><span class="title-accent"></span>关键路径（前 @Math.Min(analysisResult.CriticalPathTasks.Count, 8) 项）</div>
+                <ul class="critical-path-list">
+                    @foreach (var t in analysisResult.CriticalPathTasks.Take(8))
+                    {
+                        var floatStr = t.TotalFloat.HasValue ? $"{t.TotalFloat}天" : "-";
+                        <li>
+                            <span class="cp-code">@t.Code</span>
+                            <span class="cp-name">@t.Name</span>
+                            <span class="cp-dates">@t.PlanStartDate.ToString("MM/dd") → @t.PlanEndDate.ToString("MM/dd")</span>
+                            <span class="cp-float">@floatStr</span>
+                        </li>
+                    }
+                </ul>
+            }
+
+            @* ===== 里程碑时间轴 ===== *@
+            @if (analysisResult.Milestones.Any())
+            {
+                <div class="analysis-section-title"><span class="title-accent"></span>里程碑</div>
+                <div class="milestone-timeline">
+                    @{
+                        var today = DateTime.Today;
+                    }
+                    @foreach (var m in analysisResult.Milestones.OrderBy(m => m.Date))
+                    {
+                        var cls = m.Date <= today ? (m.Date >= today.AddDays(-30) ? "done" : "done") 
+                                : (m.Date <= today.AddDays(14) ? "upcoming" : "upcoming");
+                        var statusText = m.Date <= today ? "<i class=\"bi bi-emoji-laughing\"></i> 已完成" : (m.Date <= today.AddDays(14) ? "<i class=\"bi bi-emoji-expressionless\"></i> 即将到期" : "<i class=\"bi bi-alarm\"></i>");
+                        <div class="milestone-item @cls">
+                            <span class="milestone-date">@m.Date.ToString("yyyy-MM-dd")</span>
+                            <span class="milestone-name">@m.Name</span>
+                            <span class="milestone-status">@((MarkupString)statusText)</span>
+                        </div>
+                    }
+                </div>
+            }
+
+            @* ===== 资源冲突表 ===== *@
+            @if (resourceConflicts.Any())
+            {
+                <div class="analysis-section-title"><span class="title-accent"></span>资源冲突（@resourceConflicts.Count 项）</div>
+                <table class="resource-conflict-table">
+                    <thead>
+                        <tr><th>资源名称</th><th>冲突时段</th><th>涉及任务</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in resourceConflicts.Take(8))
+                        {
+                            <tr>
+                                <td class="resource-name">@c.ResourceName</td>
+                                <td><span class="conflict-badge">@c.ConflictPeriod</span></td>
+                                <td>@string.Join("、", c.ConflictTasks.Take(3))@(c.ConflictTasks.Count > 3 ? "…" : "")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @* ===== AI 分析报告 ===== *@
+            <div class="analysis-section-title" style="margin-top:24px;"><span class="title-accent"></span>AI 进度分析报告</div>
+            <div class="analysis-report-section">
+                @if (_aiLoading)
+                {
+                    <div class="report-loading">
+                        <div class="loading-spinner"></div>
+                        <div>AI 正在分析项目数据...</div>
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(_aiReport))
+                {
+                    <div class="ai-report">@((MarkupString)_aiReport)</div>
+                }
+                else
+                {
+                    <div class="report-placeholder">点击上方「AI 分析」按钮生成进度分析报告。</div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <p>无法加载分析数据。</p>
+                <button class="btn btn-primary" @onclick="LoadAnalysis">重试</button>
+            </div>
+        }
+    </div>
+</div>
+
+@* ========== AI 设置弹窗（服务设置 + 分析规则双标签） ========== *@
+@if (_showAiSettings)
+{
+    <div class="modal-overlay">
+        <div class="modal-content" style="width:720px;height:620px;display:flex;flex-direction:column;">
+            @* 标签导航 *@
+            <div style="display:flex;gap:0;border-bottom:2px solid var(--primary);margin-bottom:12px;">
+                <button class="btn btn-sm" style="border:none;background:@(_aiSettingsTab == 0 ? "var(--primary)" : "transparent");color:@(_aiSettingsTab == 0 ? "#fff" : "var(--text)");padding:8px 20px;border-radius:6px 6px 0 0;font-size:13px;"
+                        @onclick="() => _aiSettingsTab = 0">
+                    <i class="bi bi-wrench-adjustable"></i> 服务设置
+                </button>
+                <button class="btn btn-sm" style="border:none;background:@(_aiSettingsTab == 1 ? "var(--primary)" : "transparent");color:@(_aiSettingsTab == 1 ? "#fff" : "var(--text)");padding:8px 20px;border-radius:6px 6px 0 0;font-size:13px;"
+                        @onclick="() => _aiSettingsTab = 1">
+                    <i class="bi bi-file-text"></i> 分析规则
+                </button>
+            </div>
+
+            @* 标签1：服务设置 *@
+            @if (_aiSettingsTab == 0)
+            {
+                <div style="display:flex;flex:1;gap:0;overflow:hidden;">
+                    <div style="width:190px;border-right:1px solid var(--border);padding-right:10px;overflow-y:auto;display:flex;flex-direction:column;flex-shrink:0;">
+                        @for (int ci = 0; ci < _aiConnections.Count; ci++)
+                        {
+                            var c = _aiConnections[ci]; var idx = ci;
+                            <div @onclick="() => _aiSelectedIdx = idx"
+                                 style="padding:7px 10px;border-radius:6px;cursor:pointer;margin-bottom:4px;display:flex;align-items:center;gap:6px;font-size:13px;
+                                        @(idx == _aiSelectedIdx ? "background:#e6f7ff;border:1px solid #91d5ff;" : "background:transparent;border:1px solid transparent;")">
+                                <span style="font-size:16px;line-height:1;">@GetProviderLogo(c.Name)</span>
+                                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@c.Name</span>
+                                @if (c.IsActive) { <span style="color:#faad14;font-size:11px;margin-left:2px;"><i class="bi bi-star"></i></span> }
+                                @if (c.Status == "ok") { <span style="color:#52c41a;font-size:10px;"><i class="bi bi-hand-thumbs-up"></i></span> }
+                                else if (c.Status == "fail") { <span style="color:#ff4d4f;font-size:10px;"><i class="bi bi-hand-thumbs-down"></i></span> }
+                            </div>
+                        }
+                        <button class="btn btn-default btn-sm" @onclick="AddAiConnection" style="margin-top:8px;">＋ 添加连接</button>
+                    </div>
+                    <div style="flex:1;padding-left:16px;overflow-y:auto;">
+                        @{ var selectedConn = _aiSelectedIdx >= 0 && _aiSelectedIdx < _aiConnections.Count ? _aiConnections[_aiSelectedIdx] : null; }
+                        @if (selectedConn != null)
+                        {
+                            var conn = selectedConn; var idx = _aiSelectedIdx;
+                            <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px;">
+                                <button class="btn btn-default btn-sm" @onclick="() => TestAiConnection(idx)">
+                                @if (conn.Testing) { <i class="bi bi-hand-index"></i> } else { <i class="bi bi-plug"></i> } 检测连接
+                            </button>
+                                @if (conn.Status == "ok") { <span style="color:#52c41a;"><i class="bi bi-hand-thumbs-up"></i> 连接正常</span> }
+                                else if (conn.Status == "fail") { <span style="color:#ff4d4f;"><i class="bi bi-hand-thumbs-down"></i> @conn.StatusMessage</span> }
+                                <div style="flex:1;"></div>
+                                <button class="btn btn-default btn-sm" @onclick="() => SelectAiConnection(idx)"><i class="bi bi-star"></i> 设为当前</button>
+                                @if (_aiConnections.Count > 1) { <button class="btn btn-danger btn-sm" @onclick="() => RemoveAiConnection(idx)"><i class="bi bi-x-lg"></i> 删除</button> }
+                            </div>
+                            <div class="form-group"><label>名称</label><input type="text" class="form-control" @bind="conn.Name" placeholder="连接名称" /></div>
+                            <div class="form-group"><label>API 地址</label><input type="text" class="form-control" @bind="conn.Endpoint" placeholder="https://api.deepseek.com/v1" /></div>
+                            <div class="form-group"><label>API 格式</label><select class="form-control" @bind="conn.ApiFormat"><option value="openai">OpenAI 格式</option><option value="anthropic">Anthropic 格式</option></select></div>
+                            <div class="form-group"><label>模型</label><input type="text" class="form-control" @bind="conn.Model" placeholder="deepseek-v4-flash" /></div>
+                            <div class="form-group"><label>API Key</label><input type="text" class="form-control" @bind="conn.ApiKey" placeholder="sk-..." style="font-family:monospace;" /></div>
+                        }
+                        else { <div style="color:var(--text-secondary);padding:40px 0;text-align:center;">选择一个连接或添加新连接</div> }
+                    </div>
+                </div>
+            }
+
+            @* 标签2：分析规则 *@
+            @if (_aiSettingsTab == 1)
+            {
+                <div style="display:flex;flex:1;gap:12px;overflow:hidden;padding:8px 0;">
+                    @* 规则列表（左侧） *@
+                    <div style="width:200px;border-right:1px solid var(--border);padding-right:10px;overflow-y:auto;flex-shrink:0;">
+                        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">已保存规则（@_promptRules.Count/10）</div>
+                        @foreach (var rule in _promptRules)
+                        {
+                            <div @onclick="() => SelectPromptRule(rule.Id)"
+                                 style="padding:8px 10px;border-radius:6px;cursor:pointer;margin-bottom:4px;font-size:13px;display:flex;align-items:center;gap:6px;
+                                        @(rule.IsActive ? "background:#e6f7ff;border:1px solid #91d5ff;" : "background:transparent;border:1px solid transparent;")">
+                                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@rule.Name</span>
+                                @if (rule.IsActive) { <span style="font-size:10px;color:#1890ff;">✓</span> }
+                            </div>
+                        }
+                        @if (!_promptRules.Any())
+                        {
+                            <div style="font-size:12px;color:var(--text-secondary);padding:12px 0;text-align:center;">暂无自定义规则</div>
+                        }
+                    </div>
+                    @* 规则操作（右侧） *@
+                    <div style="flex:1;overflow-y:auto;">
+                        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">
+                            下载模板 → 按需修改 → 上传即可生效。最多 10 条规则。
+                        </p>
+                        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+                            <button class="btn btn-default" @onclick="DownloadPromptTemplate">📥 下载规则模板</button>
+                            <button class="btn btn-default" @onclick="UploadPromptTemplate">📤 上传新规则</button>
+                            <InputFile id="promptUpload" OnChange="HandlePromptUpload" accept=".txt,.html" style="display:none" />
+                        </div>
+                        @if (_hasCustomPrompt)
+                        {
+                            var activeRule = _promptRules.FirstOrDefault(r => r.IsActive);
+                            <div style="background:#f6ffed;border:1px solid #b7eb8f;border-radius:6px;padding:12px;margin-bottom:12px;font-size:13px;display:flex;align-items:center;gap:8px;">
+                                <i class="bi bi-check-circle-fill" style="color:#52c41a;"></i>
+                                <span style="flex:1;">当前使用：<strong>@(activeRule?.Name ?? "默认规则")</strong></span>
+                                @if (_selectedRuleId.HasValue)
+                                {
+                                    <button class="btn btn-sm btn-danger" @onclick="() => DeletePromptRule(_selectedRuleId.Value)">删除此规则</button>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="background:#f0f0f0;border:1px solid #d9d9d9;border-radius:6px;padding:12px;font-size:13px;color:var(--text-secondary);">
+                                <i class="bi bi-info-circle"></i> 当前使用默认分析规则。下载模板并按需修改后上传即可生效。
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="dialog-actions" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:6px;">
+                <button class="btn btn-default" @onclick="() => _showAiSettings = false">关闭</button>
+                <button class="btn btn-primary" @onclick="SaveAiSettings">保存配置</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int? ProjectId { get; set; }
+
+    // AI 增强数据
+    private string? _currentProjectName;
+    private EarnedValueResult? _earnedValueResult;
+    private ScheduleVarianceResult? _scheduleVariance;
+    private StageCompletionResult? _stageCompletionResult;
+    private ResourceSummary? _resourceSummary;
+
+    // AI 报告
+    private string? _aiReport;
+    private Dictionary<int, string> _aiReportCache = new();
+    private string? _multiProjectReport;
+    private bool _aiLoading = false;
+    private bool _showAiSettings = false;
+    private int _aiSettingsTab = 0;
+    private int _aiSelectedIdx = 0;
+    private List<AiConnection> _aiConnections = new();
+    private List<PromptRule> _promptRules => selectedProjectId.HasValue ? PromptStorage.GetRules(selectedProjectId.Value) : new();
+    private bool _hasCustomPrompt => _promptRules.Any();
+    private bool _usingCustomRules => selectedProjectId.HasValue && _promptRules.Any(r => r.IsActive);
+    private int? _selectedRuleId = null;
+
+    private async Task DownloadPromptTemplate()
+    {
+        if (!selectedProjectId.HasValue) return;
+        var content = PromptStorage.GetDefaultTemplate();
+        await JS.InvokeVoidAsync("downloadTextFile", "分析规则模板.txt", content);
+    }
+
+    private async Task UploadPromptTemplate()
+    {
+        await JS.InvokeVoidAsync("eval", "document.getElementById('promptUpload').click()");
+    }
+
+    private async Task HandlePromptUpload(InputFileChangeEventArgs e)
+    {
+        if (!selectedProjectId.HasValue || e.File == null) return;
+        try
+        {
+            using var stream = e.File.OpenReadStream(maxAllowedSize: 1024 * 50);
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync();
+            var name = Path.GetFileNameWithoutExtension(e.File.Name);
+            if (string.IsNullOrWhiteSpace(name)) name = "自定义规则";
+            var id = PromptStorage.AddRule(selectedProjectId.Value, name, content);
+            if (id == -1)
+                await JS.InvokeVoidAsync("alert", "最多只能保存 10 条规则。请先删除不需要的规则。");
+            _selectedRuleId = id > 0 ? id : null;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("console.error", "Prompt upload error: " + ex.Message);
+        }
+    }
+
+    private void SelectPromptRule(int ruleId)
+    {
+        if (!selectedProjectId.HasValue) return;
+        PromptStorage.SetActiveRule(selectedProjectId.Value, ruleId);
+        _selectedRuleId = ruleId;
+        StateHasChanged();
+    }
+
+    private void DeletePromptRule(int ruleId)
+    {
+        if (!selectedProjectId.HasValue) return;
+        PromptStorage.DeleteRule(selectedProjectId.Value, ruleId);
+        _selectedRuleId = null;
+        StateHasChanged();
+    }
+
+    private async Task ExportWordReport()
+    {
+        if (!selectedProjectId.HasValue) return;
+        var aiHtml = _aiReport ?? "";
+        await JS.InvokeVoidAsync("downloadWordReport", $"/api/export-analysis-word/{selectedProjectId.Value}", aiHtml);
+    }
+
+    private async Task GenerateAiReport()
+    {
+        if (_aiLoading) return;
+        _aiLoading = true;
+        _aiReport = null;
+        StateHasChanged();
+
+        try
+        {
+            var opts = BuildAiOptions();
+            if (opts == null)
+            {
+                _aiReport = "⚠️ 请先在「AI 设置」中配置 API 连接。";
+                _aiLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            if (isAllProjects)
+            {
+                await GenerateMultiProjectReport(opts);
+            }
+            else if (analysisResult != null)
+            {
+                await GenerateSingleProjectReport(opts);
+            }
+        }
+        catch (Exception ex)
+        {
+            _aiReport = $"<i class=\"bi bi-x-octagon\"></i> AI 分析出错：{ex.Message}";
+        }
+        finally
+        {
+            _aiLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GenerateSingleProjectReport(AiOptions opts)
+    {
+        var data = await BuildAiReportData();
+        // 使用激活的自定义规则，没有则用默认
+        string prompt;
+        if (selectedProjectId.HasValue)
+        {
+            var active = PromptStorage.GetActiveContent(selectedProjectId.Value);
+            prompt = active ?? ChatPromptBuilder.BuildAnalysisPrompt(selectedProjectId, false);
+        }
+        else
+        {
+            prompt = ChatPromptBuilder.BuildAnalysisPrompt(selectedProjectId, false);
+        }
+        var result = await AiService.ChatAsync(prompt, data, overrideOptions: opts);
+        _aiReport = result;
+        if (selectedProjectId.HasValue)
+        {
+            _aiReportCache[selectedProjectId.Value] = result;
+            await SaveAiReportToStorage(selectedProjectId.Value, result);
+        }
+    }
+
+    private async Task GenerateMultiProjectReport(AiOptions opts)
+    {
+        if (projects.Count == 0) return;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("## 多项目概览");
+        sb.AppendLine($"共 {projects.Count} 个在管项目：\n");
+        sb.AppendLine("| 项目名称 | 总任务 | 完成率 | 关键任务 | 里程碑 | 资源数 | 预算成本 |");
+        sb.AppendLine("|---------|------:|------:|--------:|-------:|------:|--------:|");
+        foreach (var proj in projects)
+        {
+            try
+            {
+                var tasks = await ProjectService.GetTasksByProjectIdAsync(proj.Id);
+                var overview = await AnalysisService.GetProjectOverviewAsync(proj.Id);
+                var stage = await AnalysisService.GetStageCompletionAsync(proj.Id);
+                var summary = await AnalysisService.GetResourceSummaryAsync(proj.Id);
+                var total = tasks.Count;
+                var done = tasks.Count(t => t.CompletionPercentage >= 100);
+                var pct = total > 0 ? (done * 100.0 / total) : 0;
+                var criticalDone = tasks.Count(t => t.IsCritical && t.CompletionPercentage >= 100);
+                var criticalTotal = tasks.Count(t => t.IsCritical);
+                var msDone = stage?.CompletedStages ?? 0;
+                var msTotal = stage?.TotalStages ?? 0;
+                sb.AppendLine($"| {proj.Name} | {total} | {pct:F0}% | {criticalDone}/{criticalTotal} | {msDone}/{msTotal} | {summary?.EquipmentCount ?? 0} | {summary?.TotalCost ?? 0:N0} |");
+            }
+            catch { }
+        }
+        sb.AppendLine();
+        var data = sb.ToString();
+        var prompt = ChatPromptBuilder.BuildAnalysisPrompt(null, isMultiProject: true);
+        var result = await AiService.ChatAsync(prompt, data, overrideOptions: opts);
+        _aiReport = result;
+        _multiProjectReport = result;
+        await SaveAiReportToStorage(null, result);
+    }
+
+    private string GetProviderLogo(string name) => name.ToLower() switch
+    {
+        "deepseek" => "🧊",
+        "moonshot" => "🌙",
+        "qwen" => "🐉",
+        "zhipu" => "🧠",
+        "minimax" => "🎯",
+        "volcengine" => "🌋",
+        "youdao" => "📖",
+        "qianfan" => "☁️",
+        "stepfun" => "⚡",
+        "xiaomi" => "📱",
+        "ollama" => "🦙",
+        "openai" => "🟢",
+        "anthropic" => "🏔️",
+        "gemini" => "♊",
+        "github-copilot" => "🐙",
+        "openrouter" => "🌐",
+        _ => "🔌"
+    };
+
+    private void InitDefaultConnections()
+    {
+        if (_aiConnections.Count > 0) return;
+        _aiConnections = new()
+        {
+            new() { Name = "deepseek", Endpoint = "https://api.deepseek.com/v1", ApiFormat = "openai", Model = "deepseek-v4-flash", IsActive = true, Models = new() { "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-reasoner" } },
+            new() { Name = "moonshot", Endpoint = "https://api.moonshot.cn/v1", ApiFormat = "openai", Model = "kimi-k2.6", Models = new() { "kimi-k2.6", "kimi-k2.5" } },
+            new() { Name = "qwen", Endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1", ApiFormat = "openai", Model = "qwen3.6-plus", Models = new() { "qwen3.6-plus", "qwen3.5-plus", "qwen3-coder-plus" } },
+            new() { Name = "zhipu", Endpoint = "https://open.bigmodel.cn/api/paas/v4", ApiFormat = "openai", Model = "glm-5", Models = new() { "glm-5", "glm-4.7", "glm-4.7-flash", "GLM-4.7-Flash" } },
+            new() { Name = "minimax", Endpoint = "https://api.minimaxi.com/v1", ApiFormat = "openai", Model = "MiniMax-M2.7", Models = new() { "MiniMax-M2.7", "MiniMax-M2.5" } },
+            new() { Name = "volcengine", Endpoint = "https://ark.cn-beijing.volces.com/api/v3", ApiFormat = "openai", Model = "doubao-seed-2-0-pro-260215", Models = new() { "doubao-seed-2-0-pro-260215", "doubao-seed-2-0-lite-260215", "doubao-seed-2-0-mini-260215" } },
+            new() { Name = "youdao", Endpoint = "https://openapi.youdao.com/llmgateway/api/v1/chat/completions", ApiFormat = "openai", Model = "deepseek-chat", Models = new() { "deepseek-chat", "deepseek-reasoner" } },
+            new() { Name = "qianfan", Endpoint = "https://qianfan.baidubce.com/v2", ApiFormat = "openai", Model = "deepseek-v3.2", Models = new() { "deepseek-v3.2", "deepseek-r1", "ernie-4.5-8k" } },
+            new() { Name = "stepfun", Endpoint = "https://api.stepfun.com/v1", ApiFormat = "openai", Model = "step-3.5-flash", Models = new() { "step-3.5-flash" } },
+            new() { Name = "xiaomi", Endpoint = "https://api.xiaomimimo.com/v1", ApiFormat = "openai", Model = "mimo-v2.5-pro", Models = new() { "mimo-v2.5-pro", "mimo-v2.5", "mimo-v2-pro", "mimo-v2-flash" } },
+            new() { Name = "ollama", Endpoint = "http://localhost:11434/v1", ApiFormat = "openai", Model = "llama3", Models = new() { "qwen3-coder-next", "glm-4.7-flash" } },
+            new() { Name = "openai", Endpoint = "https://api.openai.com/v1", ApiFormat = "openai", Model = "gpt-5.4", Models = new() { "gpt-5.4", "gpt-5.2", "gpt-5.3-codex" } },
+            new() { Name = "anthropic", Endpoint = "https://api.anthropic.com", ApiFormat = "anthropic", Model = "claude-sonnet-4-5-20250929", Models = new() { "claude-sonnet-4-5-20250929", "claude-opus-4-6" } },
+            new() { Name = "gemini", Endpoint = "https://generativelanguage.googleapis.com/v1beta", ApiFormat = "openai", Model = "gemini-3-pro-preview", Models = new() { "gemini-3-pro-preview", "gemini-3-flash-preview" } },
+            new() { Name = "github-copilot", Endpoint = "https://api.individual.githubcopilot.com", ApiFormat = "openai", Model = "gpt-5-mini", Models = new() { "gpt-5-mini", "claude-haiku-4.5", "gpt-4.1", "gpt-4o" } },
+            new() { Name = "openrouter", Endpoint = "https://openrouter.ai/api/v1", ApiFormat = "openai", Model = "anthropic/claude-sonnet-4.5", Models = new() { "anthropic/claude-sonnet-4.5", "openai/gpt-5.2-codex", "google/gemini-3-pro-preview", "bytedance/seed-oss-36b-instruct" } },
+            new() { Name = "nvidia-build", Endpoint = "https://build.nvidia.com", ApiFormat = "openai", Model = "", Models = new() },
+        };
+    }
+
+    private class AiConnection
+    {
+        public string Name { get; set; } = "";
+        public string Endpoint { get; set; } = "https://api.deepseek.com/v1";
+        public string ApiKey { get; set; } = "";
+        public string Model { get; set; } = "deepseek-v4-flash";
+        public string ApiFormat { get; set; } = "openai";
+        public List<string> Models { get; set; } = new();
+        public bool IsActive { get; set; } = false;
+        public bool Testing { get; set; } = false;
+        public string Status { get; set; } = "";
+        public string StatusMessage { get; set; } = "";
+    }
+
+    // ===== AI 设置 =====
+    private async Task LoadAiSettings()
+    {
+        var version = await JS.InvokeAsync<string>("localStorage.getItem", "ai_connections_v");
+        if (version != "2")
+        {
+            await JS.InvokeVoidAsync("localStorage.removeItem", "ai_connections");
+            await JS.InvokeVoidAsync("localStorage.setItem", "ai_connections_v", "2");
+            InitDefaultConnections();
+            return;
+        }
+        try
+        {
+            var json = await JS.InvokeAsync<string>("localStorage.getItem", "ai_connections");
+            if (!string.IsNullOrEmpty(json))
+            {
+                var list = System.Text.Json.JsonSerializer.Deserialize<List<AiConnection>>(json);
+                if (list != null && list.Count > 0)
+                {
+                    _aiConnections = list;
+                    return;
+                }
+            }
+        }
+        catch { }
+        InitDefaultConnections();
+    }
+
+    private async Task SaveAiSettings()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(_aiConnections);
+        await JS.InvokeVoidAsync("localStorage.setItem", "ai_connections", json);
+        _showAiSettings = false;
+    }
+
+    private void ShowAiSettings()
+    {
+        _showAiSettings = true;
+        InitDefaultConnections();
+    }
+    private void AddAiConnection() => _aiConnections.Add(new AiConnection { Name = "新连接", Endpoint = "https://api.deepseek.com/v1", Model = "deepseek-v4-flash", ApiFormat = "openai" });
+    private void RemoveAiConnection(int idx) { if (idx >= 0 && idx < _aiConnections.Count) _aiConnections.RemoveAt(idx); }
+    private void SelectAiConnection(int idx) { foreach (var c in _aiConnections) c.IsActive = false; if (idx >= 0 && idx < _aiConnections.Count) _aiConnections[idx].IsActive = true; }
+
+    private async Task TestAiConnection(int idx)
+    {
+        if (idx < 0 || idx >= _aiConnections.Count) return;
+        var conn = _aiConnections[idx];
+        conn.Testing = true; conn.Status = "testing"; conn.StatusMessage = ""; StateHasChanged();
+        try
+        {
+            using var http = new HttpClient();
+            http.Timeout = TimeSpan.FromSeconds(30);
+            HttpRequestMessage request;
+            if ((conn.ApiFormat ?? "openai").ToLower() == "anthropic")
+            {
+                request = new HttpRequestMessage(HttpMethod.Post, $"{conn.Endpoint.TrimEnd('/')}/messages");
+                request.Content = new StringContent("{\"model\":\"" + conn.Model + "\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":1}", System.Text.Encoding.UTF8, "application/json");
+                if (!string.IsNullOrEmpty(conn.ApiKey)) request.Headers.Add("x-api-key", conn.ApiKey);
+                request.Headers.Add("anthropic-version", "2023-06-01");
+            }
+            else
+            {
+                request = new HttpRequestMessage(HttpMethod.Post, $"{conn.Endpoint.TrimEnd('/')}/chat/completions");
+                request.Content = new StringContent("{\"model\":\"" + conn.Model + "\",\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}],\"max_tokens\":1}", System.Text.Encoding.UTF8, "application/json");
+                if (!string.IsNullOrEmpty(conn.ApiKey)) request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", conn.ApiKey);
+            }
+            HttpResponseMessage? response = null;
+            for (int retry = 0; retry < 3; retry++)
+            {
+                response = await http.SendAsync(request);
+                if ((int)response.StatusCode == 429)
+                {
+                    conn.StatusMessage = $"频率限制(429)，等待后重试({retry + 1}/3)...";
+                    StateHasChanged();
+                    await Task.Delay(2000);
+                    continue;
+                }
+                break;
+            }
+            conn.Status = response.IsSuccessStatusCode ? "ok" : "fail";
+            conn.StatusMessage = response.IsSuccessStatusCode ? "" : (int)response.StatusCode == 429
+                ? "频率限制(429)：请求过于频繁，请等待几分钟后再试"
+                : $"HTTP {(int)response.StatusCode}";
+        }
+        catch (Exception ex) { conn.Status = "fail"; conn.StatusMessage = ex.Message; }
+        conn.Testing = false; StateHasChanged();
+    }
+
+    private AiOptions? BuildAiOptions()
+    {
+        var conn = GetActiveConnection();
+        if (conn == null || string.IsNullOrEmpty(conn.Endpoint)) return null;
+        return new AiOptions
+        {
+            Endpoint = conn.Endpoint,
+            ApiKey = conn.ApiKey,
+            Model = string.IsNullOrEmpty(conn.Model) ? "deepseek-v4-flash" : conn.Model,
+            ApiFormat = string.IsNullOrEmpty(conn.ApiFormat) ? "openai" : conn.ApiFormat
+        };
+    }
+
+    private AiConnection? GetActiveConnection() => _aiConnections.FirstOrDefault(c => c.IsActive) ?? _aiConnections.FirstOrDefault();
+
+    private async Task SaveAiReportToStorage(int? projectId, string report)
+    {
+        var key = projectId.HasValue ? $"ai_report_p{projectId}" : "ai_report_multi";
+        await JS.InvokeVoidAsync("localStorage.setItem", key, report ?? "");
+    }
+
+    private async Task LoadAiReportFromStorage()
+    {
+        try
+        {
+            // 加载多项目缓存
+            var multi = await JS.InvokeAsync<string>("localStorage.getItem", "ai_report_multi");
+            if (!string.IsNullOrEmpty(multi))
+                _multiProjectReport = multi;
+
+            // 加载每个已分析项目的缓存
+            foreach (var p in projects)
+            {
+                var json = await JS.InvokeAsync<string>("localStorage.getItem", $"ai_report_p{p.Id}");
+                if (!string.IsNullOrEmpty(json))
+                    _aiReportCache[p.Id] = json;
+            }
+
+            // 设置当前显示
+            if (isAllProjects)
+                _aiReport = _multiProjectReport;
+            else if (selectedProjectId.HasValue && _aiReportCache.TryGetValue(selectedProjectId.Value, out var cached))
+                _aiReport = cached;
+        }
+        catch { }
+    }
+
+    private async Task<string> BuildAiReportData()
+    {
+        if (analysisResult == null) return "无数据";
+        var sb = new System.Text.StringBuilder();
+
+        var projName = string.IsNullOrEmpty(_currentProjectName) ? "当前项目" : _currentProjectName;
+
+        // 加载前置任务关系和资源分配
+        List<TaskRelation>? relations = null;
+        List<ResourceAssignment>? assignments = null;
+        if (selectedProjectId.HasValue)
+        {
+            try { relations = await ProjectService.GetRelationsByProjectIdAsync(selectedProjectId.Value); } catch { }
+            try { assignments = await ResourceService.GetAssignmentsByProjectAsync(selectedProjectId.Value); } catch { }
+        }
+        // 构建任务ID→前置任务编码的映射
+        var predMap = new Dictionary<int, List<string>>();
+        if (relations != null)
+        {
+            foreach (var r in relations)
+                {
+                    var task = analysisResult.Tasks.FirstOrDefault(t => t.Id == r.SuccessorTaskId);
+                    var predTask = analysisResult.Tasks.FirstOrDefault(t => t.Id == r.PredecessorTaskId);
+                    if (task != null && predTask != null)
+                    {
+                        if (!predMap.ContainsKey(task.Id)) predMap[task.Id] = new();
+                        predMap[task.Id].Add($"{predTask.Code}({GetRelationTypeLabel(r.Type)})");
+                    }
+                }
+        }
+        // 构建任务ID→资源分配映射
+        var assignMap = new Dictionary<int, List<string>>();
+        if (assignments != null)
+        {
+            foreach (var a in assignments)
+            {
+                if (!assignMap.ContainsKey(a.TaskId)) assignMap[a.TaskId] = new();
+                assignMap[a.TaskId].Add($"资源#{a.ResourceId}×{a.Quantity}");
+            }
+        }
+
+        // 分析基准日期
+        sb.AppendLine($"- **分析基准日期**：{DateTime.Today:yyyy-MM-dd}");
+
+        // 工作日历信息
+        if (selectedProjectId.HasValue)
+        {
+            try
+            {
+                var proj = await Db.Projects.FindAsync(selectedProjectId.Value);
+                if (proj != null)
+                {
+                    var bits = proj.WorkDayBits;
+                    var dayNames = new[] { "日", "一", "二", "三", "四", "五", "六" };
+                    var workDays = new List<string>();
+                    for (int i = 0; i < 7; i++)
+                        if ((bits & (1 << i)) != 0) workDays.Add(dayNames[i]);
+                    var holidays = await Db.Holidays.Where(h => h.ProjectId == selectedProjectId.Value).OrderBy(h => h.Date).ToListAsync();
+                    sb.AppendLine($"- **工作日历**：每周 {string.Join("、", workDays)} 上班，共 {holidays.Count} 个节假日");
+                    if (holidays.Any())
+                        sb.AppendLine($"  - 节假日：{string.Join("、", holidays.Take(20).Select(h => $"{h.Date:MM/dd}({h.Name})"))}{(holidays.Count > 20 ? $" …等{holidays.Count}个" : "")}");
+                }
+            }
+            catch { }
+        }
+
+        // 1. 项目概况
+        sb.AppendLine($"## 项目基本信息");
+        sb.AppendLine($"- **项目名称**：{projName}");
+        sb.AppendLine($"- **总工期**：{analysisResult.ProjectDurationDays}天");
+        sb.AppendLine($"- **总任务数**：{analysisResult.TotalTasks}个");
+        sb.AppendLine($"- **计划最早完成**：{analysisResult.EarliestFinish:yyyy-MM-dd}");
+        sb.AppendLine($"- **按时完成**：{analysisResult.OnTimeTasks.Count}个 ／ **提前完成**：{analysisResult.EarlyStartTasks.Count}个 ／ **延后**：{analysisResult.LateStartTasks.Count}个");
+        if (_resourceSummary != null)
+        {
+            sb.AppendLine($"- **总资源数**：人工{_resourceSummary.LaborCount}/材料{_resourceSummary.MaterialCount}/设备{_resourceSummary.EquipmentCount}，**总预算成本**：{_resourceSummary.TotalCost:N0}元");
+        }
+        sb.AppendLine();
+
+        // 1.5 任务完成状态明细表
+        sb.AppendLine("## 任务完成状态明细");
+        sb.AppendLine("| 编码 | 名称 | 完成率 | 计划周期 | 实际开始 | 实际完成 | 状态 | 负责人 | 前置任务 | 资源分配 | 备注 |");
+        sb.AppendLine("|------|------|:----:|:--------:|:--------:|:--------:|:----:|:-----:|:--------:|:--------:|:----:|");
+        var today = DateTime.Today;
+        foreach (var t in analysisResult.Tasks.OrderBy(t => t.PlanStartDate))
+        {
+            var status = t.CompletionPercentage >= 100 ? "<i class=\"bi bi-emoji-laughing\"></i> 已完成" :
+                         t.CompletionPercentage > 0 ? "<i class=\"bi bi-rocket-takeoff\"></i> 进行中" :
+                         today > t.PlanEndDate ? "<i class=\"bi bi-emoji-angry\"></i> 超期未开始" : "<i class=\"bi bi-emoji-neutral\"></i> 未开始";
+            var actualStart = t.ActualStartDate?.ToString("MM/dd") ?? "—";
+            var actualEnd = t.ActualEndDate?.ToString("MM/dd") ?? "—";
+            var earlyTag = t.CompletionPercentage >= 100 && t.ActualEndDate.HasValue && t.ActualEndDate.Value.Date < t.PlanEndDate.Date ? " <i class=\"bi bi-emoji-grin\"></i>提前" : "";
+            var person = string.IsNullOrEmpty(t.ResponsiblePerson) ? "—" : t.ResponsiblePerson;
+            var preds = predMap.TryGetValue(t.Id, out var pList) ? string.Join(", ", pList) : "—";
+            var assigns = assignMap.TryGetValue(t.Id, out var aList) ? string.Join(", ", aList) : "—";
+            var notes = string.IsNullOrEmpty(t.Notes) ? "—" : t.Notes;
+            sb.AppendLine($"| {t.Code} | {t.Name} | {t.CompletionPercentage}% | {t.PlanStartDate:MM/dd}-{t.PlanEndDate:MM/dd} | {actualStart} | {actualEnd}{earlyTag} | {status} | {person} | {preds} | {assigns} | {notes} |");
+        }
+        sb.AppendLine();
+
+        // 2. EVM 挣值分析
+        if (_earnedValueResult != null)
+        {
+            var evm = _earnedValueResult;
+            var spiStatus = evm.SchedulePerformanceIndex >= 1.0 ? "<i class=\"bi bi-emoji-laughing\"></i> 正常" : evm.SchedulePerformanceIndex >= 0.9 ? "<i class=\"bi bi-hand-index\"></i> 预警" : "<i class=\"bi bi-emoji-angry\"></i> 滞后";
+            var cpiStatus = evm.CostPerformanceIndex >= 1.0 ? "<i class=\"bi bi-emoji-laughing\"></i> 正常" : evm.CostPerformanceIndex >= 0.9 ? "<i class=\"bi bi-hand-index\"></i> 预警" : "<i class=\"bi bi-emoji-angry\"></i> 超支";
+            sb.AppendLine($"## 挣值分析 (EVM)");
+            sb.AppendLine($"- **计划价值 PV**：{evm.PlannedValue:N0} ｜ **挣值 EV**：{evm.EarnedValue:N0} ｜ **实际成本 AC**：{evm.ActualCost:N0}");
+            sb.AppendLine($"- **进度绩效 SPI**：{evm.SchedulePerformanceIndex:F2}（{spiStatus}）");
+            sb.AppendLine($"- **成本绩效 CPI**：{evm.CostPerformanceIndex:F2}（{cpiStatus}）");
+            var csiStatus2 = evm.CostScheduleIndex >= 0.9 ? "<i class=\"bi bi-emoji-laughing\"></i> 可控" : "<i class=\"bi bi-emoji-astonished\"></i> 需关注";
+            sb.AppendLine($"- **综合绩效 CSI**：{evm.CostScheduleIndex:F2}（{csiStatus2}）");
+            sb.AppendLine($"- **进度偏差 SV**：{evm.ScheduleVariance:F0} ｜ **成本偏差 CV**：{evm.CostVariance:F0}");
+            sb.AppendLine($"- **总预算 BAC**：{evm.BudgetAtCompletion:N0} ｜ **估算完工 EAC**：{evm.EstimateAtCompletion:N0}");
+            if (evm.MonthlyTrend.Count > 1)
+            {
+                var trend = evm.MonthlyTrend.OrderByDescending(m => m.Month).Take(3).ToList();
+                sb.AppendLine($"- **SPI 近期趋势**（最近3月）：{string.Join(" → ", trend.Select(m => $"{m.Month}={m.SPI:F2}"))}");
+            }
+            sb.AppendLine();
+        }
+
+        // 3. 阶段完成率
+        if (_stageCompletionResult != null)
+        {
+            var sc = _stageCompletionResult;
+            sb.AppendLine($"## 阶段完成率");
+            sb.AppendLine($"- **检测方法**：{sc.DetectionMethod}");
+            sb.AppendLine($"- **完成进度**：{sc.CompletedStages}/{sc.TotalStages}阶段完成，**整体完成率**：{sc.OverallPct:F1}%");
+            foreach (var s in sc.Stages.Take(7))
+            {
+                var icon = s.Status == "completed" ? "<i class=\"bi bi-emoji-laughing\"></i>" : s.Status == "in_progress" ? "<i class=\"bi bi-rocket-takeoff\"></i>" : s.Status == "delayed" ? "<i class=\"bi bi-emoji-angry\"></i>" : "<i class=\"bi bi-emoji-neutral\"></i>";
+                sb.AppendLine($"  - {icon} {s.StageName}：计划 {s.PlannedCompletionPct}% / 实际 {s.ActualCompletionPct}%（{s.CompletedTasks}/{s.TotalTasks}任务）{(s.DelayDays.HasValue && s.DelayDays != 0 ? $"偏差 {s.DelayDays}天" : "")}");
+            }
+            sb.AppendLine();
+        }
+
+        // 4. 关键路径
+        sb.AppendLine($"## 关键路径");
+        sb.AppendLine($"共 {analysisResult.CriticalPathTasks.Count} 个关键任务：");
+        foreach (var t in analysisResult.CriticalPathTasks.Take(10))
+        {
+            var floatStr = t.TotalFloat.HasValue ? $"，时差：{t.TotalFloat}天" : "";
+            var respStr = string.IsNullOrEmpty(t.ResponsiblePerson) ? "" : $"，负责人：{t.ResponsiblePerson}";
+            sb.AppendLine($"- **{t.Code} {t.Name}**：{t.PlanStartDate:MM/dd}→{t.PlanEndDate:MM/dd}（{t.PlanDuration}天）{floatStr}{respStr}");
+        }
+        if (analysisResult.CriticalPathTasks.Count > 10)
+            sb.AppendLine($"  ... 还有 {analysisResult.CriticalPathTasks.Count - 10} 个关键任务未列出");
+        sb.AppendLine();
+
+        // 5. 延后任务 TOP10
+        if (analysisResult.LateStartTasks.Any())
+        {
+            sb.AppendLine($"## 延后任务 TOP{Math.Min(analysisResult.LateStartTasks.Count, 10)}");
+            foreach (var t in analysisResult.LateStartTasks.OrderBy(t => t.PlanEndDate).Take(10))
+            {
+                var delayDays = t.ActualEndDate.HasValue ? (t.ActualEndDate.Value - t.PlanEndDate).Days : (DateTime.Today - t.PlanEndDate).Days;
+                var pct = t.CompletionPercentage;
+                var person = string.IsNullOrEmpty(t.ResponsiblePerson) ? "" : $"，负责人：{t.ResponsiblePerson}";
+                sb.AppendLine($"- **{t.Code} {t.Name}**：计划完成 {t.PlanEndDate:MM/dd}，延后 {delayDays}天，完成率 {pct}%{person}");
+            }
+            sb.AppendLine();
+        }
+
+        // 6. 里程碑
+        if (analysisResult.Milestones.Any())
+        {
+            sb.AppendLine($"## 里程碑");
+            sb.AppendLine($"共 {analysisResult.Milestones.Count} 个：");
+            foreach (var m in analysisResult.Milestones.OrderBy(m => m.Date))
+                sb.AppendLine($"- {m.Name}：{m.Date:yyyy-MM-dd}");
+            sb.AppendLine();
+        }
+
+        // 7. 资源冲突
+        sb.AppendLine($"## 资源冲突");
+        if (resourceConflicts.Any())
+        {
+            sb.AppendLine($"共 {resourceConflicts.Count} 项：");
+            foreach (var c in resourceConflicts.Take(10))
+                sb.AppendLine($"- **{c.ResourceName}**（{c.ConflictPeriod}）：涉及任务 {string.Join("、", c.ConflictTasks)}");
+            if (resourceConflicts.Count > 10)
+                sb.AppendLine($"  ... 还有 {resourceConflicts.Count - 10} 项资源冲突未列出");
+        }
+        else
+        {
+            sb.AppendLine("未检测到资源冲突，分配合理。");
+        }
+        sb.AppendLine();
+
+        // 8. 资源使用情况
+        if (resourceUsages.Any())
+        {
+            sb.AppendLine($"## 资源使用 TOP5（按负荷率排序）");
+            foreach (var u in resourceUsages.OrderByDescending(u => u.PeakUsage / Math.Max(0.001m, u.Capacity)).Take(5))
+            {
+                var pct = u.Capacity > 0 ? (int)(u.PeakUsage / u.Capacity * 100) : 0;
+                var status = pct > 100 ? "<i class=\"bi bi-emoji-angry\"></i> 超额" : "<i class=\"bi bi-emoji-laughing\"></i> 正常";
+                sb.AppendLine($"- **{u.ResourceName}**：容量 {u.Capacity}{u.Unit}，峰值 {u.PeakUsage}{u.Unit}（{pct}%），{status}");
+            }
+            sb.AppendLine();
+        }
+
+        return sb.ToString();
+    }
+
+    // ===== 核心指标卡片计算 =====
+    private double GetOverallProgress()
+    {
+        if (_stageCompletionResult != null && _stageCompletionResult.TotalStages > 0)
+            return Math.Round(_stageCompletionResult.OverallPct, 1);
+        if (analysisResult?.TotalTasks > 0)
+        {
+            var done = analysisResult.OnTimeTasks.Count + analysisResult.EarlyStartTasks.Count;
+            return Math.Round(done * 100.0 / analysisResult.TotalTasks, 1);
+        }
+        return 0;
+    }
+
+    private string GetRelationTypeLabel(RelationType type) => type switch
+    {
+        RelationType.FS => "FS",
+        RelationType.SS => "SS",
+        RelationType.SF => "SF",
+        RelationType.FF => "FF",
+        _ => "FS"
+    };
+
+    private string GetProgressStatusIcon(double pct)
+    {
+        if (pct >= 80) return "<i class=\"bi bi-hand-index\"></i> 进展良好";
+        if (pct >= 50) return "<i class=\"bi bi-hand-index\"></i> 过半完成";
+        return "<i class=\"bi bi-hand-thumbs-down\"></i> 进展滞后";
+    }
+
+    private double GetCriticalTaskRate()
+    {
+        if (analysisResult == null) return 0;
+        var total = analysisResult.CriticalPathTasks.Count;
+        if (total == 0) return 100;
+        var done = analysisResult.CriticalPathTasks.Count(t => t.CompletionPercentage >= 100);
+        return Math.Round(done * 100.0 / total, 1);
+    }
+
+    private string GetCriticalTaskDetail()
+    {
+        if (analysisResult == null) return "";
+        var total = analysisResult.CriticalPathTasks.Count;
+        var done = analysisResult.CriticalPathTasks.Count(t => t.CompletionPercentage >= 100);
+        return $"{done}/{total} 个关键任务已完成";
+    }
+
+    private double GetMilestoneRate()
+    {
+        if (_stageCompletionResult == null || _stageCompletionResult.TotalStages == 0) return 100;
+        return Math.Round(_stageCompletionResult.CompletedStages * 100.0 / _stageCompletionResult.TotalStages, 1);
+    }
+
+    private string GetMilestoneDetail()
+    {
+        if (_stageCompletionResult == null) return "";
+        return $"{_stageCompletionResult.CompletedStages}/{_stageCompletionResult.TotalStages} 阶段";
+    }
+
+    private string GetVarianceText()
+    {
+        if (_scheduleVariance == null)
+            return "—";
+
+        var delay = _scheduleVariance.TotalDelayDays;
+        var ahead = _scheduleVariance.TotalAheadDays;
+
+        if (delay > 0 && ahead > 0)
+            return $"延后 {delay}天 / 提前 {ahead}天";
+        if (delay > 0)
+            return $"延后 {delay}天";
+        if (ahead > 0)
+            return $"提前 {ahead}天";
+
+        return "按时";
+    }
+
+    private string GetVarianceColor()
+    {
+        if (_scheduleVariance == null) return "var(--text-secondary)";
+        var delay = _scheduleVariance.TotalDelayDays;
+        var ahead = _scheduleVariance.TotalAheadDays;
+        if (delay == 0 && ahead == 0) return "#52c41a";
+        if (delay <= ahead * 2) return "#faad14";
+        return "#ff4d4f";
+    }
+
+    private string GetVarianceIcon()
+    {
+        if (_scheduleVariance == null) return "";
+        var delay = _scheduleVariance.TotalDelayDays;
+        var ahead = _scheduleVariance.TotalAheadDays;
+        if (delay == 0 && ahead == 0) return "<i class=\"bi bi-emoji-sunglasses\"></i> 按时";
+        if (ahead > 0 && delay == 0) return "<i class=\"bi bi-emoji-grin\"></i> 提前完成";
+        if (ahead >= delay) return "<i class=\"bi bi-emoji-frown\"></i> 部分滞后";
+        return "<i class=\"bi bi-emoji-angry\"></i> 严重滞后";
+    }
+
+    // ===== 新增 CSS 辅助方法（用于美化卡片） =====
+    private string GetProgressAccentClass(double pct) => pct >= 80 ? "green" : pct >= 50 ? "yellow" : "red";
+    private string GetProgressValueColor(double pct) => pct >= 80 ? "green" : pct >= 50 ? "yellow" : "red";
+    private string GetProgressTrendClass(double pct) => pct >= 80 ? "up" : pct >= 50 ? "flat" : "down";
+
+    private string GetCriticalAccentClass()
+    {
+        if (analysisResult == null) return "blue";
+        var total = analysisResult.CriticalPathTasks.Count;
+        if (total == 0) return "green";
+        var done = analysisResult.CriticalPathTasks.Count(t => t.CompletionPercentage >= 100);
+        var pct = done * 100.0 / total;
+        return pct >= 80 ? "green" : pct >= 50 ? "yellow" : "red";
+    }
+    private string GetCriticalValueColor() => GetCriticalAccentClass();
+
+    private string GetMilestoneAccentClass()
+    {
+        if (_stageCompletionResult == null || _stageCompletionResult.TotalStages == 0) return "green";
+        var pct = _stageCompletionResult.CompletedStages * 100.0 / _stageCompletionResult.TotalStages;
+        return pct >= 80 ? "green" : pct >= 50 ? "yellow" : "red";
+    }
+    private string GetMilestoneValueColor() => GetMilestoneAccentClass();
+
+    private string GetVarianceAccentClass()
+    {
+        if (_earnedValueResult == null) return "blue";
+        return _earnedValueResult.SchedulePerformanceIndex >= 1.0 ? "green" :
+               _earnedValueResult.SchedulePerformanceIndex >= 0.9 ? "yellow" : "red";
+    }
+    private string GetVarianceTrendClass()
+    {
+        if (_earnedValueResult == null) return "flat";
+        return _earnedValueResult.SchedulePerformanceIndex >= 1.0 ? "up" : "down";
+    }
+
+    private string GetEVMColor(double value, double threshold)
+    {
+        if (value >= threshold) return "green";
+        if (value >= threshold * 0.9) return "yellow";
+        return "red";
+    }
+    private string GetEVMTagClass(double value, double threshold)
+    {
+        if (value >= threshold) return "ok";
+        if (value >= threshold * 0.9) return "warn";
+        return "bad";
+    }
+    private string GetEVMStatus(double value, double threshold)
+    {
+        if (value >= threshold) return value >= 1.2 ? "优秀" : "正常";
+        if (value >= threshold * 0.9) return "预警";
+        return "异常";
+    }
+
+    private List<Models.Project> projects = new();
+    private string selectedScope = "all";  // "all" 或 "p-{id}"
+    private bool isAllProjects => selectedScope == "all";
+    private int? selectedProjectId =>
+        selectedScope.StartsWith("p-") && int.TryParse(selectedScope.Substring(2), out var id) ? id : null;
+
+    private ProjectAnalysisResult? analysisResult;
+    private bool isLoading = true;
+    private int totalAssignments = 0;
+
+    // 所有项目分析数据
+    private List<AllProjectResourceItem> allProjectResources = new();
+    private List<ProjectResourceSummary> projectSummaries = new();
+
+    // 资源使用情况
+    private List<ResourceUsageSummary> resourceUsages = new();
+    private List<ResourceConflict> resourceConflicts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        projects = await ProjectService.GetAllProjectsAsync();
+        await LoadAiSettings();
+        await LoadAiReportFromStorage();
+        // 如果 URL 中有 ProjectId，则选中对应项目
+        if (ProjectId.HasValue)
+            selectedScope = "p-" + ProjectId.Value;
+        await LoadAnalysis();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ProjectId.HasValue)
+        {
+            var newScope = "p-" + ProjectId.Value;
+            if (selectedScope != newScope)
+            {
+                selectedScope = newScope;
+                await LoadAnalysis();
+            }
+        }
+        else if (selectedScope != "all")
+        {
+            selectedScope = "all";
+            await LoadAnalysis();
+        }
+    }
+
+    private async Task LoadAnalysis()
+    {
+        isLoading = true;
+        analysisResult = null;
+        resourceUsages = new();
+        resourceConflicts = new();
+        allProjectResources = new();
+        projectSummaries = new();
+        StateHasChanged();
+
+        try
+        {
+            if (isAllProjects)
+            {
+                await LoadAllProjectsAnalysis();
+                _aiReport = _multiProjectReport;
+            }
+            else if (selectedProjectId.HasValue)
+            {
+                await LoadSingleProjectAnalysis(selectedProjectId.Value);
+                var pid = selectedProjectId.Value;
+                _aiReport = _aiReportCache.TryGetValue(pid, out var cached) ? cached : null;
+            }
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadAllProjectsAnalysis()
+    {
+        var allProjects = await ProjectService.GetAllProjectsAsync();
+        var allResources = await ResourceService.GetAllResourcesAsync();
+
+        // 各项目资源使用汇总
+        foreach (var proj in allProjects)
+        {
+            try
+            {
+                var tasks = await ProjectService.GetTasksByProjectIdAsync(proj.Id);
+                var assignments = await ResourceService.GetAssignmentsByProjectAsync(proj.Id);
+                var resUsages = CalculateResourceUsages(assignments, tasks, allResources.Where(r => r.ProjectId == null || r.ProjectId == proj.Id).ToList());
+                projectSummaries.Add(new ProjectResourceSummary
+                {
+                    ProjectId = proj.Id,
+                    ProjectName = proj.Name,
+                    TaskCount = tasks.Count,
+                    ResourceCount = resUsages.Count,
+                    ConflictCount = resUsages.Count(r => r.PeakUsage > r.Capacity && r.Capacity > 0)
+                });
+            }
+            catch (Exception ex)
+            {
+                projectSummaries.Add(new ProjectResourceSummary
+                {
+                    ProjectId = proj.Id,
+                    ProjectName = proj.Name + " (加载失败)",
+                    TaskCount = 0,
+                    ResourceCount = 0,
+                    ConflictCount = 0
+                });
+            }
+        }
+
+        // 共享资源跨项目分析
+        var sharedResources = allResources.Where(r => r.ProjectId == null).ToList();
+        foreach (var res in sharedResources)
+        {
+            var allAssignments = await ResourceService.GetAllAssignmentsAsync();
+            var resAssignments = allAssignments.Where(a => a.ResourceId == res.Id).ToList();
+            if (!resAssignments.Any()) continue;
+
+            var projectNames = new List<string>();
+            foreach (var a in resAssignments)
+            {
+                var task = (await ProjectService.GetTaskByIdAsync(a.TaskId));
+                if (task != null)
+                {
+                    var proj = allProjects.FirstOrDefault(p => p.Id == task.ProjectId);
+                    if (proj != null && !projectNames.Contains(proj.Name))
+                        projectNames.Add(proj.Name);
+                }
+            }
+
+            allProjectResources.Add(new AllProjectResourceItem
+            {
+                ResourceName = res.Name,
+                ResourceType = res.Type,
+                TotalCapacity = res.Quantity,
+                Unit = res.Unit ?? "",
+                UsedByProjects = projectNames
+            });
+        }
+
+        // 渲染图表
+        await RenderAllProjectsChart();
+    }
+
+    private async Task LoadSingleProjectAnalysis(int projectId)
+    {
+        var project = await ProjectService.GetProjectByIdAsync(projectId);
+        if (project != null)
+        {
+            _currentProjectName = project.Name;
+            var tasks = await ProjectService.GetTasksByProjectIdAsync(projectId);
+            analysisResult = AnalysisService.AnalyzeProject(project, tasks);
+            await AnalyzeResourceConflicts(tasks, project);
+            // 加载 AI 增强数据
+            try { _earnedValueResult = await AnalysisService.GetEarnedValueAsync(projectId); } catch { _earnedValueResult = null; }
+            try { _scheduleVariance = await AnalysisService.GetScheduleVarianceAsync(projectId); } catch { _scheduleVariance = null; }
+            try { _stageCompletionResult = await AnalysisService.GetStageCompletionAsync(projectId); } catch { _stageCompletionResult = null; }
+            try { _resourceSummary = await AnalysisService.GetResourceSummaryAsync(projectId); } catch { _resourceSummary = null; }
+        }
+        await RenderSingleProjectChart(projectId);
+    }
+
+    private List<ResourceUsageSummary> CalculateResourceUsages(
+        List<Models.ResourceAssignment> assignments,
+        List<Models.TaskItem> tasks,
+        List<Models.Resource> resources)
+    {
+        var result = new List<ResourceUsageSummary>();
+        var byResource = assignments.GroupBy(a => a.ResourceId).ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var kv in byResource)
+        {
+            var resource = resources.FirstOrDefault(r => r.Id == kv.Key);
+            if (resource == null) continue;
+            var taskAssignments = kv.Value;
+            var monthlyUsage = new Dictionary<string, decimal>();
+            foreach (var asgn in taskAssignments)
+            {
+                var task = tasks.FirstOrDefault(t => t.Id == asgn.TaskId);
+                if (task == null) continue;
+                var start = task.PlanStartDate;
+                var end = task.PlanEndDate;
+                var cur = new DateTime(start.Year, start.Month, 1);
+                while (cur <= end)
+                {
+                    var key = cur.ToString("yyyy-MM");
+                    if (!monthlyUsage.ContainsKey(key)) monthlyUsage[key] = 0;
+                    monthlyUsage[key] += asgn.Quantity;
+                    cur = cur.AddMonths(1);
+                }
+            }
+            if (!monthlyUsage.Any()) continue;
+            var peakKey = monthlyUsage.OrderByDescending(x => x.Value).First().Key;
+            var peakUsage = monthlyUsage[peakKey];
+            result.Add(new ResourceUsageSummary
+            {
+                ResourceId = resource.Id,
+                ResourceName = resource.Name,
+                ResourceType = resource.Type,
+                Unit = resource.Unit ?? "",
+                Capacity = resource.Quantity,
+                PeakUsage = peakUsage,
+                PeakPeriod = peakKey
+            });
+        }
+        return result.OrderByDescending(r => r.PeakUsage / Math.Max(0.001m, r.Capacity)).ToList();
+    }
+
+    private async Task AnalyzeResourceConflicts(List<Models.TaskItem> tasks, Models.Project project)
+    {
+        resourceUsages = new();
+        resourceConflicts = new();
+        var assignments = await ResourceService.GetAssignmentsByProjectAsync(project.Id);
+        totalAssignments = assignments.Count;
+        if (!assignments.Any()) return;
+        var resources = await ResourceService.GetResourcesByProjectAsync(project.Id);
+        resourceUsages = CalculateResourceUsages(assignments, tasks, resources);
+
+        foreach (var usage in resourceUsages)
+        {
+            if (usage.PeakUsage > usage.Capacity && usage.Capacity > 0)
+            {
+                resourceConflicts.Add(new ResourceConflict
+                {
+                    ResourceName = usage.ResourceName,
+                    ConflictPeriod = usage.PeakPeriod,
+                    ConflictTasks = new()
+                });
+            }
+        }
+    }
+
+    private async Task RenderAllProjectsChart()
+    {
+        await Task.Delay(100);
+        var labels = projectSummaries.Select(p => p.ProjectName).ToArray();
+        var taskData = projectSummaries.Select(p => p.TaskCount).ToArray();
+        var conflictData = projectSummaries.Select(p => p.ConflictCount).ToArray();
+        var chartData = new
+        {
+            labels = labels,
+            datasets = new[]
+            {
+                new { label = "任务数", data = taskData, backgroundColor = "#1890ff" },
+                new { label = "资源冲突", data = conflictData, backgroundColor = "#ff4d4f" }
+            }
+        };
+        try { await JS.InvokeVoidAsync("renderAnalysisBarChart", "all-projects-chart", chartData); } catch {}
+    }
+
+    private async Task RenderSingleProjectChart(int projectId)
+    {
+        await Task.Delay(100);
+        if (!resourceUsages.Any()) return;
+        var labels = resourceUsages.Select(r => r.ResourceName).ToArray();
+        var capacityData = resourceUsages.Select(r => (double)r.Capacity).ToArray();
+        var usageData = resourceUsages.Select(r => (double)r.PeakUsage).ToArray();
+        var chartData = new
+        {
+            labels = labels,
+            datasets = new[]
+            {
+                new { label = "总容量", data = capacityData, backgroundColor = "#52c41a" },
+                new { label = "峰值使用", data = usageData, backgroundColor = "#faad14" }
+            }
+        };
+        try { await JS.InvokeVoidAsync("renderAnalysisBarChart", "single-project-chart", chartData); } catch {}
+    }
+
+    private string GetResourceTypeBadgeClass(Models.ResourceType type) => type switch
+    {
+        Models.ResourceType.Labor => "badge-blue",
+        Models.ResourceType.Material => "badge-green",
+        Models.ResourceType.Equipment => "badge-orange",
+        _ => "badge-gray"
+    };
+
+    private string GetResourceTypeLabel(Models.ResourceType type) => type switch
+    {
+        Models.ResourceType.Labor => "人工",
+        Models.ResourceType.Material => "材料",
+        Models.ResourceType.Equipment => "设备",
+        _ => "其他"
+    };
+
+    // DTOs
+    private class AllProjectResourceItem
+    {
+        public string ResourceName { get; set; } = "";
+        public Models.ResourceType ResourceType { get; set; }
+        public decimal TotalCapacity { get; set; }
+        public string Unit { get; set; } = "";
+        public List<string> UsedByProjects { get; set; } = new();
+    }
+
+    private class ProjectResourceSummary
+    {
+        public int ProjectId { get; set; }
+        public string ProjectName { get; set; } = "";
+        public int TaskCount { get; set; }
+        public int ResourceCount { get; set; }
+        public int ConflictCount { get; set; }
+    }
+
+    private class ResourceUsageSummary
+    {
+        public int ResourceId { get; set; }
+        public string ResourceName { get; set; } = "";
+        public Models.ResourceType ResourceType { get; set; }
+        public string Unit { get; set; } = "";
+        public decimal Capacity { get; set; }
+        public decimal PeakUsage { get; set; }
+        public string PeakPeriod { get; set; } = "";
+    }
+
+    private class ResourceConflict
+    {
+        public string ResourceName { get; set; } = "";
+        public string ConflictPeriod { get; set; } = "";
+        public List<string> ConflictTasks { get; set; } = new();
+    }
+}

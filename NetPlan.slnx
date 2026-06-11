@@ -1,5 +1,5 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/NetPlan.Server/NetPlan.Server.csproj" />
+    <Project Path="src/GanttReady.Server/GanttReady.Server.csproj" />
   </Folder>
 </Solution>

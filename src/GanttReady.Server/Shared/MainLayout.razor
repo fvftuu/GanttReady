@@ -1,0 +1,127 @@
+﻿@inherits LayoutComponentBase
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@implements IDisposable
+@using GanttReady.Server.Shared
+
+<div class="page-body">
+    <div class="page-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
+        <div class="sidebar-header">
+            <span class="sidebar-logo">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="var(--primary)" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M9.218 2h2.402L16 12.987h-2.402zM4.379 2h2.512l4.38 10.987H8.82l-.895-2.308h-4.58l-.896 2.307H0L4.38 2.001zm2.755 6.64L5.635 4.777 4.137 8.64z"/>
+                </svg>
+            </span>
+            <span class="sidebar-title">NetPlan</span>
+            @if (!_sidebarCollapsed)
+            {
+                <span style="font-size:10px;color:var(--text-secondary);margin-left:auto;padding-right:4px;">v1.7d</span>
+            }
+        </div>
+        <div class="sidebar-nav">
+            <a href="/" class="nav-item @GetNavClass("/")">
+                <i class="bi bi-buildings nav-icon"></i>
+                <span class="nav-label">首页</span>
+            </a>
+            @{
+                var pid = GetCurrentProjectId();
+            }
+            @if (pid.HasValue)
+            {
+                <a href="@($"/project/{pid.Value}/gantt")" class="nav-item @GetNavClass("gantt")">
+                    <i class="bi bi-bar-chart-steps nav-icon"></i>
+                    <span class="nav-label">甘特图</span>
+                </a>
+                <a href="@($"/project/{pid.Value}/resources")" class="nav-item @GetNavClass("resources")">
+                    <i class="bi bi-truck nav-icon"></i>
+                    <span class="nav-label">资源</span>
+                </a>
+                <a href="@($"/project/{pid.Value}/analysis")" class="nav-item @GetNavClass("analysis")">
+                    <i class="bi bi-activity nav-icon"></i>
+                    <span class="nav-label">分析</span>
+                </a>
+            }
+            else
+            {
+                <a href="javascript:void(0)" class="nav-item disabled @GetNavClass("gantt")">
+                    <i class="bi bi-bar-chart-steps nav-icon"></i>
+                    <span class="nav-label">甘特图</span>
+                </a>
+                <a href="javascript:void(0)" class="nav-item disabled @GetNavClass("resources")">
+                    <i class="bi bi-truck nav-icon"></i>
+                    <span class="nav-label">资源</span>
+                </a>
+                <a href="javascript:void(0)" class="nav-item disabled @GetNavClass("analysis")">
+                    <i class="bi bi-activity nav-icon"></i>
+                    <span class="nav-label">分析</span>
+                </a>
+            }
+            <a href="javascript:navToChecked('network')" class="nav-item disabled @GetNavClass("network")">
+                <i class="bi bi-bezier2 nav-icon"></i>
+                <span class="nav-label">网络图</span>
+            </a>
+            <div class="nav-divider" style="height:1px;background:var(--border);margin:6px 12px;"></div>
+            <a href="/analysis" class="nav-item @(Nav.Uri.TrimEnd('/') == Nav.BaseUri.TrimEnd('/') + "/analysis" ? "active" : "")">
+                <i class="bi bi-clipboard-pulse nav-icon"></i>
+                <span class="nav-label">多项目分析</span>
+            </a>
+        </div>
+        <div class="sidebar-footer">
+            <a href="javascript:void(0)" class="nav-item collapse-btn" @onclick="ToggleSidebar">
+                <i class="bi bi-box-arrow-left nav-icon"></i>
+                <span class="nav-label">折叠</span>
+            </a>
+        </div>
+    </div>
+    <div class="page-main" style="@(_chatVisible ? "margin-right:380px;" : "")">
+        @Body
+    </div>
+</div>
+
+<Toast />
+
+<AIChatPanel @bind-Visible="_chatVisible" />
+
+@code {
+    private bool _sidebarCollapsed = false;
+    private bool _chatVisible = false;
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
+
+    private void ToggleSidebar() => _sidebarCollapsed = !_sidebarCollapsed;
+
+    private string GetNavClass(string page)
+    {
+        var uri = Nav.Uri.ToLower();
+        if (page == "/")
+            return uri == Nav.BaseUri.TrimEnd('/').ToLower() || uri.EndsWith("/") ? "active" : "";
+        // 功能链接只在项目页面内才高亮
+        return uri.Contains("/project/") && uri.Contains("/" + page.ToLower()) ? "active" : "";
+    }
+
+    private int? GetCurrentProjectId()
+    {
+        var uri = Nav.Uri;
+        var idx = uri.IndexOf("/project/", StringComparison.OrdinalIgnoreCase);
+        if (idx < 0) return null;
+        var after = uri[(idx + 9)..];
+        var end = after.IndexOfAny(new[] { '/', '?' });
+        if (end < 0) end = after.Length;
+        if (int.TryParse(after[..end], out var id))
+            return id;
+        return null;
+    }
+}

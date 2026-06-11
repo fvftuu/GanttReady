@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>GanttReady.Server</RootNamespace>
+    <RestorePackagesPath>C:\Users\REX\.nuget\packages</RestorePackagesPath>
+    <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="ClosedXML" Version="0.102.2" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="2.16.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Services\analysis_prompt_template.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Post-build: 澶嶅埗鍘熺敓 e_sqlite3.dll锛堥伩鍏?Referen鈥媍e 涓㈠け鍘熺敓搴撹矾寰勶級 -->
+  <Target Name="CopyNativeSqlite" AfterTargets="Build">
+    <Copy SourceFiles="bin\Debug\net8.0\runtimes\win-x64\native\e_sqlite3.dll"
+          DestinationFolder="$(OutputPath)"
+          Condition="Exists('bin\Debug\net8.0\runtimes\win-x64\native\e_sqlite3.dll')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>
+
