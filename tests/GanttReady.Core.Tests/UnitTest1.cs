@@ -1,4 +1,4 @@
-﻿namespace GanttReady.Core.Tests;
+namespace NetPlan.Core.Tests;
 
 public class UnitTest1
 {
