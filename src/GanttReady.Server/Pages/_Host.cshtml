@@ -10,7 +10,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NetPlan - 进度计划管理系统</title>
+    <title>GanttReady - 进度计划管理系统</title>
     <base href="~/" />
     <link href="css/site.css?v=20260525" rel="stylesheet" />
     <link href="css/open-iconic/font/css/open-iconic-bootstrap.min.css" rel="stylesheet" />
@@ -19,12 +19,12 @@
     </style>
     <!-- Index page globals: must load before Blazor render to avoid race -->
     <script>
-        window.setCheckedProject = function(id) { localStorage.setItem('netplan_checked', id); };
-        window.getCheckedProject = function() { return localStorage.getItem('netplan_checked') || 0; };
+        window.setCheckedProject = function(id) { localStorage.setItem('ganttready_checked', id); };
+        window.getCheckedProject = function() { return localStorage.getItem('ganttready_checked') || 0; };
         window.navToChecked = function(page) {
             // 优先从当前 URL 提取项目 ID，fallback 到 localStorage
             var m = window.location.pathname.match(/\/project\/(\d+)/);
-            var id = m ? m[1] : localStorage.getItem('netplan_checked');
+            var id = m ? m[1] : localStorage.getItem('ganttready_checked');
             if (id > 0) { window.location.href = '/project/' + id + '/' + page; }
             else { window.location.href = '/#select-project'; }
         };
