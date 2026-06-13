@@ -5,15 +5,35 @@
 
 ---
 
+## 快速开始
+
+```bash
+# 克隆
+git clone https://github.com/fvftuu/GanttReady.git
+cd GanttReady/src/GanttReady.Server
+
+# 运行（首次自动还原 NuGet 包 + 创建 SQLite 数据库）
+dotnet run
+```
+
+打开 `http://localhost:5000` 即可使用。
+
+首次打开是空项目，可以：
+- 在首页点击 **创建项目** 手动添加任务
+- 或打开 **AI 助手**（页面右下角），输入「帮我创建一个软件项目，7月1日开始，分需求分析、设计、开发、测试四个阶段」体验自动排程
+
 ## 截图
 
-![首页](docs/screenshots/%E9%A6%96%E9%A1%B5.png)
-
+*AI 助手对话创建项目*
 ![示例](docs/screenshots/%E7%A4%BA%E4%BE%8B.png)
 
+*项目首页与全局概览*
+![首页](docs/screenshots/%E9%A6%96%E9%A1%B5.png)
+
+*进度分析与挣值报表*
 ![分析](docs/screenshots/%E5%88%86%E6%9E%90.png)
 
-## 快速开始
+> 提示：截图中的 PNG 文件较大，建议你克隆后本地查看效果更流畅。
 
 ```bash
 # 克隆
