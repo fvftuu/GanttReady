@@ -1,5 +1,9 @@
 # GanttReady — Project Schedule Management Tool
 
+[![Star](https://img.shields.io/github/stars/fvftuu/GanttReady?style=social)](https://github.com/fvftuu/GanttReady)
+[![License](https://img.shields.io/github/license/fvftuu/GanttReady)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/download)
+
 > An open-source project management tool with an AI assistant.  
 > Gantt Chart · Critical Path Method (CPM) · Earned Value Management (EVM) · Resource Management · AI-Powered Scheduling
 

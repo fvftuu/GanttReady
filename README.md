@@ -1,5 +1,9 @@
 # GanttReady — 进度计划管理系统
 
+[![Star](https://img.shields.io/github/stars/fvftuu/GanttReady?style=social)](https://github.com/fvftuu/GanttReady)
+[![License](https://img.shields.io/github/license/fvftuu/GanttReady)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/download)
+
 [English](README.en.md)
 
 > 一个开源的、带 AI 助手的项目进度管理工具。  
