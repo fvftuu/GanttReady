@@ -38,3 +38,6 @@ dist-netplan/
 temp/  
 node_modules/ 
 nul
+
+# Reasonix tool data
+.reasonix/
