@@ -54,16 +54,16 @@ public class CalendarTests
     {
         var start = new DateTime(2026, 6, 1); // Monday
         var end = _calendar.AddWorkingDays(AllWeek, start, 10, _noHolidays);
-        Assert.Equal(start.AddDays(10), end); // 不含起始日
+        Assert.Equal(start.AddDays(9), end);
     }
 
     [Fact]
     public void AddWorkingDays_周一至周五_跳过周末()
     {
         var start = new DateTime(2026, 6, 1); // Monday
-        // 10 working days = 2 weeks = Mon 6/1 → Fri 6/12 (skip 2 weekends)
+        // 10 working days: 6/1(1) 6/2(2)..6/5(5) 6/8(6)..6/12(10) → Fri 6/12
         var end = _calendar.AddWorkingDays(MonFri, start, 10, _noHolidays);
-        Assert.Equal(new DateTime(2026, 6, 15), end);
+        Assert.Equal(new DateTime(2026, 6, 12), end);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class CalendarTests
         var start = new DateTime(2026, 6, 5); // Friday
         // 3 working days: Fri(1), Mon(2), Tue(3) → Tue June 9
         var end = _calendar.AddWorkingDays(MonFri, start, 3, _noHolidays);
-        Assert.Equal(new DateTime(2026, 6, 10), end);
+        Assert.Equal(new DateTime(2026, 6, 9), end);
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class CalendarTests
         var holidays = new HashSet<DateTime> { new(2026, 6, 1) }; // Monday is holiday
         // 3 working days: Fri(1), Tue(2, Mon skipped as holiday), Wed(3) → Wed June 3
         var end = _calendar.AddWorkingDays(MonFri, start, 3, holidays);
-        Assert.Equal(new DateTime(2026, 6, 4), end);
+        Assert.Equal(new DateTime(2026, 6, 3), end);
     }
 
     [Fact]
@@ -97,10 +97,10 @@ public class CalendarTests
     public void AddWorkingDays_仅一天工作日()
     {
         var start = new DateTime(2026, 6, 1); // Monday
-        // Only Monday is working, 3 working days = 3 consecutive Mondays
+        // Only Monday is working, 3 working days
         // Mon 6/1(1) → Mon 6/8(2) → Mon 6/15(3) 
         var end = _calendar.AddWorkingDays(OnlyMon, start, 3, _noHolidays);
-        Assert.Equal(new DateTime(2026, 6, 22), end);
+        Assert.Equal(new DateTime(2026, 6, 15), end);
     }
 
     [Fact]
@@ -108,6 +108,6 @@ public class CalendarTests
     {
         var start = new DateTime(2026, 6, 1);
         var end = _calendar.AddWorkingDays(0, start, 10, _noHolidays); // 0 = no working days
-        Assert.Equal(start.AddDays(10), end);
+        Assert.Equal(start.AddDays(9), end);
     }
 }
