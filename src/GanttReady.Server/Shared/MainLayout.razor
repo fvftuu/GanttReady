@@ -28,6 +28,10 @@
                     <i class="bi bi-bar-chart-steps nav-icon"></i>
                     <span class="nav-label">甘特图</span>
                 </a>
+                <a href="@($"/project/{pid.Value}/logic-diagram")" class="nav-item @GetNavClass("logic-diagram")">
+                    <i class="bi bi-diagram-3 nav-icon"></i>
+                    <span class="nav-label">逻辑图</span>
+                </a>
                 <a href="@($"/project/{pid.Value}/resources")" class="nav-item @GetNavClass("resources")">
                     <i class="bi bi-truck nav-icon"></i>
                     <span class="nav-label">资源</span>

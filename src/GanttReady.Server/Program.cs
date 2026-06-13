@@ -31,6 +31,7 @@ builder.Services.AddScoped<IAnalysisService, AnalysisService>();
 builder.Services.AddScoped<ExcelTemplateService>();
 builder.Services.AddScoped<WordExportService>();
 builder.Services.AddScoped<ProjectXmlImportService>();
+builder.Services.AddScoped<LogicDiagramService>();
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.Section));
 builder.Services.AddScoped<IAiService, AiService>();
 builder.Services.AddSingleton<ToastService>();
@@ -126,6 +127,20 @@ app.UseEndpoints(endpoints =>
         var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
         var fileName = Path.GetFileName(filePath);
         return Results.File(bytes, "text/csv; charset=utf-8", fileName);
+    });
+
+        // 逻辑图调试API
+    endpoints.MapGet("/api/logic-test/{projectId}", async (int projectId, LogicDiagramService svc) =>
+    {
+        try
+        {
+            var result = await svc.GenerateAsync(projectId);
+            return Results.Ok(new { nodes = result.Nodes.Count, edges = result.Edges.Count, w = result.TotalWidth, h = result.TotalHeight });
+        }
+        catch (Exception ex)
+        {
+            return Results.Ok(new { error = ex.Message, stack = ex.StackTrace });
+        }
     });
 
     // 导出Excel (.xlsx) API - 使用ClosedXML生成真实Excel文件

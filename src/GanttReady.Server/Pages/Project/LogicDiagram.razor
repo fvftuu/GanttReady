@@ -1,0 +1,89 @@
+@page "/project/{ProjectId:int}/logic-diagram"
+@inject IProjectService ProjectService
+@inject LogicDiagramService LogicDiagramService
+@inject IJSRuntime JS
+
+<div class="page-header">
+    <div class="header-left">
+        @{
+            var curProj = projects.FirstOrDefault(p => p.Id == currentProjectId);
+        }
+        @if (curProj != null)
+        {
+            <span style="font-size:16px;font-weight:600;color:var(--text);"><i class="bi bi-folder-check"></i> @curProj.Name</span>
+        }
+        <span class="page-title">逻辑图</span>
+        <span style="font-size:12px;color:#999;margin-left:8px;">自动生成 · 竖排任务依赖关系</span>
+    </div>
+</div>
+
+<div id="logic-diagram-container" style="overflow:auto;padding:20px;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);min-height:300px;">
+    @if (currentProjectId == 0)
+    {
+        <div style="display:flex;align-items:center;justify-content:center;min-height:300px;color:#999;font-size:16px;">
+            请先选择一个项目
+        </div>
+    }
+    else
+    {
+        <div style="min-width:100%;text-align:center;color:#999;padding:40px;" id="logic-diagram-placeholder">
+            @if (loading) { <text>生成中...</text> }
+            else { <text>暂无任务数据，请先创建任务并设置前置关系</text> }
+        </div>
+    }
+</div>
+
+@code {
+    private int currentProjectId;
+    private List<Project> projects = new();
+    private bool loading;
+
+    [Parameter]
+    public int ProjectId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        projects = await ProjectService.GetAllProjectsAsync();
+        if (ProjectId > 0 && projects.Any(p => p.Id == ProjectId))
+            currentProjectId = ProjectId;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ProjectId > 0 && projects.Any(p => p.Id == ProjectId) && ProjectId != currentProjectId)
+        {
+            currentProjectId = ProjectId;
+            await RenderDiagram();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && currentProjectId > 0)
+            await RenderDiagram();
+    }
+
+    private async Task RenderDiagram()
+    {
+        loading = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await LogicDiagramService.GenerateAsync(currentProjectId);
+            if (result.Nodes.Count > 0)
+            {
+                var json = System.Text.Json.JsonSerializer.Serialize(result, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+                await JS.InvokeVoidAsync("renderLogicDiagram", "logic-diagram-container", json);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"逻辑图生成失败: {ex.Message}");
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}
