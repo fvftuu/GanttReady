@@ -5,11 +5,19 @@
 
 ---
 
+## 截图
+
+![首页](docs/screenshots/%E9%A6%96%E9%A1%B5.png)
+
+![示例](docs/screenshots/%E7%A4%BA%E4%BE%8B.png)
+
+![分析](docs/screenshots/%E5%88%86%E6%9E%90.png)
+
 ## 快速开始
 
 ```bash
 # 克隆
-git clone https://github.com/YOUR_USER/GanttReady.git
+git clone https://github.com/fvftuu/GanttReady.git
 cd GanttReady/src/GanttReady.Server
 
 # 运行（首次自动还原 NuGet 包 + 创建 SQLite 数据库）
