@@ -50,17 +50,25 @@
                 var x2 = to.x + to.width / 2;
                 var y2 = to.y;
 
-                var line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                // 垂直折线路径：向下→平移→向下
+                var midY = (y1 + y2) / 2;
                 var d = 'M ' + x1 + ' ' + y1 +
-                        ' C ' + x1 + ' ' + (y1 + (y2 - y1) / 2) +
-                        ', ' + x2 + ' ' + (y1 + (y2 - y1) / 2) +
-                        ', ' + x2 + ' ' + y2;
+                        ' L ' + x1 + ' ' + midY +
+                        ' L ' + x2 + ' ' + midY +
+                        ' L ' + x2 + ' ' + (y2 - 6);
+                var line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 line.setAttribute('d', d);
                 line.setAttribute('fill', 'none');
                 line.setAttribute('stroke', '#666');
                 line.setAttribute('stroke-width', '1.5');
-                line.setAttribute('marker-end', 'url(#arrowhead)');
+
+                // 画箭头（确保始终指向目标上边缘的中心）
+                var arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                var ax = x2, ay = y2;
+                arrow.setAttribute('points', (ax - 5) + ',' + (ay - 7) + ' ' + ax + ',' + ay + ' ' + (ax + 5) + ',' + (ay - 7));
+                arrow.setAttribute('fill', '#666');
                 svg.appendChild(line);
+                svg.appendChild(arrow);
             });
         }
 
