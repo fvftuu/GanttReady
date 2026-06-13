@@ -5,7 +5,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>GanttReady.Server</RootNamespace>
-    <RestorePackagesPath>C:\Users\REX\.nuget\packages</RestorePackagesPath>
     <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
   </PropertyGroup>
 
