@@ -41,3 +41,8 @@ nul
 
 # Reasonix tool data
 .reasonix/
+
+# Other tool artifacts
+.openclaw/
+.playwright-cli/
+.workbuddy/

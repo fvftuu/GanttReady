@@ -1,4 +1,0 @@
-[      34ms] [INFO] [2026-05-05T06:17:12.224Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
-[      39ms] [INFO] [2026-05-05T06:17:12.230Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=vgFENzt-FGtjGy3A8zBTYw. @ http://localhost:5000/_framework/blazor.server.js:0
-[  168290ms] [INFO] [2026-05-05T06:20:00.480Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
-[  168299ms] [INFO] [2026-05-05T06:20:00.489Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=uxoeTk1qLWS-iTaG45YgmA. @ http://localhost:5000/_framework/blazor.server.js:0

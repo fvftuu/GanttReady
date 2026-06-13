@@ -1,3 +1,0 @@
-[      28ms] [INFO] [2026-05-03T07:15:18.697Z] Information: Normalizing '_blazor' to 'http://localhost:5000/_blazor'. @ http://localhost:5000/_framework/blazor.server.js:0
-[      31ms] [INFO] [2026-05-03T07:15:18.700Z] Information: WebSocket connected to ws://localhost:5000/_blazor?id=in8IYuvIRJrK4e1DxmpvSQ. @ http://localhost:5000/_framework/blazor.server.js:0
-[     335ms] [WARNING] You have set a custom wheel sensitivity.  This will make your app zoom unnaturally when using mainstream mice.  You should change this value from the default only if you can guarantee that all your users will use the same hardware and OS configuration as your current machine. @ https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js:22
