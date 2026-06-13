@@ -46,16 +46,3 @@ nul
 .openclaw/
 .playwright-cli/
 .workbuddy/
-
-# AI assistant session notes
-memory/
-
-# AI assistant config files
-AGENTS.md
-SOUL.md
-USER.md
-TOOLS.md
-MEMORY.md
-HEARTBEAT.md
-IDENTITY.md
-CHANGELOG.md
