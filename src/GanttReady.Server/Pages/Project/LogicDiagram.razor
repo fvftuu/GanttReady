@@ -15,9 +15,15 @@
         <span class="page-title">逻辑图</span>
         <span style="font-size:12px;color:#999;margin-left:8px;">自动生成 · 竖排任务依赖关系</span>
     </div>
+    <div class="header-right" style="display:flex;gap:4px;">
+        <button class="btn btn-sm btn-default" onclick="logicDiagramZoomOut()" title="缩小" style="padding:0 6px;"><i class="bi bi-zoom-out"></i></button>
+        <span id="logic-zoom-level" style="font-size:11px;color:#666;min-width:32px;text-align:center;line-height:26px;">100%</span>
+        <button class="btn btn-sm btn-default" onclick="logicDiagramZoomIn()" title="放大" style="padding:0 6px;"><i class="bi bi-zoom-in"></i></button>
+        <button class="btn btn-sm btn-default" onclick="logicDiagramExport()" title="导出PNG" style="color:#2e7d32;"><i class="bi bi-file-earmark-image"></i></button>
+    </div>
 </div>
 
-<div id="logic-diagram-container" style="overflow:auto;padding:20px;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);min-height:300px;">
+<div id="logic-diagram-container" style="overflow:hidden;padding:0;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.06);min-height:300px;position:relative;cursor:grab;">
     @if (currentProjectId == 0)
     {
         <div style="display:flex;align-items:center;justify-content:center;min-height:300px;color:#999;font-size:16px;">

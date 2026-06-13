@@ -13,9 +13,15 @@
         var ph = document.getElementById('logic-diagram-placeholder');
         if (ph) ph.style.display = 'none';
 
-        var svg = container.querySelector('.logic-diagram-svg');
-        if (svg) svg.remove();
-        svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        var oldWrap = container.querySelector('.logic-diagram-wrap');
+        if (oldWrap) oldWrap.remove();
+
+        var svgWrap = document.createElement('div');
+        svgWrap.className = 'logic-diagram-wrap';
+        svgWrap.style.transformOrigin = '0 0';
+        svgWrap.style.display = 'inline-block';
+
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('class', 'logic-diagram-svg');
         svg.setAttribute('width', data.totalWidth || 800);
         svg.setAttribute('height', data.totalHeight || 600);
@@ -125,6 +131,101 @@
             svg.appendChild(g);
         });
 
-        container.appendChild(svg);
+        svgWrap.appendChild(svg);
+        container.appendChild(svgWrap);
+
+        // 保存引用用于缩放/平移
+        container._svgWrap = svgWrap;
+        container._scale = 1;
+        container._panX = 0;
+        container._panY = 0;
+        UpdateTransform(container);
+    };
+
+    function UpdateTransform(container) {
+        var wrap = container._svgWrap;
+        if (!wrap) return;
+        wrap.style.transform = 'translate(' + container._panX + 'px,' + container._panY + 'px) scale(' + container._scale + ')';
+        var el = document.getElementById('logic-zoom-level');
+        if (el) el.textContent = Math.round(container._scale * 100) + '%';
+    }
+
+    // 缩放
+    window.logicDiagramZoomIn = function () {
+        var c = document.getElementById('logic-diagram-container');
+        if (!c) return;
+        c._scale = Math.min(c._scale + 0.1, 3);
+        UpdateTransform(c);
+    };
+    window.logicDiagramZoomOut = function () {
+        var c = document.getElementById('logic-diagram-container');
+        if (!c) return;
+        c._scale = Math.max(c._scale - 0.1, 0.2);
+        UpdateTransform(c);
+    };
+    // 鼠标滚轮缩放
+    document.addEventListener('wheel', function (e) {
+        var c = document.getElementById('logic-diagram-container');
+        if (!c || !c.contains(e.target)) return;
+        e.preventDefault();
+        var delta = e.deltaY > 0 ? -0.05 : 0.05;
+        c._scale = Math.max(0.2, Math.min(3, c._scale + delta));
+        UpdateTransform(c);
+    }, { passive: false });
+
+    // 平移（鼠标拖拽）
+    var _drag = null;
+    document.addEventListener('mousedown', function (e) {
+        var c = document.getElementById('logic-diagram-container');
+        if (!c || !c.contains(e.target) || e.target.tagName === 'BUTTON') return;
+        _drag = { x: e.clientX, y: e.clientY, px: c._panX, py: c._panY };
+        c.style.cursor = 'grabbing';
+    });
+    document.addEventListener('mousemove', function (e) {
+        if (!_drag) return;
+        var c = document.getElementById('logic-diagram-container');
+        if (!c) return;
+        c._panX = _drag.px + (e.clientX - _drag.x);
+        c._panY = _drag.py + (e.clientY - _drag.y);
+        UpdateTransform(c);
+    });
+    document.addEventListener('mouseup', function () {
+        if (!_drag) return;
+        var c = document.getElementById('logic-diagram-container');
+        if (c) c.style.cursor = 'grab';
+        _drag = null;
+    });
+
+    // 导出PNG
+    window.logicDiagramExport = function () {
+        var c = document.getElementById('logic-diagram-container');
+        if (!c) return;
+        var wrap = c._svgWrap;
+        if (!wrap) return;
+        var svg = wrap.querySelector('svg');
+        if (!svg) return;
+
+        // 用 SVG 直接导出，避免 html2canvas 截不全
+        var svgData = new XMLSerializer().serializeToString(svg);
+        var canvas = document.createElement('canvas');
+        canvas.width = svg.getAttribute('width') * 2;
+        canvas.height = svg.getAttribute('height') * 2;
+        var ctx = canvas.getContext('2d');
+        ctx.scale(2, 2);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        var img = new Image();
+        var blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        img.onload = function () {
+            ctx.drawImage(img, 0, 0);
+            URL.revokeObjectURL(url);
+            var link = document.createElement('a');
+            link.download = '逻辑图.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        };
+        img.src = url;
     };
 })();
