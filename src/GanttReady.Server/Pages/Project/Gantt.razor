@@ -27,7 +27,7 @@
         <button class="btn btn-sm btn-default" @onclick="MoveTaskUp" title="上移" disabled="@(selectedTaskId == null)"><i class="bi bi-arrow-bar-up"></i></button>
         <button class="btn btn-sm btn-default" @onclick="MoveTaskDown" title="下移" disabled="@(selectedTaskId == null)"><i class="bi bi-arrow-bar-down"></i></button>
         <div style="position:relative;display:inline-block;">
-            <button class="btn btn-sm btn-default" @onclick="ToggleColumnPanel" title="列设置"><i class="bi bi-card-checklist"></i></button>
+            <button id="btn-column-settings" class="btn btn-sm btn-default" @onclick="ToggleColumnPanel" title="列设置"><i class="bi bi-card-checklist"></i></button>
         </div>
         <span class="toolbar-sep"></span>
         <button class="gantt-toggle-btn @(showCriticalLine ? "active" : "")" @onclick="() => { showCriticalLine = !showCriticalLine; SaveGanttSettings(); }" title="关键工作标红"><i class="bi bi-flag"></i></button>
