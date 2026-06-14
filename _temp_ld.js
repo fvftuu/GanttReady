@@ -46,10 +46,6 @@
 
         // 画连线
         if (data.edges) {
-            var inCount = {};
-            data.edges.forEach(function (e) { inCount[e.toTaskId] = (inCount[e.toTaskId] || 0) + 1; });
-            var inDrawn = {};
-
             data.edges.forEach(function (edge) {
                 var from = data.nodes.find(function (n) { return n.taskId === edge.fromTaskId; });
                 var to = data.nodes.find(function (n) { return n.taskId === edge.toTaskId; });
@@ -57,15 +53,11 @@
 
                 var x1 = from.x + from.width / 2;
                 var y1 = from.y + from.height;
-                var total = inCount[edge.toTaskId] || 1;
-                var idx = inDrawn[edge.toTaskId] || 0;
-                inDrawn[edge.toTaskId] = idx + 1;
-                var spacing = to.width / (total + 1);
-                var x2 = to.x + spacing * (idx + 1);
+                var x2 = to.x + to.width / 2;
                 var y2 = to.y;
 
-                // 垂直折线路径：向下→平移→向下（多入线错开水平高度）
-                var midY = (y1 + y2) / 2 + (idx - (total - 1) / 2) * 8;
+                // 垂直折线路径：向下→平移→向下
+                var midY = (y1 + y2) / 2;
                 var d = 'M ' + x1 + ' ' + y1 +
                         ' L ' + x1 + ' ' + midY +
                         ' L ' + x2 + ' ' + midY +
