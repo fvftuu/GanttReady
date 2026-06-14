@@ -45,6 +45,7 @@
         svg.appendChild(defs);
 
         // 画连线
+        // 画连线（箭头旁标注来源任务编号）
         if (data.edges) {
             var inCount = {};
             data.edges.forEach(function (e) { inCount[e.toTaskId] = (inCount[e.toTaskId] || 0) + 1; });
@@ -55,6 +56,7 @@
                 var to = data.nodes.find(function (n) { return n.taskId === edge.toTaskId; });
                 if (!from || !to) return;
 
+                var code = from.code || '';
                 var x1 = from.x + from.width / 2;
                 var y1 = from.y + from.height;
                 var total = inCount[edge.toTaskId] || 1;
@@ -64,25 +66,41 @@
                 var x2 = to.x + spacing * (idx + 1);
                 var y2 = to.y;
 
-                // 垂直折线路径：向下→平移→向下（多入线错开水平高度）
-                var midY = (y1 + y2) / 2 + (idx - (total - 1) / 2) * 8;
-                var d = 'M ' + x1 + ' ' + y1 +
-                        ' L ' + x1 + ' ' + midY +
-                        ' L ' + x2 + ' ' + midY +
-                        ' L ' + x2 + ' ' + (y2 - 6);
+                var d;
+                var srcCenter = from.x + from.width / 2;
+                var tgtCenter = to.x + to.width / 2;
+                if (srcCenter === tgtCenter) {
+                    // 同列：直线
+                    d = 'M ' + srcCenter + ' ' + y1 + ' L ' + srcCenter + ' ' + (y2 - 6);
+                } else {
+                    // 判断是否跨行（y间距大于1层+间隙=130px）
+                    var bendY = (y2 - y1 > 130) ? y2 - 20 : y1 + (y2 - y1) / 2;
+                    d = 'M ' + x1 + ' ' + y1 + ' L ' + x1 + ' ' + bendY + ' L ' + x2 + ' ' + bendY + ' L ' + x2 + ' ' + (y2 - 6);
+                }
+
                 var line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 line.setAttribute('d', d);
                 line.setAttribute('fill', 'none');
                 line.setAttribute('stroke', '#666');
                 line.setAttribute('stroke-width', '1.5');
 
-                // 画箭头（确保始终指向目标上边缘的中心）
+                var arrowX = (srcCenter === tgtCenter) ? srcCenter : x2;
                 var arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-                var ax = x2, ay = y2;
-                arrow.setAttribute('points', (ax - 5) + ',' + (ay - 7) + ' ' + ax + ',' + ay + ' ' + (ax + 5) + ',' + (ay - 7));
+                arrow.setAttribute('points', (arrowX - 5) + ',' + (y2 - 7) + ' ' + arrowX + ',' + y2 + ' ' + (arrowX + 5) + ',' + (y2 - 7));
                 arrow.setAttribute('fill', '#666');
                 svg.appendChild(line);
                 svg.appendChild(arrow);
+
+                // 标注来源任务编号（箭头左侧）
+                var labelX = (srcCenter === tgtCenter) ? srcCenter : x2;
+                var label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', labelX - 8);
+                label.setAttribute('y', y2 - 10);
+                label.setAttribute('font-size', '9');
+                label.setAttribute('fill', '#999');
+                label.setAttribute('text-anchor', 'end');
+                label.textContent = code;
+                svg.appendChild(label);
             });
         }
 
